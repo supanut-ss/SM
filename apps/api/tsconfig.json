@@ -2,7 +2,13 @@
   "extends": "@lotus-desk/config/tsconfig/nestjs.json",
   "compilerOptions": {
     "baseUrl": "./",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    // moduleResolution "Node" (classic) ไม่รู้จัก package.json#exports จึงหา type ของ @casl/ability
+    // ไม่เจอ (ตัวแพ็กเกจมี main แบบ CJS ปกติ แต่ .d.ts อยู่ใต้ exports map เท่านั้น) — ชี้ตรงแทน
+    // เปลี่ยนเป็น moduleResolution ใหม่ทั้ง repo เสี่ยงพังการ interop ของ CJS/ESM ที่ผสมกันอยู่ตอนนี้
+    "paths": {
+      "@casl/ability": ["./node_modules/@casl/ability/dist/types/index.d.ts"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "test"]

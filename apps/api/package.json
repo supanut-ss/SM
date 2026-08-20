@@ -12,6 +12,7 @@
     "test:e2e": "vitest run --config vitest.e2e.config.mts"
   },
   "dependencies": {
+    "@casl/ability": "7.0.1",
     "@lotus-desk/contracts": "workspace:*",
     "@lotus-desk/db": "workspace:*",
     "@nestjs/common": "11.2.1",
