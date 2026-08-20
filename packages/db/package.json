@@ -2,5 +2,34 @@
   "name": "@lotus-desk/db",
   "private": true,
   "version": "0.0.0",
-  "description": "Prisma schema + migrations + seed — ติดตั้งจริงใน Task T0.3 (ดู docs/PLAN.md §5)"
+  "type": "module",
+  "description": "Prisma schema + migrations + seed",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "scripts": {
+    "build": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma migrate reset",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3"
+  },
+  "devDependencies": {
+    "@lotus-desk/config": "workspace:*",
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "prisma": "6.19.3",
+    "tsx": "4.23.12",
+    "typescript": "5.7.3",
+    "vitest": "4.1.11"
+  }
 }

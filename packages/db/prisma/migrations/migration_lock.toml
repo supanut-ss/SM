@@ -1,0 +1,2 @@
+# กำหนด provider ของ migration history — ห้ามแก้ด้วยมือ (สร้างโดย prisma migrate)
+provider = "postgresql"

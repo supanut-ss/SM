@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// ประเภทการกระทำที่ AuditLog บันทึก — ดู docs/PLAN.md T1.5 (interceptor เต็มรูปยังไม่ทำที่นี่)
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+/// สาขาของร้าน — ทุกตารางที่ผูกกับข้อมูลร้านต้องมี branchId อ้างมาที่นี่ (ดู CLAUDE.md ข้อ 5)
+model Branch {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  timezone  String   @default("Asia/Bangkok")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  auditLogs AuditLog[]
+
+  @@map("branches")
+}
+
+/// ร่องรอยการแก้ไขแบบ append-only — ห้าม UPDATE/DELETE ที่ระดับ DB role (ดู T1.5)
+model AuditLog {
+  id        String      @id @default(cuid())
+  branchId  String?
+  branch    Branch?     @relation(fields: [branchId], references: [id])
+  actorId   String?
+  action    AuditAction
+  entity    String
+  entityId  String
+  before    Json?
+  after     Json?
+  ipAddress String?
+  requestId String?
+  createdAt DateTime    @default(now()) @db.Timestamptz
+
+  @@index([entity, entityId])
+  @@index([branchId])
+  @@map("audit_logs")
+}
