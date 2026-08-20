@@ -64,10 +64,32 @@ model User {
   createdAt    DateTime @default(now()) @db.Timestamptz
   updatedAt    DateTime @updatedAt @db.Timestamptz
 
-  branches   UserBranch[]
-  auditLogs  AuditLog[]
+  branches      UserBranch[]
+  auditLogs     AuditLog[]
+  refreshTokens RefreshToken[]
 
   @@map("users")
+}
+
+/// ติดตาม refresh token แต่ละสาย (family) เพื่อทำ rotation + reuse detection (ดู T1.2)
+/// เก็บ hash เท่านั้น ห้ามเก็บ token จริง — ถ้าใช้ token ที่ถูกเพิกถอนไปแล้วซ้ำ (revokedAt ไม่ null)
+/// แปลว่า token รั่วไหล ต้องเพิกถอนทั้งสาย (familyId เดียวกัน) ทันที
+model RefreshToken {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  familyId     String
+  expiresAt    DateTime  @db.Timestamptz
+  revokedAt    DateTime? @db.Timestamptz
+  replacedById String?   @unique
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime  @default(now()) @db.Timestamptz
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
 }
 
 /// บทบาท — seed ไว้ 4 บทบาทตายตัว (เจ้าของ/ผู้จัดการ/แคชเชียร์/พนักงานบริการ) ดู prisma/seed.ts

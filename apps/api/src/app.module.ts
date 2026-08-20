@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { AppController } from "./app.controller";
 import { validateEnv } from "./config/validate-env";
+import { PrismaModule } from "./prisma/prisma.module";
+import { AuthModule } from "./modules/auth/auth.module";
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { validateEnv } from "./config/validate-env";
       envFilePath: ["../../.env", ".env"],
       validate: validateEnv,
     }),
+    PrismaModule,
+    AuthModule,
   ],
   controllers: [AppController],
 })
