@@ -1,4 +1,7 @@
-import { Controller, Get, NotFoundException, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, NotFoundException, Patch, UseGuards } from "@nestjs/common";
+import { updateBranchSchema, type UpdateBranchInput } from "@lotus-desk/contracts";
+import { AuditEntity } from "../../audit/audit-entity.decorator";
+import { ZodValidationPipe } from "../../common/zod-validation.pipe";
 import { PrismaService } from "../../prisma/prisma.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentBranch } from "../rbac/current-branch.decorator";
@@ -32,5 +35,15 @@ export class BranchController {
   async listDevices(@CurrentBranch() branch: BranchContext) {
     // ใช้ forBranch() แทน prisma.client ตรง ๆ — กันพลาดลืมกรอง branchId แม้ query จะยาวขึ้นในอนาคต
     return this.prisma.forBranch(branch.branchId).device.findMany({ orderBy: { label: "asc" } });
+  }
+
+  @Patch(":branchId")
+  @RequirePermission("manage", "branch")
+  @AuditEntity("Branch") // AuditInterceptor (global) จับคู่ :branchId กับ entity นี้อัตโนมัติ (ดู T1.5)
+  async updateBranch(
+    @CurrentBranch() branch: BranchContext,
+    @Body(new ZodValidationPipe(updateBranchSchema)) body: UpdateBranchInput,
+  ) {
+    return this.prisma.client.branch.update({ where: { id: branch.branchId }, data: body });
   }
 }

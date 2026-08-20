@@ -1,4 +1,4 @@
-import { Injectable, type OnModuleDestroy } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { prisma, type PrismaClient } from "@lotus-desk/db";
 import { withBranchScope } from "./branch-scope.extension";
 
@@ -7,8 +7,18 @@ import { withBranchScope } from "./branch-scope.extension";
  * และแทนที่ด้วย mock ได้ตอน unit test (ดู modules/auth/test/*.spec.ts)
  */
 @Injectable()
-export class PrismaService implements OnModuleDestroy {
+export class PrismaService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(PrismaService.name);
   readonly client: PrismaClient = prisma;
+
+  onModuleInit(): void {
+    if (!process.env.APP_DATABASE_URL) {
+      this.logger.warn(
+        "ไม่ได้ตั้ง APP_DATABASE_URL — แอปกำลังต่อ DB ด้วย role เจ้าของตาราง การป้องกัน " +
+          "UPDATE/DELETE บน audit_logs ที่ระดับ DB (T1.5) จะไม่มีผลจริง ดู .env.example",
+      );
+    }
+  }
 
   /**
    * ใช้หลัง PermissionGuard ยืนยัน branchId แล้วเท่านั้น (ดึงจาก request.branchContext ผ่าน

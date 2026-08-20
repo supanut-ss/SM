@@ -4,10 +4,12 @@ import { ConfigService } from "@nestjs/config";
 import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 import type { Env } from "./config/env.schema";
+import { requestIdMiddleware } from "./common/request-id.middleware";
 
 export async function createApp() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
+  app.use(requestIdMiddleware);
   return app;
 }
 

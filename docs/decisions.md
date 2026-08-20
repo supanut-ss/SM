@@ -110,3 +110,19 @@ Task ที่เกี่ยวข้อง: T1.4
 เหตุผล: กันไม่ให้ต้องแก้ `imports` ของทุก feature module ในอนาคต (T1.5 เป็นต้นไป) ที่จะใช้ `@RequirePermission` — และเป็นการบันทึกไว้ว่า "export guard แล้วต้อง export dependency ของ guard นั้นด้วยเสมอ" เป็นกฎที่ต้องทำซ้ำทุกครั้งที่เพิ่ม guard ใหม่ที่มี constructor dependency
 
 ผลกระทบ/ทางเลือกที่ไม่เลือก: ทางเลือกอื่นคือให้ทุก feature module import `AuthModule` + `RbacModule` เองแบบ explicit (ไม่พึ่ง @Global) — ปฏิเสธเพราะต้องแก้ทุกที่ที่ใช้ guard พวกนี้ซ้ำ ๆ ไปเรื่อย ๆ และง่ายต่อการลืม
+
+---
+
+## ADR-007: packages/db ต้องโหลด .env ของตัวเอง ห้ามพึ่ง @nestjs/config ฝั่ง apps/api
+วันที่: 2026-08-20
+Task ที่เกี่ยวข้อง: T1.5
+
+บริบท: ระหว่างต่อ `APP_DATABASE_URL` (role ใหม่ที่ REVOKE UPDATE/DELETE บน audit_logs — ดู migration `20260820213921_audit_log_protection`) เข้ากับ `packages/db/src/index.ts` ใส่ diagnostic log ชั่วคราวแล้วพบว่า `process.env.DATABASE_URL` และ `APP_DATABASE_URL` เป็น `undefined` ทั้งคู่ตอนที่ `new PrismaClient(...)` ทำงานจริง แม้จะมีไฟล์ `.env` อยู่ที่ root แล้วก็ตาม
+
+สาเหตุ: `apps/api` import `@lotus-desk/db` ผ่าน static import chain (app.module.ts -> prisma.module.ts -> prisma.service.ts -> @lotus-desk/db) ซึ่งตาม spec ของ ES module ทุก `import` ถูก hoist และ evaluate ให้เสร็จก่อนโค้ดระดับบนสุดของไฟล์ที่ import มันเองจะรัน — หมายความว่า `packages/db`'s module-level `new PrismaClient()` รันไปแล้ว **ก่อน** ที่ `app.module.ts`'s `@Module({imports:[ConfigModule.forRoot({...})]})` (ซึ่งเป็นจุดที่ `@nestjs/config` โหลด `.env` จริง) จะได้ทำงานด้วยซ้ำ บั๊กนี้แฝงอยู่ตั้งแต่ T0.3 แต่ไม่เคยโผล่มาก่อนเพราะไม่เคยมี DB จริงให้เชื่อมต่อ (ทุก smoke test ที่ผ่านมาแค่เช็คว่าแอปบูตได้ ไม่เคยเช็คว่า query จริงไปถูกปลายทาง)
+
+ตัดสินใจ: เพิ่ม `dotenv` เป็น dependency ตรงของ `packages/db` แล้วเรียก `loadDotenv({ path: ... })` เองที่ต้นไฟล์ `packages/db/src/index.ts` ชี้ไปที่ `.env` ที่ root repo ตรง ๆ (คำนวณ path จาก `import.meta.url`) ก่อนสร้าง `PrismaClient` — ไม่พึ่งพาว่าใครจะ import แล้วโหลด env ให้ก่อนอีกต่อไป
+
+เหตุผล: `packages/db` ต้องรับผิดชอบ config ของตัวเองให้ครบ ไม่ควรพึ่งพาลำดับการ import ของ consumer (apps/api ตอนนี้, แอปอื่นในอนาคตอาจ import ต่างลำดับ) `dotenv` ไม่ทับค่าที่ `process.env` มีอยู่แล้ว จึงไม่ชนกับ Testcontainers e2e test ที่ set `process.env.DATABASE_URL` เองก่อน `await import("@lotus-desk/db")` แบบ dynamic
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: นี่หมายความว่า T0.3–T1.4 ทุก task ที่ผ่านมามี PrismaClient singleton ที่ไม่เคยได้ DATABASE_URL จริงตอน boot เลย (รอด เพราะไม่เคยมี live DB ให้ต้องต่อจริง) — ไม่ต้องแก้ย้อนหลังเพราะ fix นี้อยู่ที่ packages/db จุดเดียวและมีผลย้อนไปถึงพฤติกรรมของทุก task ก่อนหน้าโดยอัตโนมัติ ไม่ต้องแตะโค้ด T0.3–T1.4

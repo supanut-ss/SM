@@ -6,6 +6,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { RbacModule } from "./modules/rbac/rbac.module";
 import { BranchModule } from "./modules/branch/branch.module";
+import { AuditModule } from "./audit/audit.module";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { BranchModule } from "./modules/branch/branch.module";
     PrismaModule,
     AuthModule,
     RbacModule,
+    AuditModule,
     BranchModule,
   ],
   controllers: [AppController],

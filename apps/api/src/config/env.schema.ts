@@ -5,6 +5,9 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3001),
   DATABASE_URL: z.string().min(1, "DATABASE_URL ห้ามว่าง — ดู .env.example"),
+  // ไม่บังคับ — ถ้าไม่ตั้งไว้แอปจะต่อด้วย role เจ้าของตาราง (DATABASE_URL) แทน ซึ่งแปลว่าการป้องกัน
+  // UPDATE/DELETE บน audit_logs ที่ระดับ DB (T1.5) จะไม่มีผลจริง (ดู PrismaService boot warning)
+  APP_DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().min(1, "REDIS_URL ห้ามว่าง — ดู .env.example"),
   SMTP_HOST: z.string().min(1, "SMTP_HOST ห้ามว่าง — ดู .env.example"),
   SMTP_PORT: z.coerce.number().int().positive(),
