@@ -1,19 +1,77 @@
 import { PrismaClient } from "@prisma/client";
+import * as argon2 from "argon2";
+import { PERMISSIONS, ROLE_DEFINITIONS, ROLE_PERMISSIONS } from "@lotus-desk/contracts";
 
 const prisma = new PrismaClient();
 
-// seed ต้อง idempotent — รันซ้ำได้จากศูนย์เสมอ (ดู docs/PLAN.md เกณฑ์ผ่าน T0.3)
+// รหัสผ่าน/PIN สำหรับ dev เท่านั้น ห้ามใช้ค่านี้ใน production (ดู docs/PLAN.md T1.2)
+const DEV_PASSWORD = "ChangeMe123!";
+const DEV_PIN = "123456";
+
+// seed ต้อง idempotent — รันซ้ำได้จากศูนย์เสมอ (ดู docs/PLAN.md เกณฑ์ผ่าน T0.3/T1.1)
 async function main() {
   const branch = await prisma.branch.upsert({
     where: { code: "MAIN" },
     update: {},
-    create: {
-      name: "สาขาหลัก",
-      code: "MAIN",
-    },
+    create: { name: "สาขาหลัก", code: "MAIN" },
   });
 
+  for (const permission of PERMISSIONS) {
+    await prisma.permission.upsert({
+      where: { key: permission.key },
+      update: { description: permission.description },
+      create: permission,
+    });
+  }
+
+  const roleByKey = new Map<string, { id: string }>();
+  for (const roleDef of ROLE_DEFINITIONS) {
+    const role = await prisma.role.upsert({
+      where: { key: roleDef.key },
+      update: { name: roleDef.name },
+      create: roleDef,
+    });
+    roleByKey.set(roleDef.key, role);
+  }
+
+  for (const roleDef of ROLE_DEFINITIONS) {
+    const role = roleByKey.get(roleDef.key)!;
+    const permissionKeys = ROLE_PERMISSIONS[roleDef.key];
+    const permissions = await prisma.permission.findMany({
+      where: { key: { in: permissionKeys } },
+    });
+    for (const permission of permissions) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
+        update: {},
+        create: { roleId: role.id, permissionId: permission.id },
+      });
+    }
+  }
+
+  const passwordHash = await argon2.hash(DEV_PASSWORD);
+  const pinHash = await argon2.hash(DEV_PIN);
+
+  for (const roleDef of ROLE_DEFINITIONS) {
+    const role = roleByKey.get(roleDef.key)!;
+    const email = `${roleDef.key}@lotusdesk.local`;
+    const user = await prisma.user.upsert({
+      where: { email },
+      update: {},
+      create: { email, name: roleDef.name, passwordHash, pinHash },
+    });
+    await prisma.userBranch.upsert({
+      where: { userId_branchId: { userId: user.id, branchId: branch.id } },
+      update: { roleId: role.id },
+      create: { userId: user.id, branchId: branch.id, roleId: role.id },
+    });
+  }
+
   console.log(`seed: ready — branch ${branch.name} (${branch.code})`);
+  console.log(`seed: 4 roles × ${PERMISSIONS.length} permissions`);
+  console.log(
+    `seed: dev users — {role}@lotusdesk.local / password "${DEV_PASSWORD}" / PIN "${DEV_PIN}" (dev เท่านั้น)`,
+  );
 }
 
 main()

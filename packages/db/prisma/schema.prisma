@@ -24,7 +24,8 @@ model Branch {
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
 
-  auditLogs AuditLog[]
+  auditLogs    AuditLog[]
+  userBranches UserBranch[]
 
   @@map("branches")
 }
@@ -35,6 +36,7 @@ model AuditLog {
   branchId  String?
   branch    Branch?     @relation(fields: [branchId], references: [id])
   actorId   String?
+  actor     User?       @relation(fields: [actorId], references: [id])
   action    AuditAction
   entity    String
   entityId  String
@@ -47,4 +49,71 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([branchId])
   @@map("audit_logs")
+}
+
+/// ผู้ใช้งานระบบ — พนักงานต้อนรับ ผู้จัดการ เจ้าของร้าน (ไม่ใช่ "พนักงานให้บริการ" ที่มีโปรไฟล์แยกใน T2.1)
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  /// เข้ารหัสด้วย argon2 — nullable เพราะพนักงานที่ใช้ PIN login อย่างเดียว (T1.3) อาจไม่มีรหัสผ่าน
+  passwordHash String?
+  /// เข้ารหัสด้วย argon2 เช่นกัน — สำหรับ PIN login เครื่องหน้าร้าน (T1.3)
+  pinHash      String?
+  name         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz
+  updatedAt    DateTime @updatedAt @db.Timestamptz
+
+  branches   UserBranch[]
+  auditLogs  AuditLog[]
+
+  @@map("users")
+}
+
+/// บทบาท — seed ไว้ 4 บทบาทตายตัว (เจ้าของ/ผู้จัดการ/แคชเชียร์/พนักงานบริการ) ดู prisma/seed.ts
+model Role {
+  id  String @id @default(cuid())
+  /// คีย์ภาษาอังกฤษคงที่ใช้ใน @RequirePermission() — ห้ามเปลี่ยนหลัง seed แล้ว
+  key String @unique
+  /// ชื่อไทยสำหรับแสดงผล
+  name String
+
+  permissions  RolePermission[]
+  userBranches UserBranch[]
+
+  @@map("roles")
+}
+
+/// สิทธิ์ย่อยแบบ "resource:action" เช่น "booking:manage" — CASL ผูกกับคีย์นี้ตรง ๆ (ดู T1.4)
+model Permission {
+  id          String @id @default(cuid())
+  key         String @unique
+  description String
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// ผู้ใช้ 1 คนมีบทบาทได้ต่างกันในแต่ละสาขา (เช่น ผู้จัดการสาขา A แต่เป็นแคชเชียร์ที่สาขา B)
+model UserBranch {
+  userId   String
+  branchId String
+  roleId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  role     Role   @relation(fields: [roleId], references: [id])
+
+  @@id([userId, branchId])
+  @@map("user_branches")
 }

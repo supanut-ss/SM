@@ -21,7 +21,9 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@prisma/client": "6.19.3"
+    "@lotus-desk/contracts": "workspace:*",
+    "@prisma/client": "6.19.3",
+    "argon2": "0.45.1"
   },
   "devDependencies": {
     "@lotus-desk/config": "workspace:*",
