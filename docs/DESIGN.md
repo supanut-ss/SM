@@ -24,17 +24,19 @@
   /* ตัวอักษร */
   --ink:           #16212B;
   --ink-muted:     #58686F;
-  --ink-faint:     #8B979C;
+  --ink-faint:     #626E73;   /* เข้มกว่าดราฟต์แรก (#8B979C) — ของเดิมผ่าน AA ไม่ครบ ดู docs/decisions.md ADR-003 */
 
   /* สีหลัก — ศิลาดล */
   --celadon:       #42806F;
   --celadon-hover: #376D5F;
   --celadon-tint:  #E3EFEA;
+  --celadon-solid: #376D5F;   /* ค่าคงที่ไม่สลับตามธีม ใช้เฉพาะพื้นทึบที่มีตัวอักษรขาวทับ เช่น badge in_service — ดู ADR-003 */
 
   /* สีรอง */
   --indigo:        #2C4A7C;   --indigo-tint: #E4EAF3;
-  --brass:         #A8762F;   --brass-tint:  #F5ECDB;
+  --brass:         #8B6227;   --brass-tint:  #F5ECDB;   /* เข้มกว่าดราฟต์แรก (#A8762F) — ดู ADR-003 */
   --rose:          #A63D4F;   --rose-tint:   #F6E4E6;
+  --rose-solid:    #A63D4F;   /* ค่าคงที่ไม่สลับตามธีม ใช้กับพื้นทึบ+ตัวอักษรขาว เช่นปุ่ม destructive — ดู ADR-003 */
 
   --radius:        6px;
   --radius-lg:     10px;
@@ -45,7 +47,7 @@
   --paper:        #0F1A1D;  --surface:      #162326;
   --surface-sunk: #0B1315;  --line:         #24363A;
   --line-strong:  #35494D;
-  --ink:          #E7EFEA;  --ink-muted:    #93A6A4;  --ink-faint: #6B7E7D;
+  --ink:          #E7EFEA;  --ink-muted:    #93A6A4;  --ink-faint: #798D8C;  /* เดิม #6B7E7D — ดู ADR-003 */
   --celadon:      #63AB94;  --celadon-tint: #1B3630;
   --indigo:       #7C9CD4;  --indigo-tint:  #1A2740;
   --brass:        #D2A65C;  --brass-tint:   #33280F;
@@ -60,7 +62,7 @@
 | จองไว้ `booked` | indigo | พื้น tint + เส้นขอบประ |
 | ยืนยันแล้ว `confirmed` | indigo | พื้น tint + spine ทึบ 3px |
 | เช็คอินแล้ว `checked_in` | brass | พื้น tint + spine ทึบ |
-| กำลังบริการ `in_service` | celadon | พื้นทึบ ตัวอักษรขาว + ชีพจรจางที่ spine |
+| กำลังบริการ `in_service` | celadon | พื้นทึบ (ใช้ `--celadon-solid` ไม่ใช่ `--celadon`) ตัวอักษรขาว + ชีพจรจางที่ spine |
 | เสร็จแล้ว `completed` | ink-faint | พื้น sunk ตัวอักษรจาง |
 | ไม่มา `no_show` | rose | พื้น tint + เส้นทแยงจาง |
 | ยกเลิก `cancelled` | — | ไม่แสดงบนกระดาน (ดูได้ในประวัติ) |

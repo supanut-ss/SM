@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lotus-web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@lotus-desk/web", "exec", "next", "dev", "--port", "3600"],
+      "port": 3600
+    }
+  ]
+}

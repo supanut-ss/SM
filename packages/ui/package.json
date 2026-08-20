@@ -2,5 +2,40 @@
   "name": "@lotus-desk/ui",
   "private": true,
   "version": "0.0.0",
-  "description": "Design tokens + component พื้นฐาน — ตั้งค่าจริงใน Task T0.5 (ดู docs/PLAN.md §5, docs/DESIGN.md)"
+  "type": "module",
+  "description": "Design tokens + component พื้นฐาน (ดู docs/DESIGN.md)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css",
+    "./tailwind-theme.css": "./src/tailwind-theme.css"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "peerDependencies": {
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "dependencies": {
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "tailwind-merge": "3.6.0",
+    "tailwindcss": "4.3.3"
+  },
+  "devDependencies": {
+    "@lotus-desk/config": "workspace:*",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "eslint": "9.39.5",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "5.7.3",
+    "vitest": "4.1.11"
+  }
 }

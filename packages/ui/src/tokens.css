@@ -1,0 +1,63 @@
+/* Design tokens — "Celadon & Indigo" (ดู docs/DESIGN.md) ห้ามสร้างสีใหม่นอกไฟล์นี้ */
+:root {
+  /* พื้นผิว — โทนเย็นอมเขียว ไม่ใช่ครีม */
+  --paper: #f6f8f6;
+  --surface: #ffffff;
+  --surface-sunk: #edf1ed;
+  --line: #dee4de;
+  --line-strong: #c3ccc4;
+
+  /* ตัวอักษร */
+  --ink: #16212b;
+  --ink-muted: #58686f;
+  /* เข้มกว่าค่าดั้งเดิม (#8B979C) เพื่อให้ผ่าน AA 4.5:1 บนพื้น surface-sunk (ดู ADR-003) */
+  --ink-faint: #626e73;
+
+  /* สีหลัก — ศิลาดล */
+  --celadon: #42806f;
+  --celadon-hover: #376d5f;
+  --celadon-tint: #e3efea;
+  /* ค่าคงที่ไม่สลับตามธีม — ใช้เฉพาะพื้นทึบที่วางตัวอักษรขาวทับ (เช่น badge in_service)
+     เพราะ --celadon โหมดมืดถูกทำให้สว่างขึ้นสำหรับใช้เป็นตัวอักษร/เส้นขอบ ไม่ใช่พื้นทึบ
+     ตัวอักษรขาวทับ --celadon โหมดมืดโดยตรงจะได้คอนทราสต์แค่ ~2.7:1 ไม่ผ่าน AA (ดู ADR-003) */
+  --celadon-solid: #376d5f;
+
+  /* สีรอง */
+  --indigo: #2c4a7c;
+  --indigo-tint: #e4eaf3;
+  --brass: #8b6227;
+  --brass-tint: #f5ecdb;
+  --rose: #a63d4f;
+  --rose-tint: #f6e4e6;
+  /* ค่าคงที่ไม่สลับตามธีม เหตุผลเดียวกับ --celadon-solid — ดู ADR-003 */
+  --rose-solid: #a63d4f;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+  --shadow-pop: 0 8px 24px -8px rgba(22, 33, 43, 0.18);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+[data-theme="dark"] {
+  /* กะเย็น ห้องไฟสลัว ต้องมี */
+  --paper: #0f1a1d;
+  --surface: #162326;
+  --surface-sunk: #0b1315;
+  --line: #24363a;
+  --line-strong: #35494d;
+  --ink: #e7efea;
+  --ink-muted: #93a6a4;
+  /* สว่างกว่าค่าดั้งเดิม (#6B7E7D) เพื่อให้ผ่าน AA 4.5:1 บนพื้น surface (ดู ADR-003) */
+  --ink-faint: #798d8c;
+  --celadon: #63ab94;
+  --celadon-hover: #7abda6;
+  --celadon-tint: #1b3630;
+  --indigo: #7c9cd4;
+  --indigo-tint: #1a2740;
+  --brass: #d2a65c;
+  --brass-tint: #33280f;
+  --rose: #d0788a;
+  --rose-tint: #38181f;
+  --shadow-pop: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+}
