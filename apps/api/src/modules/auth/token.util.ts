@@ -14,3 +14,8 @@ export const REFRESH_TOKEN_COOKIE = "refresh_token";
 
 export const REFRESH_TOKEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 วัน — ล็อกไว้ตาม docs/PLAN.md §1
 export const ACCESS_TOKEN_MAX_AGE_MS = 15 * 60 * 1000; // 15 นาที
+
+// PIN login เครื่องหน้าร้าน (T1.3) — session สั้นกว่า ไม่มี refresh ในตัว หมดอายุแล้วต้องกด PIN ใหม่
+export const PIN_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 ชั่วโมง
+export const PIN_MAX_ATTEMPTS = 5;
+export const PIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 นาที

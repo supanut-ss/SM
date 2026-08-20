@@ -16,6 +16,12 @@ async function main() {
     create: { name: "สาขาหลัก", code: "MAIN" },
   });
 
+  const device = await prisma.device.upsert({
+    where: { branchId_label: { branchId: branch.id, label: "เครื่องหน้าร้าน 1" } },
+    update: {},
+    create: { branchId: branch.id, label: "เครื่องหน้าร้าน 1" },
+  });
+
   for (const permission of PERMISSIONS) {
     await prisma.permission.upsert({
       where: { key: permission.key },
@@ -68,6 +74,7 @@ async function main() {
   }
 
   console.log(`seed: ready — branch ${branch.name} (${branch.code})`);
+  console.log(`seed: device "${device.label}" (${device.id})`);
   console.log(`seed: 4 roles × ${PERMISSIONS.length} permissions`);
   console.log(
     `seed: dev users — {role}@lotusdesk.local / password "${DEV_PASSWORD}" / PIN "${DEV_PIN}" (dev เท่านั้น)`,

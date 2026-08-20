@@ -26,6 +26,7 @@ model Branch {
 
   auditLogs    AuditLog[]
   userBranches UserBranch[]
+  devices      Device[]
 
   @@map("branches")
 }
@@ -59,6 +60,10 @@ model User {
   passwordHash String?
   /// เข้ารหัสด้วย argon2 เช่นกัน — สำหรับ PIN login เครื่องหน้าร้าน (T1.3)
   pinHash      String?
+  /// นับใหม่เป็น 0 ทุกครั้งที่ PIN ถูก หรือเมื่อครบล็อกแล้ว (ดู T1.3)
+  pinFailedAttempts Int       @default(0)
+  /// ไม่ null แปลว่าโดนล็อกอยู่ — ปลดล็อกอัตโนมัติเมื่อเวลาปัจจุบันผ่านค่านี้ไปแล้ว
+  pinLockedUntil    DateTime? @db.Timestamptz
   name         String
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now()) @db.Timestamptz
@@ -69,6 +74,19 @@ model User {
   refreshTokens RefreshToken[]
 
   @@map("users")
+}
+
+/// เครื่องหน้าร้าน (แท็บเล็ต/POS) ผูกกับสาขาตายตัว — พนักงาน PIN login ได้เฉพาะที่เครื่องของสาขาตัวเอง (ดู T1.3)
+model Device {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  label     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@unique([branchId, label])
+  @@map("devices")
 }
 
 /// ติดตาม refresh token แต่ละสาย (family) เพื่อทำ rotation + reuse detection (ดู T1.2)

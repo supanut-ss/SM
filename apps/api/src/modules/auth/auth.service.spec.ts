@@ -2,14 +2,27 @@ import { describe, expect, it } from "vitest";
 import { JwtService } from "@nestjs/jwt";
 import { UnauthorizedException } from "@nestjs/common";
 import * as argon2 from "argon2";
-import { AuthService, RefreshTokenReuseException } from "./auth.service";
-import { createFakePrisma, type FakeUser } from "./test/fake-prisma";
+import { AuthService, PinLockedException, RefreshTokenReuseException } from "./auth.service";
+import {
+  createFakePrisma,
+  type FakeDevice,
+  type FakeUser,
+  type FakeUserBranch,
+} from "./test/fake-prisma";
 import { createFakeConfig } from "./test/fake-config";
 
-async function buildService(users: FakeUser[] = []) {
-  const { prismaService, refreshTokenStore } = createFakePrisma(users);
+function buildService(
+  users: FakeUser[] = [],
+  devices: FakeDevice[] = [],
+  userBranches: FakeUserBranch[] = [],
+) {
+  const { prismaService, refreshTokenStore, userStore, deviceStore } = createFakePrisma(
+    users,
+    devices,
+    userBranches,
+  );
   const service = new AuthService(prismaService, new JwtService(), createFakeConfig());
-  return { service, refreshTokenStore };
+  return { service, refreshTokenStore, userStore, deviceStore };
 }
 
 async function makeUser(email: string, password: string, overrides: Partial<FakeUser> = {}): Promise<FakeUser> {
@@ -17,6 +30,9 @@ async function makeUser(email: string, password: string, overrides: Partial<Fake
     id: `user-${email}`,
     email,
     passwordHash: await argon2.hash(password),
+    pinHash: null,
+    pinFailedAttempts: 0,
+    pinLockedUntil: null,
     isActive: true,
     ...overrides,
   };
@@ -160,5 +176,107 @@ describe("AuthService.logout / logoutAll", () => {
     }
     const userBRecord = refreshTokenStore.find((t) => t.userId === "user-b")!;
     expect(userBRecord.revokedAt).toBeNull();
+  });
+});
+
+describe("AuthService.pinLogin", () => {
+  const DEVICE: FakeDevice = { id: "device-1", branchId: "branch-main", isActive: true };
+  const USER_BRANCH: FakeUserBranch = {
+    userId: "user-staff",
+    branchId: "branch-main",
+    roleId: "role-staff",
+  };
+
+  async function makePinUser(pin: string, overrides: Partial<FakeUser> = {}): Promise<FakeUser> {
+    const base = await makeUser("staff@lotusdesk.local", "unused-password-not-tested-here", {
+      id: "user-staff",
+      pinHash: await argon2.hash(pin),
+      ...overrides,
+    });
+    return base;
+  }
+
+  it("logs in with the correct PIN and issues a single access token", async () => {
+    const user = await makePinUser("123456");
+    const { service } = buildService([user], [DEVICE], [USER_BRANCH]);
+
+    const result = await service.pinLogin(DEVICE.id, user.id, "123456");
+
+    expect(result.accessToken).toBeTruthy();
+  });
+
+  it("rejects the wrong PIN and increments the failed-attempt counter", async () => {
+    const user = await makePinUser("123456");
+    const { service, userStore } = buildService([user], [DEVICE], [USER_BRANCH]);
+
+    await expect(service.pinLogin(DEVICE.id, user.id, "000000")).rejects.toThrow(
+      UnauthorizedException,
+    );
+
+    expect(userStore.find((u) => u.id === user.id)!.pinFailedAttempts).toBe(1);
+  });
+
+  it("locks the PIN after 5 consecutive wrong attempts", async () => {
+    const user = await makePinUser("123456");
+    const { service, userStore } = buildService([user], [DEVICE], [USER_BRANCH]);
+
+    for (let i = 0; i < 4; i++) {
+      await expect(service.pinLogin(DEVICE.id, user.id, "000000")).rejects.toThrow(
+        UnauthorizedException,
+      );
+    }
+    // ครั้งที่ 5 ต้องล็อกแทนที่จะเป็นแค่ "PIN ไม่ถูกต้อง"
+    await expect(service.pinLogin(DEVICE.id, user.id, "000000")).rejects.toThrow(PinLockedException);
+
+    const stored = userStore.find((u) => u.id === user.id)!;
+    expect(stored.pinLockedUntil).not.toBeNull();
+    expect(stored.pinFailedAttempts).toBe(0); // นับใหม่หลังล็อกแล้ว
+  });
+
+  it("rejects even the correct PIN while locked", async () => {
+    const user = await makePinUser("123456", { pinLockedUntil: new Date(Date.now() + 60_000) });
+    const { service } = buildService([user], [DEVICE], [USER_BRANCH]);
+
+    await expect(service.pinLogin(DEVICE.id, user.id, "123456")).rejects.toThrow(PinLockedException);
+  });
+
+  it("unlocks automatically once the lockout window has passed", async () => {
+    const user = await makePinUser("123456", { pinLockedUntil: new Date(Date.now() - 1000) });
+    const { service } = buildService([user], [DEVICE], [USER_BRANCH]);
+
+    const result = await service.pinLogin(DEVICE.id, user.id, "123456");
+
+    expect(result.accessToken).toBeTruthy();
+  });
+
+  it("resets the failed-attempt counter on a successful login", async () => {
+    const user = await makePinUser("123456", { pinFailedAttempts: 3 });
+    const { service, userStore } = buildService([user], [DEVICE], [USER_BRANCH]);
+
+    await service.pinLogin(DEVICE.id, user.id, "123456");
+
+    expect(userStore.find((u) => u.id === user.id)!.pinFailedAttempts).toBe(0);
+  });
+
+  it("rejects an unknown or inactive device", async () => {
+    const user = await makePinUser("123456");
+    const { service } = buildService(
+      [user],
+      [{ ...DEVICE, isActive: false }],
+      [USER_BRANCH],
+    );
+
+    await expect(service.pinLogin(DEVICE.id, user.id, "123456")).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it("rejects a user who isn't assigned to the device's branch", async () => {
+    const user = await makePinUser("123456");
+    const { service } = buildService([user], [DEVICE], []); // ไม่มี UserBranch ให้เลย
+
+    await expect(service.pinLogin(DEVICE.id, user.id, "123456")).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });

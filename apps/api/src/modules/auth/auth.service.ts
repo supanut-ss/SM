@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { HttpException, HttpStatus, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import * as argon2 from "argon2";
@@ -6,7 +6,13 @@ import { randomUUID } from "node:crypto";
 import type { User } from "@lotus-desk/db";
 import { PrismaService } from "../../prisma/prisma.service";
 import type { Env } from "../../config/env.schema";
-import { hashToken, REFRESH_TOKEN_MAX_AGE_MS } from "./token.util";
+import {
+  hashToken,
+  PIN_LOCKOUT_MS,
+  PIN_MAX_ATTEMPTS,
+  PIN_SESSION_MAX_AGE_MS,
+  REFRESH_TOKEN_MAX_AGE_MS,
+} from "./token.util";
 
 export interface TokenPair {
   accessToken: string;
@@ -22,6 +28,13 @@ interface AccessTokenPayload {
   sub: string;
 }
 
+interface PinAccessTokenPayload {
+  sub: string;
+  branchId: string;
+  deviceId: string;
+  via: "pin";
+}
+
 interface RefreshTokenPayload {
   sub: string;
   familyId: string;
@@ -32,6 +45,19 @@ interface RefreshTokenPayload {
 export class RefreshTokenReuseException extends UnauthorizedException {
   constructor() {
     super("ตรวจพบการใช้ refresh token ซ้ำ — เพิกถอนสิทธิ์ทั้งหมดในสายนี้แล้ว กรุณาเข้าสู่ระบบใหม่");
+  }
+}
+
+/** โยนตอน PIN ถูกล็อกอยู่ (ผิดครบ 5 ครั้งติดกัน) — 429 ไม่ใช่ 401 เพราะเป็นเรื่อง rate/lockout ไม่ใช่ credential ผิด */
+export class PinLockedException extends HttpException {
+  constructor(public readonly lockedUntil: Date) {
+    super(
+      {
+        message: `PIN ถูกล็อกชั่วคราวเพราะกรอกผิดครบ ${PIN_MAX_ATTEMPTS} ครั้ง — ลองใหม่ได้หลัง ${lockedUntil.toLocaleTimeString("th-TH")}`,
+        lockedUntil: lockedUntil.toISOString(),
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 }
 
@@ -56,6 +82,69 @@ export class AuthService {
   async login(userId: string, meta: RequestMeta = {}): Promise<TokenPair> {
     const { tokens } = await this.issueTokenPair(userId, randomUUID(), meta);
     return tokens;
+  }
+
+  /**
+   * PIN login เครื่องหน้าร้าน (T1.3) — ผูกกับ device ที่ผูกกับสาขาตายตัว
+   * ไม่มี refresh token: session สั้น (8 ชม.) หมดแล้วต้องกด PIN ใหม่ ไม่หมุนต่อเนื่องแบบ web login
+   * ผิดครบ PIN_MAX_ATTEMPTS ครั้งติดกัน -> ล็อก PIN_LOCKOUT_MS แล้วปลดล็อกอัตโนมัติเมื่อเวลาผ่านไป
+   */
+  async pinLogin(deviceId: string, userId: string, pin: string): Promise<{ accessToken: string }> {
+    const device = await this.prisma.client.device.findUnique({ where: { id: deviceId } });
+    if (!device || !device.isActive) {
+      throw new UnauthorizedException("ไม่พบอุปกรณ์นี้ในระบบ หรืออุปกรณ์ถูกปิดใช้งาน");
+    }
+
+    const user = await this.prisma.client.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive || !user.pinHash) {
+      throw new UnauthorizedException("ผู้ใช้นี้ไม่พร้อมใช้งาน PIN login");
+    }
+
+    const userBranch = await this.prisma.client.userBranch.findUnique({
+      where: { userId_branchId: { userId, branchId: device.branchId } },
+    });
+    if (!userBranch) {
+      throw new UnauthorizedException("ผู้ใช้นี้ไม่ได้สังกัดสาขาของอุปกรณ์นี้");
+    }
+
+    if (user.pinLockedUntil && user.pinLockedUntil.getTime() > Date.now()) {
+      throw new PinLockedException(user.pinLockedUntil);
+    }
+
+    const valid = await argon2.verify(user.pinHash, pin);
+    if (!valid) {
+      const attempts = user.pinFailedAttempts + 1;
+      if (attempts >= PIN_MAX_ATTEMPTS) {
+        const lockedUntil = new Date(Date.now() + PIN_LOCKOUT_MS);
+        await this.prisma.client.user.update({
+          where: { id: userId },
+          data: { pinFailedAttempts: 0, pinLockedUntil: lockedUntil },
+        });
+        throw new PinLockedException(lockedUntil);
+      }
+      await this.prisma.client.user.update({
+        where: { id: userId },
+        data: { pinFailedAttempts: attempts },
+      });
+      throw new UnauthorizedException(
+        `PIN ไม่ถูกต้อง (เหลืออีก ${PIN_MAX_ATTEMPTS - attempts} ครั้งก่อนถูกล็อกชั่วคราว)`,
+      );
+    }
+
+    await this.prisma.client.user.update({
+      where: { id: userId },
+      data: { pinFailedAttempts: 0, pinLockedUntil: null },
+    });
+
+    const accessToken = this.jwt.sign(
+      { sub: userId, branchId: device.branchId, deviceId, via: "pin" } satisfies PinAccessTokenPayload,
+      {
+        secret: this.config.get("JWT_ACCESS_SECRET", { infer: true }),
+        expiresIn: PIN_SESSION_MAX_AGE_MS / 1000,
+      },
+    );
+
+    return { accessToken };
   }
 
   /**

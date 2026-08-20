@@ -19,6 +19,10 @@ describe("Auth flow (real Postgres via Testcontainers)", () => {
 
   const TEST_EMAIL = "owner@lotusdesk.local";
   const TEST_PASSWORD = "ChangeMe123!";
+  const PIN_EMAIL = "staff@lotusdesk.local";
+  const PIN = "654321";
+  let deviceId: string;
+  let pinUserId: string;
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer("postgres:16-alpine").start();
@@ -51,6 +55,26 @@ describe("Auth flow (real Postgres via Testcontainers)", () => {
         passwordHash: await argon2.hash(TEST_PASSWORD),
         isActive: true,
       },
+    });
+
+    const branch = await prisma.branch.create({ data: { name: "สาขาทดสอบ", code: "E2E" } });
+    const device = await prisma.device.create({
+      data: { branchId: branch.id, label: "เครื่องทดสอบ" },
+    });
+    deviceId = device.id;
+    const pinUser = await prisma.user.create({
+      data: {
+        email: PIN_EMAIL,
+        name: "พนักงาน (test)",
+        pinHash: await argon2.hash(PIN),
+        isActive: true,
+      },
+    });
+    pinUserId = pinUser.id;
+    // สร้าง role ตรง ๆ แทนพึ่งพา prisma/seed.ts — e2e นี้ทดสอบเฉพาะ auth flow ไม่ใช่ seed script
+    const staffRole = await prisma.role.create({ data: { key: "staff", name: "พนักงานบริการ" } });
+    await prisma.userBranch.create({
+      data: { userId: pinUser.id, branchId: branch.id, roleId: staffRole.id },
     });
 
     const { createApp } = await import("../../../main");
@@ -140,5 +164,30 @@ describe("Auth flow (real Postgres via Testcontainers)", () => {
       .set("Cookie", login2.headers["set-cookie"] as unknown as string[]);
 
     expect(refreshAfterLogoutAll.status).toBe(401);
+  });
+
+  it("rejects the wrong PIN, then locks after 5 wrong attempts, then unlocks with the right PIN once the lockout expires", async () => {
+    // สมมติสถานการณ์: ทดสอบผิด 5 ครั้งติดกันจาก endpoint จริง
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app.getHttpServer())
+        .post("/auth/pin-login")
+        .send({ deviceId, userId: pinUserId, pin: "000000" });
+      expect([401, 429]).toContain(res.status);
+    }
+
+    const lockedRes = await request(app.getHttpServer())
+      .post("/auth/pin-login")
+      .send({ deviceId, userId: pinUserId, pin: PIN }); // ถูกก็เข้าไม่ได้เพราะล็อกอยู่
+    expect(lockedRes.status).toBe(429);
+
+    // จำลองว่าเวลาผ่านไปแล้ว (ปลดล็อกอัตโนมัติ) โดย reset ตรง ๆ ผ่าน Prisma แทนการรอจริง 15 นาที
+    await prisma.user.update({ where: { id: pinUserId }, data: { pinLockedUntil: null } });
+
+    const unlockedRes = await request(app.getHttpServer())
+      .post("/auth/pin-login")
+      .send({ deviceId, userId: pinUserId, pin: PIN });
+    expect(unlockedRes.status).toBe(200);
+    const cookies = unlockedRes.headers["set-cookie"] as unknown as string[];
+    expect(cookies.some((c) => c.startsWith("access_token=") && c.includes("HttpOnly"))).toBe(true);
   });
 });

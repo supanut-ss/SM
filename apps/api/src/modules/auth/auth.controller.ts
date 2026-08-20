@@ -10,7 +10,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
-import { loginSchema, type LoginInput } from "@lotus-desk/contracts";
+import { loginSchema, pinLoginSchema, type LoginInput, type PinLoginInput } from "@lotus-desk/contracts";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
 import type { Env } from "../../config/env.schema";
 import { AuthService, type TokenPair } from "./auth.service";
@@ -19,6 +19,7 @@ import { JwtAuthGuard, type AuthenticatedUser } from "./jwt-auth.guard";
 import {
   ACCESS_TOKEN_COOKIE,
   ACCESS_TOKEN_MAX_AGE_MS,
+  PIN_SESSION_MAX_AGE_MS,
   REFRESH_TOKEN_COOKIE,
   REFRESH_TOKEN_MAX_AGE_MS,
 } from "./token.util";
@@ -46,6 +47,24 @@ export class AuthController {
     this.setTokenCookies(res, tokens);
 
     return { id: user.id, email: user.email, name: user.name };
+  }
+
+  @Post("pin-login")
+  @HttpCode(200)
+  async pinLogin(
+    @Body(new ZodValidationPipe(pinLoginSchema)) body: PinLoginInput,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken } = await this.authService.pinLogin(body.deviceId, body.userId, body.pin);
+    const isProd = this.config.get("NODE_ENV", { infer: true }) === "production";
+    res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: "lax",
+      maxAge: PIN_SESSION_MAX_AGE_MS,
+      path: "/",
+    });
+    return { ok: true };
   }
 
   @Post("refresh")
