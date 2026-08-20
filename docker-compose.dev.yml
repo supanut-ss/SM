@@ -1,0 +1,44 @@
+name: lotus-desk-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lotus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lotus}
+      POSTGRES_DB: ${POSTGRES_DB:-lotus_desk}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-extensions.sql:/docker-entrypoint-initdb.d/init-extensions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lotus} -d ${POSTGRES_DB:-lotus_desk}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP — apps/api ส่งเมลมาที่นี่
+      - "${MAILPIT_UI_PORT:-8025}:8025" # เว็บดูอีเมลที่ถูกดักไว้
+
+volumes:
+  postgres-data:
+  redis-data:
