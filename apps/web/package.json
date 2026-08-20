@@ -8,10 +8,13 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@lotus-desk/contracts": "workspace:*",
     "@lotus-desk/ui": "workspace:*",
+    "@tanstack/react-query": "5.101.4",
     "next": "15.5.23",
     "react": "19.2.8",
     "react-dom": "19.2.8"
@@ -19,6 +22,7 @@
   "devDependencies": {
     "@lotus-desk/config": "workspace:*",
     "@next/eslint-plugin-next": "15.5.23",
+    "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.13.3",
     "@types/react": "19.2.18",

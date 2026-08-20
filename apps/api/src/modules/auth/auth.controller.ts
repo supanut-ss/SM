@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   Post,
   Req,
@@ -47,6 +48,12 @@ export class AuthController {
     this.setTokenCookies(res, tokens);
 
     return { id: user.id, email: user.email, name: user.name };
+  }
+
+  @Get("me")
+  @UseGuards(JwtAuthGuard)
+  async me(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.getMe(user.sub);
   }
 
   @Post("pin-login")

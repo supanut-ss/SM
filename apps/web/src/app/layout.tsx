@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { THEME_INIT_SCRIPT } from "@lotus-desk/ui";
 import { fontVariables } from "./fonts";
+import { QueryProvider } from "../lib/query-provider";
 import "./globals.css";
 
 export const metadata = {
@@ -15,7 +16,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* กันหน้าจอกระพริบธีมผิดตอนโหลด — ต้องรันก่อน paint จึงใช้ script ตรง ๆ ไม่ใช้ useEffect */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body className="font-body">{children}</body>
+      <body className="font-body">
+        <QueryProvider>{children}</QueryProvider>
+      </body>
     </html>
   );
 }

@@ -4,6 +4,7 @@ import { JwtService } from "@nestjs/jwt";
 import * as argon2 from "argon2";
 import { randomUUID } from "node:crypto";
 import type { User } from "@lotus-desk/db";
+import type { MeResponse } from "@lotus-desk/contracts";
 import { PrismaService } from "../../prisma/prisma.service";
 import type { Env } from "../../config/env.schema";
 import {
@@ -76,6 +77,39 @@ export class AuthService {
     }
     const valid = await argon2.verify(user.passwordHash, password);
     return valid ? user : null;
+  }
+
+  /** ข้อมูลผู้ใช้ปัจจุบัน + สาขา/บทบาท/สิทธิ์ทั้งหมด — apps/web ใช้ตัดสินใจว่าจะโชว์เมนูไหน (T1.6) */
+  async getMe(userId: string): Promise<MeResponse> {
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+      include: {
+        branches: {
+          include: {
+            branch: true,
+            role: { include: { permissions: { include: { permission: true } } } },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException("ไม่พบผู้ใช้นี้");
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      branches: user.branches.map((ub) => ({
+        branchId: ub.branchId,
+        branchName: ub.branch.name,
+        branchCode: ub.branch.code,
+        roleKey: ub.role.key,
+        roleName: ub.role.name,
+        permissions: ub.role.permissions.map((rp) => rp.permission.key),
+      })),
+    };
   }
 
   /** เริ่มสาย (family) ใหม่ทั้งหมด — เรียกตอน login สำเร็จเท่านั้น */
