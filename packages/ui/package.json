@@ -1,0 +1,6 @@
+{
+  "name": "@lotus-desk/ui",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Design tokens + component พื้นฐาน — ตั้งค่าจริงใน Task T0.5 (ดู docs/PLAN.md §5, docs/DESIGN.md)"
+}

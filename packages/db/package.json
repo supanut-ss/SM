@@ -1,0 +1,6 @@
+{
+  "name": "@lotus-desk/db",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Prisma schema + migrations + seed — ติดตั้งจริงใน Task T0.3 (ดู docs/PLAN.md §5)"
+}

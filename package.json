@@ -1,0 +1,29 @@
+{
+  "name": "lotus-desk",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "verify": "turbo run lint typecheck test build",
+    "db:migrate": "pnpm --filter @lotus-desk/db db:migrate",
+    "db:seed": "pnpm --filter @lotus-desk/db db:seed",
+    "db:reset": "pnpm --filter @lotus-desk/db db:reset",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\" --ignore-path .gitignore"
+  },
+  "devDependencies": {
+    "turbo": "2.10.11",
+    "typescript": "5.7.3",
+    "prettier": "3.4.2",
+    "eslint": "9.39.5",
+    "@eslint/js": "9.39.5",
+    "typescript-eslint": "8.67.0",
+    "eslint-config-prettier": "10.1.8"
+  }
+}
