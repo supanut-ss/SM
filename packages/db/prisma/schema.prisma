@@ -24,9 +24,10 @@ model Branch {
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
 
-  auditLogs    AuditLog[]
-  userBranches UserBranch[]
-  devices      Device[]
+  auditLogs     AuditLog[]
+  userBranches  UserBranch[]
+  devices       Device[]
+  staffProfiles StaffProfile[]
 
   @@map("branches")
 }
@@ -156,4 +157,40 @@ model UserBranch {
 
   @@id([userId, branchId])
   @@map("user_branches")
+}
+
+/// ระดับพนักงาน — ผูกกับค่ามือ 3 เรตต่อบริการที่จะเพิ่มบน ServiceVariant ใน T2.3 (ดู docs/DOMAIN.md
+/// ข้อ 9, docs/decisions.md ADR-008) ห้ามเปลี่ยนชื่อ value หลัง seed ขึ้น production
+enum StaffLevel {
+  JUNIOR
+  SENIOR
+  MASTER
+}
+
+/// ทักษะพนักงาน — รายการคงที่ตาม docs/PLAN.md T2.1 เพิ่ม value ใหม่ได้ในอนาคตถ้าร้านต้องการ
+enum StaffSkill {
+  THAI_MASSAGE
+  OIL
+  FACIAL
+  NAIL
+}
+
+/// โปรไฟล์พนักงานให้บริการ (นวด/เสริมความงาม) — แยกจาก User (บัญชีล็อกอินระบบหลังบ้าน) โดยตั้งใจ
+/// พนักงานให้บริการจำนวนมากไม่มีบัญชี User เลย (ไม่ต้อง login เข้าระบบหลังบ้าน)
+model StaffProfile {
+  id        String       @id @default(cuid())
+  branchId  String
+  branch    Branch       @relation(fields: [branchId], references: [id])
+  name      String
+  phone     String?
+  level     StaffLevel
+  skills    StaffSkill[]
+  startDate DateTime?    @db.Timestamptz
+  note      String?
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now()) @db.Timestamptz
+  updatedAt DateTime     @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@map("staff_profiles")
 }

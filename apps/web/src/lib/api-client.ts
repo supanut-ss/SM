@@ -1,4 +1,11 @@
-import type { LoginInput, MeResponse } from "@lotus-desk/contracts";
+import type {
+  CreateStaffInput,
+  LoginInput,
+  MeResponse,
+  StaffLevel,
+  StaffSkill,
+  UpdateStaffInput,
+} from "@lotus-desk/contracts";
 
 /** โยนเมื่อ fetch สำเร็จ (มี HTTP response) แต่ status ไม่ใช่ 2xx — เก็บ status ไว้ให้ผู้เรียกตัดสินใจต่อ */
 export class ApiError extends Error {
@@ -38,4 +45,44 @@ export const authApi = {
     }),
   me: () => apiFetch<MeResponse>("/auth/me"),
   logout: () => apiFetch<{ ok: true }>("/auth/logout", { method: "POST" }),
+};
+
+/** shape ที่ apps/api ตอบกลับจริง (JSON — Date กลายเป็น string ISO แล้ว) ดู StaffController */
+export interface StaffProfile {
+  id: string;
+  branchId: string;
+  name: string;
+  phone: string | null;
+  level: StaffLevel;
+  skills: StaffSkill[];
+  startDate: string | null;
+  note: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffListParams {
+  q?: string;
+  isActive?: "true" | "false" | "all";
+}
+
+export const staffApi = {
+  list: (branchId: string, params?: StaffListParams) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.isActive) query.set("isActive", params.isActive);
+    const qs = query.toString();
+    return apiFetch<StaffProfile[]>(`/branches/${branchId}/staff${qs ? `?${qs}` : ""}`);
+  },
+  create: (branchId: string, input: CreateStaffInput) =>
+    apiFetch<StaffProfile>(`/branches/${branchId}/staff`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, staffId: string, input: UpdateStaffInput) =>
+    apiFetch<StaffProfile>(`/branches/${branchId}/staff/${staffId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
 };

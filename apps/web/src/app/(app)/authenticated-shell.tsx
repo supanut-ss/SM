@@ -9,6 +9,7 @@ import { ApiError } from "../../lib/api-client";
 import { NAV_ITEMS } from "./nav-items";
 import { hasPermission } from "./permissions";
 import { LogoutButton } from "./logout-button";
+import { CurrentBranchProvider } from "./current-branch-context";
 
 export function AuthenticatedShell({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -71,7 +72,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         </Sidebar>
       }
     >
-      {children}
+      <CurrentBranchProvider branch={currentBranch ?? null}>{children}</CurrentBranchProvider>
     </AppShell>
   );
 }

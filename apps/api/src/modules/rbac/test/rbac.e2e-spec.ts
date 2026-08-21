@@ -24,6 +24,9 @@ describe("RBAC — branch scoping over real HTTP + Postgres", () => {
     const databaseUrl = container.getConnectionUri();
 
     process.env.DATABASE_URL = databaseUrl;
+    // ดู docs/decisions.md ADR-009 — ต้องตั้ง APP_DATABASE_URL ด้วยเสมอ ไม่งั้นถ้าเครื่อง dev มี .env
+    // จริงที่ตั้งค่านี้ไว้แล้ว มันจะ "ชนะ" DATABASE_URL ของ container ทดสอบนี้เงียบ ๆ
+    process.env.APP_DATABASE_URL = databaseUrl;
     process.env.REDIS_URL ??= "redis://localhost:6379";
     process.env.SMTP_HOST ??= "localhost";
     process.env.SMTP_PORT ??= "1025";

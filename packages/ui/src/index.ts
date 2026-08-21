@@ -4,6 +4,8 @@ export { Button, type ButtonProps } from "./components/button";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Select } from "./components/select";
+export { Sheet, type SheetProps } from "./components/sheet";
+export { Textarea } from "./components/textarea";
 export {
   StatusBadge,
   APPOINTMENT_STATUSES,

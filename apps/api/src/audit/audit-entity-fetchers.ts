@@ -8,4 +8,5 @@ export type EntityFetcher = (id: string, prisma: PrismaService) => Promise<unkno
  */
 export const AUDIT_ENTITY_FETCHERS: Record<string, EntityFetcher> = {
   Branch: (id, prisma) => prisma.client.branch.findUnique({ where: { id } }),
+  Staff: (id, prisma) => prisma.client.staffProfile.findUnique({ where: { id } }),
 };

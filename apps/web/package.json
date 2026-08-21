@@ -12,12 +12,14 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.9.1",
     "@lotus-desk/contracts": "workspace:*",
     "@lotus-desk/ui": "workspace:*",
     "@tanstack/react-query": "5.101.4",
     "next": "15.5.23",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-hook-form": "7"
   },
   "devDependencies": {
     "@lotus-desk/config": "workspace:*",

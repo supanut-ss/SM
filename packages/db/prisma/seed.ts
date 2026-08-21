@@ -73,9 +73,31 @@ async function main() {
     });
   }
 
+  const staffSeeds = [
+    { name: "นก", level: "MASTER" as const, skills: ["THAI_MASSAGE", "OIL"] as const },
+    { name: "แอน", level: "SENIOR" as const, skills: ["OIL", "FACIAL"] as const },
+    { name: "ปุ๊ก", level: "JUNIOR" as const, skills: ["NAIL"] as const },
+  ];
+  for (const staffSeed of staffSeeds) {
+    const existing = await prisma.staffProfile.findFirst({
+      where: { branchId: branch.id, name: staffSeed.name },
+    });
+    if (!existing) {
+      await prisma.staffProfile.create({
+        data: {
+          branchId: branch.id,
+          name: staffSeed.name,
+          level: staffSeed.level,
+          skills: [...staffSeed.skills],
+        },
+      });
+    }
+  }
+
   console.log(`seed: ready — branch ${branch.name} (${branch.code})`);
   console.log(`seed: device "${device.label}" (${device.id})`);
   console.log(`seed: 4 roles × ${PERMISSIONS.length} permissions`);
+  console.log(`seed: ${staffSeeds.length} staff profiles`);
   console.log(
     `seed: dev users — {role}@lotusdesk.local / password "${DEV_PASSWORD}" / PIN "${DEV_PIN}" (dev เท่านั้น)`,
   );

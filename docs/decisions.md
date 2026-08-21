@@ -126,3 +126,37 @@ Task ที่เกี่ยวข้อง: T1.5
 เหตุผล: `packages/db` ต้องรับผิดชอบ config ของตัวเองให้ครบ ไม่ควรพึ่งพาลำดับการ import ของ consumer (apps/api ตอนนี้, แอปอื่นในอนาคตอาจ import ต่างลำดับ) `dotenv` ไม่ทับค่าที่ `process.env` มีอยู่แล้ว จึงไม่ชนกับ Testcontainers e2e test ที่ set `process.env.DATABASE_URL` เองก่อน `await import("@lotus-desk/db")` แบบ dynamic
 
 ผลกระทบ/ทางเลือกที่ไม่เลือก: นี่หมายความว่า T0.3–T1.4 ทุก task ที่ผ่านมามี PrismaClient singleton ที่ไม่เคยได้ DATABASE_URL จริงตอน boot เลย (รอด เพราะไม่เคยมี live DB ให้ต้องต่อจริง) — ไม่ต้องแก้ย้อนหลังเพราะ fix นี้อยู่ที่ packages/db จุดเดียวและมีผลย้อนไปถึงพฤติกรรมของทุก task ก่อนหน้าโดยอัตโนมัติ ไม่ต้องแตะโค้ด T0.3–T1.4
+
+---
+
+## ADR-008: ค่ามือ (commission) ตั้งเป็นฟิลด์บน ServiceVariant โดยตรง ไม่ใช้ตารางเรตกลางแยกต่างหาก
+วันที่: 2026-08-21
+Task ที่เกี่ยวข้อง: T2.3 (ยังไม่เริ่ม — บันทึกไว้ล่วงหน้าเพื่อกำหนดทิศทาง schema)
+
+บริบท: `docs/DOMAIN.md` ข้อ 9/10 เดิมตอบไว้กว้างๆ ว่าค่ามือเป็น "เหมาต่อชั่วโมง แยกเรตตามระดับพนักงาน" โดยไม่ได้ระบุว่าเก็บที่ไหนใน schema — เจ้าของร้านชี้แจงเพิ่มเติมว่าต้องการตั้งค่ามือ "ต่อคอร์ส/บริการ" โดยตรง ไม่ใช่คำนวณจากตารางเรตกลาง (rate table) ที่แยกมิติ เช่น ประเภทบริการ × ระดับพนักงาน × ชั่วโมงสะสม
+
+ตัดสินใจ:
+- ค่ามือเป็น **บาทคงที่ต่อครั้ง** (ไม่ใช่ % ของราคา, ไม่ใช่เหมาต่อชั่วโมง) เก็บเป็น integer สตางค์ตามกฎเงินใน CLAUDE.md
+- เก็บบน `ServiceVariant` โดยตรง เป็น 3 ฟิลด์: `commissionJuniorSatang`, `commissionSeniorSatang`, `commissionMasterSatang` (หนึ่งค่าต่อระดับพนักงาน)
+- ค่าเดียวกันไม่ว่างานจะมาจากคิวหมุนหรือลูกค้าขอ (ไม่มีฟิลด์แยกตาม assignType)
+- ตัดคอร์ส (ข้อ 10) ใช้เรตเดียวกันนี้ ไม่มีตารางเรตแยกต่างหากสำหรับกรณีตัดคอร์ส
+
+เหตุผล: การผูกค่ามือไว้กับบริการโดยตรงตรงกับกฎเหล็กข้อ T5.5 ("snapshot ราคาและอัตราค่ามือ ณ เวลานั้น") อยู่แล้ว — ใบงานจะ snapshot ค่าจาก ServiceVariant ตรงๆ ได้โดยไม่ต้อง join ตารางเรตกลางเพิ่ม ลดความซับซ้อนของ `packages/core/commission` เพราะรับค่ามือมาเป็น input ตรงๆ แทนที่จะต้องมี lookup logic เอง
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ทางเลือกที่ไม่เลือกคือตารางเรตกลางแยกต่างหาก (เช่น `CommissionRate` model ผูก serviceId+staffLevel+assignType) — ปฏิเสธเพราะเจ้าของร้านยืนยันชัดเจนว่าไม่ต้องการแยกเรตตาม assignType และการตั้งค่าต่อบริการตรงๆ ตรงกับวิธีที่ร้านคิดค่ามือจริง (ต่อบริการ ไม่ใช่ต่อกฎ) — Task T2.3 ต้องเพิ่ม 3 ฟิลด์นี้ลง schema ตอนเริ่มงานจริง ยังไม่ได้แก้ Prisma schema ณ วันที่บันทึก ADR นี้ ตัวเลขค่ามือจริงยังไม่มี (บล็อก T6.2 ตามเดิม)
+
+---
+
+## ADR-009: e2e spec ทุกไฟล์ต้องตั้ง `APP_DATABASE_URL` เอง ไม่ใช่แค่ `DATABASE_URL`
+วันที่: 2026-08-21
+Task ที่เกี่ยวข้อง: T2.1
+
+บริบท: ระหว่างรัน `apps/api/src/modules/staff/test/staff.e2e-spec.ts` (Testcontainers) ครั้งแรกจริงบนเครื่องนี้ (ก่อนหน้านี้ทุก e2e spec ไม่เคยรันจริงเพราะไม่มี Docker backend — ดูคอมเมนต์เดิมในไฟล์พวกนี้) เจอ `Unique constraint failed on the fields: (key)` ตอนสร้าง permission "staff:view" ทั้งที่ container Postgres เพิ่งสร้างใหม่ว่างเปล่า
+
+สาเหตุ: `packages/db/src/index.ts` สร้าง `PrismaClient` ด้วย `datasourceUrl: process.env.APP_DATABASE_URL || process.env.DATABASE_URL` (T1.5 — ดู ADR ที่เกี่ยวข้อง) — `auth.e2e-spec.ts` และ `rbac.e2e-spec.ts` (ต้นแบบที่ `staff.e2e-spec.ts` ก็อปมา) ตั้งแค่ `process.env.DATABASE_URL = databaseUrl` ก่อน import `@lotus-desk/db` เท่านั้น ไม่เคยตั้ง `APP_DATABASE_URL` เพราะแต่ก่อนไม่มีไฟล์ `.env` จริงที่ root repo เลย (`APP_DATABASE_URL` เป็น `undefined` เสมอ จึง fallback ไป `DATABASE_URL` ของ container โดยบังเอิญ) พอเริ่มมี `.env` จริงสำหรับพัฒนาเครื่องนี้ (ตั้งค่า `APP_DATABASE_URL` ชี้ไป DB dev จริงที่ port 5532 — ดู T0.2) `packages/db`'s `loadDotenv()` (ไม่ทับค่าที่มีอยู่แล้วก็จริง แต่ `APP_DATABASE_URL` ยังไม่เคยถูกตั้งเลยในกระบวนการนี้) จึงเซ็ตมันจาก `.env` แทน — ทำให้ `datasourceUrl` เลือก `APP_DATABASE_URL` (DB dev จริง ที่มี "staff:view" seed ไว้แล้ว) แทน `DATABASE_URL` ของ container ทดสอบเงียบ ๆ โดยไม่มี error เตือนเลย
+
+ตัดสินใจ: เพิ่ม `process.env.APP_DATABASE_URL = databaseUrl;` (ค่าเดียวกับ `DATABASE_URL` ของ container) ในทุก e2e spec ที่ยังไม่ได้ตั้งไว้เอง (`auth.e2e-spec.ts`, `rbac.e2e-spec.ts`, `staff.e2e-spec.ts`) ก่อน import `@lotus-desk/db` เสมอ — `audit.e2e-spec.ts` ไม่ต้องแก้เพราะตั้ง `APP_DATABASE_URL` ของตัวเองอยู่แล้ว (ชี้ไป role `lotus_app` โดยตั้งใจเพื่อทดสอบ REVOKE)
+
+เหตุผล: เป็นบั๊กแฝงที่ไม่มีทางเจอด้วย `pnpm verify` เพราะ e2e ไม่อยู่ใน pipeline นั้น (ดู `apps/api/vitest.config.mts`) และไม่เคยโผล่มาก่อนเพราะไม่มีเครื่องไหนเคยมี `.env` จริงตอนรัน e2e เลย — อันตรายเพราะถ้าไม่แก้ นักพัฒนาที่มี `.env` dev จริง (กรณีปกติของทุกคนที่ตั้งเครื่องตาม T0.2) จะรัน e2e test แล้วเขียนทับ/พัง DB dev ของตัวเองแบบเงียบ ๆ โดยไม่รู้ตัว
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ทางเลือกอื่นคือแก้ที่ `packages/db/src/index.ts` ให้ APP_DATABASE_URL ไม่ fallback แบบนี้ — ปฏิเสธเพราะ fallback นี้จำเป็นสำหรับ production/dev ปกติ (ไม่อยากบังคับให้ต้องตั้ง 2 ตัวแปรเสมอ) ปัญหาจริงอยู่ที่ e2e spec ตั้งค่าไม่ครบ ไม่ใช่ตัว fallback logic เอง — spec ใหม่ในอนาคตที่ใช้ Testcontainers ต้องตั้งทั้งสองตัวแปรตาม pattern นี้เสมอ
