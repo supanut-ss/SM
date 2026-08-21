@@ -28,6 +28,8 @@ model Branch {
   userBranches  UserBranch[]
   devices       Device[]
   staffProfiles StaffProfile[]
+  roomTypes     RoomType[]
+  rooms         Room[]
 
   @@map("branches")
 }
@@ -193,4 +195,42 @@ model StaffProfile {
 
   @@index([branchId])
   @@map("staff_profiles")
+}
+
+/// ประเภทห้อง — catalog แยกต่อสาขา (ไม่ใช่ enum คงที่ เพราะแต่ละสาขาอาจตั้งประเภทห้องไม่เหมือนกัน)
+/// T2.2 seed ค่าเริ่มต้นให้ 4 ประเภท ยังไม่มีหน้าจัดการ CRUD ของตัวเอง (เพิ่ม/แก้ไข/ลบผ่าน DB โดยตรง
+/// หรือรอ Task ในอนาคตถ้าร้านต้องการ) — T2.3/T4.1 จะอ้างอิง roomTypeId นี้ต่อ (บริการต้องใช้ห้องประเภทใด)
+model RoomType {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  name      String
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  rooms Room[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@map("room_types")
+}
+
+/// ห้อง/เตียงให้บริการจริงในสาขา — capacity คือจำนวนลูกค้าที่ให้บริการพร้อมกันได้ในห้องเดียว
+/// (เช่น ห้องนวดคู่ capacity 2) ดู T4.1 ที่ availability engine ต้องเช็ค capacity เหลือ
+model Room {
+  id         String   @id @default(cuid())
+  branchId   String
+  branch     Branch   @relation(fields: [branchId], references: [id])
+  roomTypeId String
+  roomType   RoomType @relation(fields: [roomTypeId], references: [id])
+  name       String
+  capacity   Int      @default(1)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @updatedAt @db.Timestamptz
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@index([roomTypeId])
+  @@map("rooms")
 }

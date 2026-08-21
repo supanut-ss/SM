@@ -94,10 +94,42 @@ async function main() {
     }
   }
 
+  const roomTypeNames = ["ห้องนวดเดี่ยว", "ห้องนวดคู่", "ห้องสปา", "ห้องทำหน้า"];
+  const roomTypeByName = new Map<string, { id: string }>();
+  for (const name of roomTypeNames) {
+    const roomType = await prisma.roomType.upsert({
+      where: { branchId_name: { branchId: branch.id, name } },
+      update: {},
+      create: { branchId: branch.id, name },
+    });
+    roomTypeByName.set(name, roomType);
+  }
+
+  const roomSeeds = [
+    { name: "ห้อง 1", roomType: "ห้องนวดเดี่ยว", capacity: 1 },
+    { name: "ห้อง 2", roomType: "ห้องนวดเดี่ยว", capacity: 1 },
+    { name: "ห้อง 3 (คู่)", roomType: "ห้องนวดคู่", capacity: 2 },
+    { name: "ห้องสปา", roomType: "ห้องสปา", capacity: 1 },
+  ];
+  for (const roomSeed of roomSeeds) {
+    const roomType = roomTypeByName.get(roomSeed.roomType)!;
+    await prisma.room.upsert({
+      where: { branchId_name: { branchId: branch.id, name: roomSeed.name } },
+      update: {},
+      create: {
+        branchId: branch.id,
+        name: roomSeed.name,
+        roomTypeId: roomType.id,
+        capacity: roomSeed.capacity,
+      },
+    });
+  }
+
   console.log(`seed: ready — branch ${branch.name} (${branch.code})`);
   console.log(`seed: device "${device.label}" (${device.id})`);
   console.log(`seed: 4 roles × ${PERMISSIONS.length} permissions`);
   console.log(`seed: ${staffSeeds.length} staff profiles`);
+  console.log(`seed: ${roomTypeNames.length} room types, ${roomSeeds.length} rooms`);
   console.log(
     `seed: dev users — {role}@lotusdesk.local / password "${DEV_PASSWORD}" / PIN "${DEV_PIN}" (dev เท่านั้น)`,
   );

@@ -1,9 +1,11 @@
 import type {
+  CreateRoomInput,
   CreateStaffInput,
   LoginInput,
   MeResponse,
   StaffLevel,
   StaffSkill,
+  UpdateRoomInput,
   UpdateStaffInput,
 } from "@lotus-desk/contracts";
 
@@ -82,6 +84,56 @@ export const staffApi = {
     }),
   update: (branchId: string, staffId: string, input: UpdateStaffInput) =>
     apiFetch<StaffProfile>(`/branches/${branchId}/staff/${staffId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู RoomController — shape จริงที่ API ตอบกลับ (join roomType มาด้วยเสมอ) */
+export interface RoomType {
+  id: string;
+  branchId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Room {
+  id: string;
+  branchId: string;
+  roomTypeId: string;
+  roomType: RoomType;
+  name: string;
+  capacity: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoomListParams {
+  q?: string;
+  isActive?: "true" | "false" | "all";
+}
+
+export const roomTypeApi = {
+  list: (branchId: string) => apiFetch<RoomType[]>(`/branches/${branchId}/room-types`),
+};
+
+export const roomApi = {
+  list: (branchId: string, params?: RoomListParams) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.isActive) query.set("isActive", params.isActive);
+    const qs = query.toString();
+    return apiFetch<Room[]>(`/branches/${branchId}/rooms${qs ? `?${qs}` : ""}`);
+  },
+  create: (branchId: string, input: CreateRoomInput) =>
+    apiFetch<Room>(`/branches/${branchId}/rooms`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, roomId: string, input: UpdateRoomInput) =>
+    apiFetch<Room>(`/branches/${branchId}/rooms/${roomId}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     }),

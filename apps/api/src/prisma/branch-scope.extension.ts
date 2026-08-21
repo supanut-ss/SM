@@ -9,7 +9,14 @@ import type { PrismaClient } from "@lotus-desk/db";
  * ยังไม่ครอบ create/update/delete เพราะยังไม่มี endpoint เขียนข้อมูลโมเดลเหล่านี้ (Branch เอง ไม่ใช่
  * "ข้อมูลที่อยู่ในสาขา" จึงไม่อยู่ในลิสต์นี้ — กรองด้วย id ตรง ๆ ในตัว endpoint แทน)
  */
-export const BRANCH_SCOPED_MODELS = new Set(["AuditLog", "Device", "UserBranch", "StaffProfile"]);
+export const BRANCH_SCOPED_MODELS = new Set([
+  "AuditLog",
+  "Device",
+  "UserBranch",
+  "StaffProfile",
+  "RoomType",
+  "Room",
+]);
 
 const SCOPED_OPERATIONS = new Set(["findMany", "findFirst", "findUnique", "count"]);
 
