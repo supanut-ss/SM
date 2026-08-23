@@ -72,3 +72,19 @@ export const joinStaffQueueSchema = z.object({
 });
 
 export type JoinStaffQueueInput = z.infer<typeof joinStaffQueueSchema>;
+
+// ลากวาง/ย่อขยายบล็อกบน Lane Board (T4.5) — เปลี่ยนพนักงาน/ห้อง/เวลาของนัดที่มีอยู่แล้ว
+// (คนละ endpoint กับ updateAppointmentItemStatusSchema ของ T4.3 ที่เปลี่ยนแค่สถานะ)
+export const rescheduleAppointmentItemSchema = z
+  .object({
+    staffId: z.string().min(1, "กรุณาเลือกพนักงาน"),
+    roomId: z.string().min(1, "กรุณาเลือกห้อง"),
+    startAt: z.coerce.date(),
+    endAt: z.coerce.date(),
+  })
+  .refine((v) => v.endAt > v.startAt, {
+    message: "เวลาสิ้นสุดต้องมากกว่าเวลาเริ่ม",
+    path: ["endAt"],
+  });
+
+export type RescheduleAppointmentItemInput = z.infer<typeof rescheduleAppointmentItemSchema>;

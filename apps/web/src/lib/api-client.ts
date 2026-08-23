@@ -22,6 +22,11 @@ import type {
   UpdateShiftTemplateInput,
   UpdateStaffInput,
   UpdateMemberInput,
+  AppointmentStatus,
+  AssignType,
+  JoinStaffQueueInput,
+  RescheduleAppointmentItemInput,
+  UpdateAppointmentItemStatusInput,
 } from "@lotus-desk/contracts";
 
 /**
@@ -413,6 +418,70 @@ export const memberConsentApi = {
     apiFetch<MemberConsent[]>(`/branches/${branchId}/members/${memberId}/consents`),
   create: (branchId: string, memberId: string, input: CreateMemberConsentInput) =>
     apiFetch<MemberConsent>(`/branches/${branchId}/members/${memberId}/consents`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู AppointmentItemController.list — shape จริงที่ API ตอบกลับ (join staff/room/serviceVariant/appointment) */
+export interface AppointmentItem {
+  id: string;
+  branchId: string;
+  appointmentId: string;
+  appointment: { id: string; memberId: string | null; member: { id: string; name: string } | null; note: string | null };
+  staffId: string;
+  staff: StaffProfile;
+  roomId: string;
+  room: Room;
+  serviceVariantId: string;
+  serviceVariant: {
+    id: string;
+    durationMin: number;
+    requiredSkill: StaffSkill;
+    requiredRoomTypeId: string;
+    service: { id: string; name: string };
+  };
+  status: AppointmentStatus;
+  assignType: AssignType;
+  startAt: string;
+  endAt: string;
+  roomCapacityAtBooking: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const appointmentItemApi = {
+  list: (branchId: string, date: string) =>
+    apiFetch<AppointmentItem[]>(`/branches/${branchId}/appointment-items?date=${date}`),
+  updateStatus: (branchId: string, appointmentItemId: string, input: UpdateAppointmentItemStatusInput) =>
+    apiFetch<AppointmentItem>(`/branches/${branchId}/appointment-items/${appointmentItemId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  reschedule: (branchId: string, appointmentItemId: string, input: RescheduleAppointmentItemInput) =>
+    apiFetch<AppointmentItem>(`/branches/${branchId}/appointment-items/${appointmentItemId}/reschedule`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู StaffQueueController — shape จริงที่ API ตอบกลับ (join staff มาด้วย) */
+export interface StaffQueueEntry {
+  id: string;
+  branchId: string;
+  staffId: string;
+  staff: StaffProfile;
+  date: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const staffQueueApi = {
+  list: (branchId: string, date: string) =>
+    apiFetch<StaffQueueEntry[]>(`/branches/${branchId}/staff-queue?date=${date}`),
+  join: (branchId: string, input: JoinStaffQueueInput) =>
+    apiFetch<StaffQueueEntry>(`/branches/${branchId}/staff-queue/join`, {
       method: "POST",
       body: JSON.stringify(input),
     }),

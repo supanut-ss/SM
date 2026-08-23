@@ -7,3 +7,11 @@ export function toBangkokDateOnly(instant: Date): Date {
   const bangkok = new Date(instant.getTime() + 7 * 60 * 60_000);
   return new Date(Date.UTC(bangkok.getUTCFullYear(), bangkok.getUTCMonth(), bangkok.getUTCDate()));
 }
+
+/** ช่วง UTC instant ที่ครอบวันปฏิทินไทยทั้งวันของ instant ที่ให้มา — ใช้ query ช่วง startAt (T4.5 Lane Board) */
+export function bangkokDayRange(instant: Date): { start: Date; end: Date } {
+  const dateOnly = toBangkokDateOnly(instant);
+  const start = new Date(dateOnly.getTime() - 7 * 60 * 60_000);
+  const end = new Date(start.getTime() + 24 * 60 * 60_000);
+  return { start, end };
+}

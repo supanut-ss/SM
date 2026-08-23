@@ -5,6 +5,7 @@ import {
   canTransitionAppointmentStatus,
   joinStaffQueueSchema,
   nextAppointmentStatuses,
+  rescheduleAppointmentItemSchema,
   updateAppointmentItemStatusSchema,
   type AppointmentStatus,
 } from "./booking.js";
@@ -113,5 +114,35 @@ describe("joinStaffQueueSchema", () => {
 
   it("ASSIGN_TYPES มีค่าครบ 2 แบบ", () => {
     expect(ASSIGN_TYPES).toEqual(["ROTATION", "CUSTOMER_REQUEST"]);
+  });
+});
+
+describe("rescheduleAppointmentItemSchema", () => {
+  it("ยอมรับข้อมูลที่ถูกต้องครบ", () => {
+    const result = rescheduleAppointmentItemSchema.safeParse({
+      staffId: "staff_1",
+      roomId: "room_1",
+      startAt: "2026-09-01T09:00:00.000Z",
+      endAt: "2026-09-01T10:00:00.000Z",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("ปฏิเสธเมื่อ endAt ไม่มากกว่า startAt", () => {
+    const result = rescheduleAppointmentItemSchema.safeParse({
+      staffId: "staff_1",
+      roomId: "room_1",
+      startAt: "2026-09-01T10:00:00.000Z",
+      endAt: "2026-09-01T10:00:00.000Z",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("ปฏิเสธเมื่อไม่ส่ง staffId/roomId มา", () => {
+    const result = rescheduleAppointmentItemSchema.safeParse({
+      startAt: "2026-09-01T09:00:00.000Z",
+      endAt: "2026-09-01T10:00:00.000Z",
+    });
+    expect(result.success).toBe(false);
   });
 });

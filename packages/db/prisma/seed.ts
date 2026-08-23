@@ -113,9 +113,10 @@ async function main() {
     { name: "ห้อง 3 (คู่)", roomType: "ห้องนวดคู่", capacity: 2 },
     { name: "ห้องสปา", roomType: "ห้องสปา", capacity: 1 },
   ];
+  const roomByName = new Map<string, { id: string }>();
   for (const roomSeed of roomSeeds) {
     const roomType = roomTypeByName.get(roomSeed.roomType)!;
-    await prisma.room.upsert({
+    const room = await prisma.room.upsert({
       where: { branchId_name: { branchId: branch.id, name: roomSeed.name } },
       update: {},
       create: {
@@ -125,6 +126,7 @@ async function main() {
         capacity: roomSeed.capacity,
       },
     });
+    roomByName.set(roomSeed.name, room);
   }
 
   const categorySeeds = ["นวด", "เสริมความงาม"];
@@ -173,6 +175,7 @@ async function main() {
     },
   ];
   let variantCount = 0;
+  const variantByKey = new Map<string, { id: string }>();
   for (const serviceSeed of serviceSeeds) {
     const category = categoryByName.get(serviceSeed.category)!;
     const roomType = roomTypeByName.get(serviceSeed.roomType)!;
@@ -186,7 +189,7 @@ async function main() {
       },
     });
     for (const variant of serviceSeed.variants) {
-      await prisma.serviceVariant.upsert({
+      const created = await prisma.serviceVariant.upsert({
         where: {
           serviceId_durationMin: { serviceId: service.id, durationMin: variant.durationMin },
         },
@@ -202,6 +205,7 @@ async function main() {
           requiredRoomTypeId: roomType.id,
         },
       });
+      variantByKey.set(`${serviceSeed.name}:${variant.durationMin}`, created);
       variantCount += 1;
     }
   }
@@ -287,14 +291,145 @@ async function main() {
     { name: "มาลี สวยงาม", phone: "0834567890" },
   ];
   let memberCount = 0;
+  const memberByName = new Map<string, { id: string }>();
   for (const [index, memberSeed] of memberSeeds.entries()) {
     const code = `M${(index + 1).toString().padStart(6, "0")}`;
-    await prisma.member.upsert({
+    const member = await prisma.member.upsert({
       where: { branchId_code: { branchId: branch.id, code } },
       update: {},
       create: { branchId: branch.id, code, name: memberSeed.name, phone: memberSeed.phone },
     });
+    memberByName.set(memberSeed.name, member);
     memberCount += 1;
+  }
+
+  // นัดตัวอย่างของ "วันนี้" (T4.5 Lane Board) — anchor ที่วันที่รัน seed จริงเสมอ (ไม่ใช่วันคงที่) ให้เปิด
+  // /board วันไหนก็เห็นข้อมูลทันที ไม่ใช่ business logic เหมือน staffShiftSeeds ด้านบน — สร้างครั้งเดียว
+  // (เช็คว่ามี Appointment ของวันนี้อยู่แล้วหรือยังก่อนเสมอ กัน seed ซ้ำสร้างนัดซ้อนจนชน EXCLUDE constraint)
+  function bkkToday(hour: number, minute = 0): Date {
+    return new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), hour - 7, minute));
+  }
+  // "label" วันที่แบบเดียวกับ toBangkokDateOnly() ฝั่ง apps/api (ดู bangkok-date.ts) — คนละความหมายกับ
+  // bkkToday() ด้านบน (ที่คือ instant จริง) ต้องใช้ตัวนี้เท่านั้นกับคอลัมน์ @db.Date อย่าง StaffQueueEntry.date
+  const bangkokNowForLabel = new Date(today.getTime() + 7 * 60 * 60_000);
+  const todayDateLabel = new Date(
+    Date.UTC(
+      bangkokNowForLabel.getUTCFullYear(),
+      bangkokNowForLabel.getUTCMonth(),
+      bangkokNowForLabel.getUTCDate(),
+    ),
+  );
+
+  const appointmentSeeds: Array<{
+    memberName: string;
+    staffName: string;
+    roomName: string;
+    serviceKey: string;
+    startHour: number;
+    startMinute?: number;
+    status: "BOOKED" | "CONFIRMED" | "CHECKED_IN" | "IN_SERVICE" | "COMPLETED";
+    assignType: "ROTATION" | "CUSTOMER_REQUEST";
+  }> = [
+    {
+      memberName: "สมหญิง ใจดี",
+      staffName: "นก",
+      roomName: "ห้อง 1",
+      serviceKey: "นวดไทย:60",
+      startHour: 9,
+      status: "COMPLETED",
+      assignType: "ROTATION",
+    },
+    {
+      memberName: "สมชาย รักสุขภาพ",
+      staffName: "นก",
+      roomName: "ห้อง 1",
+      serviceKey: "นวดไทย:90",
+      startHour: 10,
+      startMinute: 30,
+      status: "IN_SERVICE",
+      assignType: "CUSTOMER_REQUEST",
+    },
+    {
+      memberName: "มาลี สวยงาม",
+      staffName: "แอน",
+      roomName: "ห้อง 2",
+      serviceKey: "นวดน้ำมัน:60",
+      startHour: 13,
+      status: "CONFIRMED",
+      assignType: "ROTATION",
+    },
+    {
+      memberName: "สมหญิง ใจดี",
+      staffName: "แอน",
+      roomName: "ห้อง 1",
+      serviceKey: "นวดน้ำมัน:90",
+      startHour: 15,
+      status: "BOOKED",
+      assignType: "ROTATION",
+    },
+    {
+      memberName: "สมชาย รักสุขภาพ",
+      staffName: "นก",
+      roomName: "ห้อง 2",
+      serviceKey: "นวดน้ำมัน:60",
+      startHour: 16,
+      startMinute: 30,
+      status: "CHECKED_IN",
+      assignType: "ROTATION",
+    },
+  ];
+
+  const existingTodayAppointmentCount = await prisma.appointmentItem.count({
+    where: { branchId: branch.id, startAt: { gte: bkkToday(0), lt: bkkToday(24) } },
+  });
+  let appointmentCount = 0;
+  if (existingTodayAppointmentCount === 0) {
+    for (const seed of appointmentSeeds) {
+      const member = memberByName.get(seed.memberName)!;
+      const staff = staffByName.get(seed.staffName)!;
+      const room = roomByName.get(seed.roomName)!;
+      const variant = variantByKey.get(seed.serviceKey);
+      if (!variant) continue;
+      const variantFull = await prisma.serviceVariant.findUniqueOrThrow({ where: { id: variant.id } });
+      const startAt = bkkToday(seed.startHour, seed.startMinute ?? 0);
+      const endAt = new Date(startAt.getTime() + variantFull.durationMin * 60_000);
+      const roomFull = await prisma.room.findUniqueOrThrow({ where: { id: room.id } });
+
+      const appointment = await prisma.appointment.create({
+        data: { branchId: branch.id, memberId: member.id },
+      });
+      await prisma.appointmentItem.create({
+        data: {
+          branchId: branch.id,
+          appointmentId: appointment.id,
+          staffId: staff.id,
+          roomId: room.id,
+          serviceVariantId: variant.id,
+          status: seed.status,
+          assignType: seed.assignType,
+          startAt,
+          endAt,
+          roomCapacityAtBooking: roomFull.capacity,
+        },
+      });
+      appointmentCount += 1;
+    }
+  }
+
+  // คิวหมุนตัวอย่างของวันนี้ (T4.4/T4.5) — เรียงตามลำดับที่ "เข้ากะ" วันนี้
+  const queueStaffOrder = ["นก", "แอน", "ปุ๊ก"];
+  let queueEntryCount = 0;
+  for (const [index, staffName] of queueStaffOrder.entries()) {
+    const staff = staffByName.get(staffName)!;
+    const existing = await prisma.staffQueueEntry.findUnique({
+      where: { staffId_date: { staffId: staff.id, date: todayDateLabel } },
+    });
+    if (!existing) {
+      await prisma.staffQueueEntry.create({
+        data: { branchId: branch.id, staffId: staff.id, date: todayDateLabel, position: index },
+      });
+      queueEntryCount += 1;
+    }
   }
 
   console.log(`seed: ready — branch ${branch.name} (${branch.code})`);
@@ -309,6 +444,7 @@ async function main() {
     `seed: ${shiftTemplateSeeds.length} shift templates, ${staffShiftCount} staff shifts, ${staffLeaveSeeds.length} staff leaves`,
   );
   console.log(`seed: ${memberCount} members`);
+  console.log(`seed: ${appointmentCount} appointments (วันนี้) สำหรับทดสอบ /board, ${queueEntryCount} คิวหมุน`);
   console.log(
     `seed: dev users — {role}@lotusdesk.local / password "${DEV_PASSWORD}" / PIN "${DEV_PIN}" (dev เท่านั้น)`,
   );
