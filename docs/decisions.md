@@ -533,3 +533,37 @@ override ต่อ handler ผ่าน decorator — เก็บไว้เ�
 บ่อยจนกระทบการใช้งานจริง (เช่น เจ้าของร้านกรอง audit log ด้วย action แล้วพลาดรายการ) แต่ตอนนี้ยังไม่มีหน้า UI
 ไหนกรอง audit log ด้วย action เลย จึงยังไม่ใช่ปัญหาจริง — ยังไม่มี MemberPackage/แต้มให้ย้ายจึงยังทดสอบเกณฑ์
 "ยอดคงเหลือของคอร์สไม่หาย" ไม่ได้เต็มรูปแบบ รอ T5.x/loyalty ในอนาคตมาเติม logic ย้ายเพิ่ม
+
+---
+
+## ADR-019: `packages/core` ประกาศ type ของตัวเองทั้งหมด ไม่ import จาก `@lotus-desk/contracts`
+
+วันที่: 2026-08-23
+Task ที่เกี่ยวข้อง: T4.1 (availability engine)
+
+บริบท: T4.1 ต้องการ type อย่าง `StaffLevel`, `StaffSkill`, และ shape ของ `StaffShift`/`Room`/`ServiceVariant`
+ที่คล้ายกับที่ประกาศไว้แล้วใน `@lotus-desk/contracts` (เช่น `STAFF_LEVELS`/`STAFF_SKILLS` ใน `staff.ts`)
+เกิดคำถามว่าควร import type เหล่านี้จาก contracts มาใช้ซ้ำ (DRY) หรือประกาศแยกเองใน `packages/core`
+
+ตัดสินใจ: ประกาศ type ทั้งหมดที่ `packages/core/availability` ต้องใช้ไว้เองในไฟล์ `types.ts` ของมัน
+(`StaffLevel`, `StaffSkill`, `StaffShift`, `StaffLeave`, `BookedBlock`, `StaffProfile`, `Room`,
+`ServiceVariant`, `AvailableSlot`, `FindAvailableSlotsInput`) — **ไม่เพิ่ม `@lotus-desk/contracts` เป็น
+dependency ของ `packages/core`** ค่า literal ของ enum (เช่น `"JUNIOR" | "SENIOR" | "MASTER"`) ตรงกับฝั่ง
+contracts โดยตั้งใจ เพื่อให้ structural typing ทำให้ค่าจริงจากฝั่งนั้น assign เข้ามาได้โดยไม่ต้องแปลง
+แต่เป็นคนละ type declaration กัน
+
+เหตุผล: `packages/core/package.json` ปัจจุบันไม่มี `dependencies` เลยแม้แต่ workspace package เดียว
+(มีแค่ `devDependencies` สำหรับ tooling) — นี่คือการตั้งใจของโครงสร้าง repo ตั้งแต่ต้น (ดู
+`docs/PLAN.md` §2: "packages/core คือหัวใจ... ห้าม import Prisma ใน packages/core เป็นกฎเหล็ก") การเพิ่ม
+`@lotus-desk/contracts` เป็น dependency จะทำลาย invariant นี้ที่ระดับเครื่องมือ (ไม่ใช่แค่ธรรมเนียมที่ต้อง
+จำ) เพราะเปิดช่องให้ `packages/core` มี dependency graph ที่ไม่ใช่ leaf node อีกต่อไป — ถ้าวันหนึ่ง
+`contracts` เพิ่ม dependency อื่นเข้ามาโดยไม่ได้ตั้งใจ (เช่นบาง schema library ที่ทำ I/O) `packages/core`
+จะโดนดึงไปด้วยทันทีโดยไม่มีใครสังเกตจนกว่าจะสาย — การซ้ำ type declaration แค่ enum ค่าคงที่ (ไม่ค่อยเปลี่ยน)
+มีความเสี่ยง drift ต่ำกว่าความเสี่ยงด้าน architecture มาก
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ทางเลือกที่ไม่เลือกคือเพิ่ม `@lotus-desk/contracts` เป็น dependency แล้ว
+import type-only (`import type { StaffLevel } from "@lotus-desk/contracts"`) — ปฏิเสธตามเหตุผลข้างต้น
+แม้ type-only import จะไม่มี JS runtime ถูก emit จริง (ไม่กระทบ bundle) แต่ยังนับเป็น dependency edge ใหม่ใน
+package.json ที่ CLAUDE.md บอกว่า "ห้ามเพิ่ม dependency ใหม่โดยไม่ถาม" — Task T5.3 (promotion engine) และ
+T6.2 (commission engine) ที่จะตามมาใน `packages/core` เช่นกัน ควรใช้แนวทางเดียวกันนี้ (ประกาศ type ของ
+ตัวเอง ไม่ import จาก contracts) เพื่อความสม่ำเสมอ
