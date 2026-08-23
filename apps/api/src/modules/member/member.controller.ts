@@ -25,6 +25,7 @@ import { CurrentBranch } from "../rbac/current-branch.decorator";
 import { PermissionGuard } from "../rbac/permission.guard";
 import { RequirePermission } from "../rbac/require-permission.decorator";
 import type { BranchContext } from "../rbac/permission.guard";
+import type { ConsentStatus, ConsentType } from "@lotus-desk/db";
 
 const CODE_GENERATION_ATTEMPTS = 5;
 
@@ -47,14 +48,22 @@ export class MemberController {
     @CurrentBranch() branch: BranchContext,
     @Query("q") q?: string,
     @Query("isActive") isActiveParam?: string,
+    @Query("marketingConsent") marketingConsentParam?: string,
   ) {
     const isActive =
       isActiveParam === "all" ? undefined : isActiveParam === "false" ? false : true;
     const trimmedQuery = q?.trim();
 
+    let consentFilter: { in: string[] } | { notIn: string[] } | undefined;
+    if (marketingConsentParam === "true" || marketingConsentParam === "false") {
+      const granted = await this.getMemberIdsWithLatestConsent(branch.branchId, "MARKETING", "GRANTED");
+      consentFilter = marketingConsentParam === "true" ? { in: [...granted] } : { notIn: [...granted] };
+    }
+
     return this.prisma.forBranch(branch.branchId).member.findMany({
       where: {
         ...(isActive === undefined ? {} : { isActive }),
+        ...(consentFilter ? { id: consentFilter } : {}),
         ...(trimmedQuery
           ? {
               OR: [
@@ -143,5 +152,24 @@ export class MemberController {
       }
     }
     throw new ConflictException("ไม่สามารถสร้างรหัสสมาชิกใหม่ได้ กรุณาลองใหม่อีกครั้ง");
+  }
+
+  /**
+   * สถานะความยินยอมปัจจุบันของสมาชิก = แถวล่าสุด (DISTINCT ON ... ORDER BY createdAt DESC) ต่อคนต่อประเภท
+   * เพราะ MemberConsent เป็น append-only (ดู docs/decisions.md ADR-016) ไม่มี "isCurrent" flag ให้ query ตรง ๆ
+   * ใช้เฉพาะกรอง "รายชื่อส่งโปรฯ" (เกณฑ์ผ่าน T3.3: ถอนความยินยอมรับข่าวสารแล้วต้องหลุดจากรายชื่อทันที)
+   */
+  private async getMemberIdsWithLatestConsent(
+    branchId: string,
+    type: ConsentType,
+    status: ConsentStatus,
+  ): Promise<Set<string>> {
+    const rows = await this.prisma.client.$queryRaw<Array<{ memberId: string; status: ConsentStatus }>>`
+      SELECT DISTINCT ON ("memberId") "memberId", "status"
+      FROM "member_consents"
+      WHERE "branchId" = ${branchId} AND "type" = ${type}::"ConsentType"
+      ORDER BY "memberId", "createdAt" DESC
+    `;
+    return new Set(rows.filter((r) => r.status === status).map((r) => r.memberId));
   }
 }

@@ -9,3 +9,4 @@ export * from "./room.js";
 export * from "./service.js";
 export * from "./shift.js";
 export * from "./member.js";
+export * from "./consent.js";

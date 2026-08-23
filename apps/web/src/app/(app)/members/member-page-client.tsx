@@ -7,6 +7,7 @@ import { Button, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHea
 import { ApiError, memberApi, type Member } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
+import { MemberConsentSection } from "./member-consent-section";
 import { MemberForm, type MemberFormValues } from "./member-form";
 
 type ActiveFilter = "true" | "false" | "all";
@@ -19,6 +20,7 @@ export function MemberPageClient() {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("true");
+  const [marketingFilter, setMarketingFilter] = useState<"" | "true" | "false">("");
   const [sheetTarget, setSheetTarget] = useState<"create" | Member | null>(null);
   const [confirmingDeactivateId, setConfirmingDeactivateId] = useState<string | null>(null);
 
@@ -28,9 +30,13 @@ export function MemberPageClient() {
   }, [searchInput]);
 
   const listQuery = useQuery({
-    queryKey: ["members", branch?.branchId, debouncedQuery, activeFilter],
+    queryKey: ["members", branch?.branchId, debouncedQuery, activeFilter, marketingFilter],
     queryFn: () =>
-      memberApi.list(branch!.branchId, { q: debouncedQuery || undefined, isActive: activeFilter }),
+      memberApi.list(branch!.branchId, {
+        q: debouncedQuery || undefined,
+        isActive: activeFilter,
+        marketingConsent: marketingFilter || undefined,
+      }),
     enabled: !!branch?.branchId,
   });
 
@@ -96,6 +102,16 @@ export function MemberPageClient() {
           <option value="true">ใช้งานอยู่</option>
           <option value="false">ปิดใช้งานแล้ว</option>
           <option value="all">ทั้งหมด</option>
+        </Select>
+        <Select
+          aria-label="กรองตามความยินยอมรับข่าวสาร"
+          value={marketingFilter}
+          onChange={(event) => setMarketingFilter(event.target.value as "" | "true" | "false")}
+          className="w-52"
+        >
+          <option value="">ทุกสถานะความยินยอม</option>
+          <option value="true">ยินยอมรับข่าวสาร</option>
+          <option value="false">ไม่ยินยอม/ถอนแล้ว</option>
         </Select>
       </div>
 
@@ -230,19 +246,24 @@ export function MemberPageClient() {
         onClose={() => setSheetTarget(null)}
         title={editingRecord ? `แก้ไขข้อมูล — ${editingRecord.name}` : "เพิ่มสมาชิกใหม่"}
       >
-        <MemberForm
-          key={editingRecord?.id ?? "create"}
-          initialValues={sheetInitialValues}
-          submitLabel={editingRecord ? "บันทึกการแก้ไข" : "เพิ่มสมาชิก"}
-          onCancel={() => setSheetTarget(null)}
-          onSubmit={async (values) => {
-            if (editingRecord) {
-              await updateMutation.mutateAsync({ memberId: editingRecord.id, input: values });
-            } else {
-              await createMutation.mutateAsync(values);
-            }
-          }}
-        />
+        <div className="grid gap-6">
+          <MemberForm
+            key={editingRecord?.id ?? "create"}
+            initialValues={sheetInitialValues}
+            submitLabel={editingRecord ? "บันทึกการแก้ไข" : "เพิ่มสมาชิก"}
+            onCancel={() => setSheetTarget(null)}
+            onSubmit={async (values) => {
+              if (editingRecord) {
+                await updateMutation.mutateAsync({ memberId: editingRecord.id, input: values });
+              } else {
+                await createMutation.mutateAsync(values);
+              }
+            }}
+          />
+          {editingRecord && (
+            <MemberConsentSection branchId={branch.branchId} memberId={editingRecord.id} />
+          )}
+        </div>
       </Sheet>
     </div>
   );

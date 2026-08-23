@@ -439,3 +439,49 @@ Task ที่เกี่ยวข้อง: ไม่ผูกกับ Task �
 เพราะจะทำให้ reference เดิมที่อ้างถึง "T3.3" ในหัวข้อ 12 (T12.4, T12.6) ผิดที่ผิดทางทันที ต้องไล่แก้หลายจุด
 โดยไม่ได้ประโยชน์อะไรเพิ่ม — การเว้นเลข T3.2 ว่างไว้ (ย้ายไปเป็น T12.9 แทน) ปลอดภัยกว่าและตรงกับแบบแผนที่
 ADR-011 วางไว้แล้ว ไม่มีผลกระทบต่อโค้ดที่มีอยู่เลยเพราะ T3.2 ยังไม่เคยเริ่มเขียนโค้ดจริง (แค่เป็นรายการในแผน)
+
+---
+
+## ADR-017: pg_trgm ต้องประกาศผ่าน Prisma schema DSL (`extensions`/`@@index(type: Gin)`) ไม่ใช่ raw SQL — และต้องรีเซ็ต dev DB เพื่อแก้
+วันที่: 2026-08-23
+Task ที่เกี่ยวข้อง: T3.3 (พบระหว่างเพิ่ม MemberConsent — ไม่เกี่ยวกับ T3.3 โดยตรง แต่แก้ไปพร้อมกันเพราะ
+`prisma migrate dev` ตัวแรกของ Task นี้เป็นตัวที่ดันไปเจอบั๊กจาก T3.1/ADR-014 เข้า)
+
+บริบท: ADR-014 (T3.1) ตัดสินใจสร้าง `pg_trgm` extension + GIN trigram index บน `Member.name`/`Member.phone`
+ด้วย raw SQL เขียนเองในไฟล์ migration โดยตรง เพราะตอนนั้นไม่มี DB จริงให้ทดสอบว่า Prisma schema DSL รองรับ
+operator class แบบนี้ได้จริงหรือเปล่า (`postgresqlExtensions` preview feature) — พอมี DB จริงและรัน
+`prisma migrate dev --name member_consents` (สำหรับ T3.3) ครั้งแรก Prisma diff schema.prisma กับ DB จริง
+แล้วเห็นว่ามี index 2 ตัวใน DB (`members_name_trgm_idx`, `members_phone_trgm_idx`) ที่ schema.prisma ไม่ได้
+ประกาศไว้เลย (เพราะสร้างด้วย raw SQL) จึงตีความว่าเป็น index แปลกปลอมที่ต้อง**ลบทิ้ง** แล้วออก migration ที่มี
+`DROP INDEX` ทั้งสองตัวโดยอัตโนมัติ — ถ้าไม่ทันสังเกตจะทำให้เกณฑ์ผ่าน T3.1 (ค้นหา 10,000 แถว < 100ms) พังใน
+production จริงแบบเงียบ ๆ ตอน deploy ครั้งถัดไป
+
+ตัดสินใจ:
+- ประกาศ `pg_trgm` ผ่าน schema DSL จริง: `generator client { previewFeatures = ["postgresqlExtensions"] }`
+  และ `datasource db { extensions = [pgTrgm(map: "pg_trgm")] }` — **ต้องมี `map: "pg_trgm"` เสมอ** เพราะไม่งั้น
+  Prisma แปลชื่อ `pgTrgm` (camelCase) เป็น `CREATE EXTENSION "pgTrgm"` ตรง ๆ ซึ่งไม่ตรงกับชื่อ extension จริง
+  ใน Postgres (`pg_trgm`) — ยืนยันจาก error จริงตอน migrate (`extension "pgTrgm" is not available`)
+- ประกาศ index ด้วย `@@index([name(ops: raw("gin_trgm_ops"))], type: Gin)` (เช่นเดียวกับ phone) แทน raw SQL —
+  Prisma รองรับ syntax นี้จริงตาม `postgresqlExtensions` preview feature (ยืนยันแล้วว่าใช้งานได้จริงกับ DB จริง)
+- ลบ `CREATE EXTENSION IF NOT EXISTS pg_trgm;` ออกจาก `docker/postgres/init-extensions.sql` — เหลือแค่
+  `btree_gist` (ที่ยังไม่ถูกประกาศผ่าน schema DSL เพราะยังไม่มี index ไหนใช้จริง รอ T4.2) กันไม่ให้เกิด
+  ปัญหาแบบเดียวกันซ้ำ (extension ที่มีอยู่จริงใน DB แต่ Prisma ไม่รู้จักผ่าน schema จะทำให้ diff สับสนเสมอ)
+- **รีเซ็ต local dev database 2 ครั้ง** เพื่อแก้ปัญหานี้ให้สะอาด (ครั้งแรก: ล้าง drift จาก index ที่ลบไปแล้ว
+  ด้วยมือ + `btree_gist` ที่ไม่เคยอยู่ใน migration history เลย; ครั้งที่สอง: หลัง migration แรกพังเพราะ
+  `extensions = [pgTrgm]` ไม่มี `map:` ทำให้ apply migration ไม่สำเร็จกลางคัน) — Prisma มีระบบตรวจจับเองว่าถูก
+  agent เรียกและปฏิเสธรัน `prisma migrate reset` โดยไม่มี `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION` ตรงกับ
+  ข้อความยืนยันของผู้ใช้เป๊ะ ๆ — หยุดถามผู้ใช้ตรง ๆ ก่อนทุกครั้งตามที่ Prisma กำหนด ได้รับคำตอบ "ตกลง" แล้วจึง
+  ดำเนินการ (ทั้งสองรอบเป็นการแก้ปัญหาเดียวกันต่อเนื่องกัน ไม่ใช่คำขอทำลายข้อมูลใหม่)
+
+เหตุผล: ข้อมูลใน local dev DB ตอนนั้นมีแค่ seed data ปกติ (ข้อมูลทดสอบ 10,000 แถวสำหรับวัด performance ของ
+ADR-014 ถูกลบไปแล้วในสคริปต์ทดสอบเอง) จึงไม่มีอะไรสูญเสียจริงที่กู้คืนไม่ได้ — การแก้ที่ schema DSL แทน raw SQL
+ทำให้ `prisma migrate dev`/`deploy` ในอนาคต (รวมถึงตอน deploy ขึ้น production ครั้งแรกที่ T9.1) ไม่มีทางลบ
+index เหล่านี้ทิ้งโดยไม่ตั้งใจอีก เพราะกลายเป็นส่วนหนึ่งของ "expected schema" ที่ Prisma รู้จักแล้วอย่างเป็น
+ทางการ ไม่ใช่ effect ข้างเคียงที่ migration ประวัติศาสตร์ทิ้งไว้เฉย ๆ
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ทางเลือกอื่นคือแก้ migration `20260823100431_members` เดิม (ของ T3.1) ให้ตรงกับ
+สถานการณ์ใหม่ — ปฏิเสธเพราะเป็น migration ที่ apply ไปแล้วจริงและมี checksum ที่ Prisma ตรวจสอบ แก้ไฟล์เดิม
+ย้อนหลังจะทำให้ fresh deploy กับ deploy ที่เคย apply แล้วไม่ตรงกัน (checksum mismatch) — ปล่อยไฟล์เดิมไว้ตาม
+เดิม (ยังคงมีคอมเมนต์อธิบายว่าทำไมเป็น raw SQL ตามบริบทตอนนั้น) แล้วให้ migration ใหม่ (`member_consents`)
+เป็นตัวประสาน (RENAME INDEX ให้ตรงชื่อที่ Prisma คาดหวัง) แทน — Prisma ทำ RENAME ให้อัตโนมัติเองเมื่อ schema
+ประกาศ index ที่มีอยู่แล้วในชื่ออื่น ไม่ต้องเขียน SQL เพิ่มเอง

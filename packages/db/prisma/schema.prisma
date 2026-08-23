@@ -1,10 +1,18 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
+// pgTrgm ต้องประกาศที่นี่ (ไม่ใช่แค่ CREATE EXTENSION ด้วย raw SQL ใน migration T3.1 เดิม) เพราะพิสูจน์แล้ว
+// จากการรัน `prisma migrate dev` จริงครั้งแรกว่าถ้า Prisma ไม่รู้จัก extension/index นี้ผ่าน schema DSL
+// มันจะสั่ง DROP INDEX ทิ้งทุกครั้งที่ diff schema (คิดว่าเป็น index แปลกปลอมที่ไม่ได้ประกาศไว้) — ดู
+// docs/decisions.md ADR-017
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  // ต้องมี map: "pg_trgm" เสมอ — ไม่งั้น Prisma สร้าง `CREATE EXTENSION "pgTrgm"` (camelCase ตรง ๆ) ซึ่งไม่มี
+  // extension ชื่อนี้จริงใน Postgres (พิสูจน์แล้วจาก error จริงตอนรัน migrate — ดู ADR-017)
+  extensions = [pgTrgm(map: "pg_trgm")]
 }
 
 /// ประเภทการกระทำที่ AuditLog บันทึก — ดู docs/PLAN.md T1.5 (interceptor เต็มรูปยังไม่ทำที่นี่)
@@ -36,6 +44,7 @@ model Branch {
   staffShifts       StaffShift[]
   staffLeaves       StaffLeave[]
   members           Member[]
+  memberConsents    MemberConsent[]
 
   @@map("branches")
 }
@@ -403,8 +412,45 @@ model Member {
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
 
+  consents MemberConsent[]
+
   @@unique([branchId, code])
   @@index([branchId])
   @@index([branchId, phone])
+  // ค้นหาแบบพิมพ์ไม่ครบก็เจอ (T3.1 เกณฑ์ผ่าน: ค้นหา 10,000 แถว < 100ms) — ประกาศผ่าน schema DSL ตรง ๆ
+  // (ไม่ใช่ raw SQL ใน migration แบบเดิม) ตั้งแต่ ADR-017 กัน `prisma migrate dev` ครั้งต่อไปสั่ง DROP ทิ้ง
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("members")
+}
+
+enum ConsentType {
+  HEALTH_DATA
+  MARKETING
+}
+
+enum ConsentStatus {
+  GRANTED
+  WITHDRAWN
+}
+
+/// บันทึกความยินยอม PDPA (T3.3) — append-only เสมอ (ห้าม UPDATE ทับของเดิม) ทุกครั้งที่ให้/ถอนความยินยอม
+/// คือ INSERT แถวใหม่ สถานะปัจจุบันของสมาชิก 1 คนต่อประเภทความยินยอม 1 อย่าง = แถวล่าสุดเรียงตาม createdAt
+/// เหตุผลที่ต้อง append-only: เป็นหลักฐานทางกฎหมาย (ใครยินยอม/ถอนเมื่อไร ผ่านช่องทางไหน ด้วยข้อความเวอร์ชันไหน)
+/// ต้องพิสูจน์ย้อนหลังได้เสมอ ไม่ใช่แค่ true/false ปัจจุบัน — ดู docs/decisions.md ADR-016
+model MemberConsent {
+  id          String        @id @default(cuid())
+  branchId    String
+  branch      Branch        @relation(fields: [branchId], references: [id])
+  memberId    String
+  member      Member        @relation(fields: [memberId], references: [id])
+  type        ConsentType
+  status      ConsentStatus
+  channel     String
+  textVersion String
+  createdAt   DateTime      @default(now()) @db.Timestamptz
+
+  @@index([branchId])
+  @@index([memberId, type, createdAt])
+  @@map("member_consents")
 }

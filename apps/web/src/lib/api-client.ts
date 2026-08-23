@@ -7,6 +7,9 @@ import type {
   CreateStaffLeaveInput,
   CreateStaffShiftInput,
   CreateMemberInput,
+  CreateMemberConsentInput,
+  ConsentType,
+  ConsentStatus,
   LeaveType,
   LoginInput,
   MeResponse,
@@ -352,6 +355,7 @@ export interface Member {
 export interface MemberListParams {
   q?: string;
   isActive?: "true" | "false" | "all";
+  marketingConsent?: "true" | "false";
 }
 
 /** payload ของ 409 จาก MemberController.create ตอนพบเบอร์ซ้ำ (ดู docs/decisions.md ADR-014) */
@@ -365,6 +369,7 @@ export const memberApi = {
     const query = new URLSearchParams();
     if (params?.q) query.set("q", params.q);
     if (params?.isActive) query.set("isActive", params.isActive);
+    if (params?.marketingConsent) query.set("marketingConsent", params.marketingConsent);
     const qs = query.toString();
     return apiFetch<Member[]>(`/branches/${branchId}/members${qs ? `?${qs}` : ""}`);
   },
@@ -376,6 +381,28 @@ export const memberApi = {
   update: (branchId: string, memberId: string, input: UpdateMemberInput) =>
     apiFetch<Member>(`/branches/${branchId}/members/${memberId}`, {
       method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู MemberConsentController — shape จริงที่ API ตอบกลับ */
+export interface MemberConsent {
+  id: string;
+  branchId: string;
+  memberId: string;
+  type: ConsentType;
+  status: ConsentStatus;
+  channel: string;
+  textVersion: string;
+  createdAt: string;
+}
+
+export const memberConsentApi = {
+  list: (branchId: string, memberId: string) =>
+    apiFetch<MemberConsent[]>(`/branches/${branchId}/members/${memberId}/consents`),
+  create: (branchId: string, memberId: string, input: CreateMemberConsentInput) =>
+    apiFetch<MemberConsent>(`/branches/${branchId}/members/${memberId}/consents`, {
+      method: "POST",
       body: JSON.stringify(input),
     }),
 };
