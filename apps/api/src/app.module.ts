@@ -9,6 +9,7 @@ import { BranchModule } from "./modules/branch/branch.module";
 import { StaffModule } from "./modules/staff/staff.module";
 import { RoomModule } from "./modules/room/room.module";
 import { ServiceModule } from "./modules/service/service.module";
+import { ShiftModule } from "./modules/shift/shift.module";
 import { AuditModule } from "./audit/audit.module";
 
 @Module({
@@ -28,6 +29,7 @@ import { AuditModule } from "./audit/audit.module";
     StaffModule,
     RoomModule,
     ServiceModule,
+    ShiftModule,
   ],
   controllers: [AppController],
 })

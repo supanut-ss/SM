@@ -32,6 +32,9 @@ model Branch {
   rooms             Room[]
   serviceCategories ServiceCategory[]
   services          Service[]
+  shiftTemplates    ShiftTemplate[]
+  staffShifts       StaffShift[]
+  staffLeaves       StaffLeave[]
 
   @@map("branches")
 }
@@ -195,6 +198,9 @@ model StaffProfile {
   createdAt DateTime     @default(now()) @db.Timestamptz
   updatedAt DateTime     @updatedAt @db.Timestamptz
 
+  staffShifts StaffShift[]
+  staffLeaves StaffLeave[]
+
   @@index([branchId])
   @@map("staff_profiles")
 }
@@ -306,4 +312,76 @@ model ServiceVariant {
   @@index([serviceId])
   @@index([requiredRoomTypeId])
   @@map("service_variants")
+}
+
+/// แม่แบบกะ — ต่อสาขา (T2.4) เก็บเวลาเป็น "นาทีจากเที่ยงคืน" (0-1439) ไม่ใช่ timestamptz เพราะเป็น
+/// เวลาตามผนังที่วนซ้ำทุกสัปดาห์ ไม่ใช่ event ที่เกิดครั้งเดียว (ต่างจาก AuditLog/createdAt ที่เป็น instant จริง)
+/// ยังไม่รองรับกะข้ามเที่ยงคืน — endMin ต้องมากกว่า startMin เสมอ (บังคับที่ zod schema ใน packages/contracts)
+model ShiftTemplate {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  name      String
+  startMin  Int
+  endMin    Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  staffShifts StaffShift[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@map("shift_templates")
+}
+
+/// การจ่ายกะจริงของพนักงาน 1 คน ต่อ 1 วัน (T2.4) — startMin/endMin เป็นการ snapshot ค่าจาก
+/// ShiftTemplate ตอนสร้างเท่านั้น (ตัดสินใจแล้ว: แก้ template ทีหลังไม่กระทบตารางกะที่จ่ายไปแล้ว
+/// เหมือนหลักการเดียวกับ ADR-008/ServiceVariant ที่ snapshot ราคา ณ เวลาสร้าง) — "กะซ้อนกัน" (เกณฑ์ผ่าน
+/// T2.4) เช็คที่ระดับ service/controller: staffId+date เดียวกัน ห้ามมีสองกะที่ startMin/endMin ทับกัน
+/// พนักงาน 1 คนมีได้หลายกะต่อวัน (เช่น กะแบ่งครึ่งคร่อมพักเที่ยง) ตราบใดที่ไม่ทับกัน
+model StaffShift {
+  id              String        @id @default(cuid())
+  branchId        String
+  branch          Branch        @relation(fields: [branchId], references: [id])
+  staffId         String
+  staff           StaffProfile  @relation(fields: [staffId], references: [id])
+  shiftTemplateId String
+  shiftTemplate   ShiftTemplate @relation(fields: [shiftTemplateId], references: [id])
+  date            DateTime      @db.Date
+  startMin        Int
+  endMin          Int
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([staffId, date])
+  @@map("staff_shifts")
+}
+
+enum LeaveType {
+  SICK
+  PERSONAL
+  VACATION
+}
+
+/// วันลาของพนักงาน 1 คน ต่อ 1 วัน (T2.4) — แยกประเภทลา (ป่วย/กิจ/พักร้อน) ตามที่ตกลงไว้
+/// 1 คนลาได้แค่ประเภทเดียวต่อวัน (@@unique staffId+date) การลาหลายวันติดกันสร้างเป็นหลายแถว
+/// (1 แถว = 1 วัน) ให้ตรงกับ leaves: StaffLeave[] ที่ T4.1 (availability engine) จะอ่านต่อวันตรง ๆ
+model StaffLeave {
+  id        String       @id @default(cuid())
+  branchId  String
+  branch    Branch       @relation(fields: [branchId], references: [id])
+  staffId   String
+  staff     StaffProfile @relation(fields: [staffId], references: [id])
+  date      DateTime     @db.Date
+  type      LeaveType
+  note      String?
+  createdAt DateTime     @default(now()) @db.Timestamptz
+  updatedAt DateTime     @updatedAt @db.Timestamptz
+
+  @@unique([staffId, date])
+  @@index([branchId])
+  @@index([staffId, date])
+  @@map("staff_leaves")
 }

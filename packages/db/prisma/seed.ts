@@ -78,20 +78,22 @@ async function main() {
     { name: "แอน", level: "SENIOR" as const, skills: ["OIL", "FACIAL"] as const },
     { name: "ปุ๊ก", level: "JUNIOR" as const, skills: ["NAIL"] as const },
   ];
+  const staffByName = new Map<string, { id: string }>();
   for (const staffSeed of staffSeeds) {
     const existing = await prisma.staffProfile.findFirst({
       where: { branchId: branch.id, name: staffSeed.name },
     });
-    if (!existing) {
-      await prisma.staffProfile.create({
+    const staff =
+      existing ??
+      (await prisma.staffProfile.create({
         data: {
           branchId: branch.id,
           name: staffSeed.name,
           level: staffSeed.level,
           skills: [...staffSeed.skills],
         },
-      });
-    }
+      }));
+    staffByName.set(staffSeed.name, staff);
   }
 
   const roomTypeNames = ["ห้องนวดเดี่ยว", "ห้องนวดคู่", "ห้องสปา", "ห้องทำหน้า"];
@@ -204,6 +206,81 @@ async function main() {
     }
   }
 
+  const shiftTemplateSeeds = [
+    { name: "เช้า", startMin: 8 * 60, endMin: 16 * 60 },
+    { name: "บ่าย", startMin: 14 * 60, endMin: 22 * 60 },
+    { name: "เต็มวัน", startMin: 9 * 60, endMin: 18 * 60 },
+  ];
+  const shiftTemplateByName = new Map<string, { id: string; startMin: number; endMin: number }>();
+  for (const shiftTemplateSeed of shiftTemplateSeeds) {
+    const shiftTemplate = await prisma.shiftTemplate.upsert({
+      where: { branchId_name: { branchId: branch.id, name: shiftTemplateSeed.name } },
+      update: {},
+      create: { branchId: branch.id, ...shiftTemplateSeed },
+    });
+    shiftTemplateByName.set(shiftTemplateSeed.name, shiftTemplate);
+  }
+
+  // จันทร์ของสัปดาห์ปัจจุบัน — แค่ตัวอย่างข้อมูลให้เปิดปฏิทินกะแล้วเห็นอะไรทันที ไม่ใช่ business logic
+  // (ห้าม Date.now() เฉพาะใน packages/core ตาม CLAUDE.md ข้อ 1 — seed script ไม่ติดกฎนี้)
+  const today = new Date();
+  const monday = new Date(today);
+  const dayOfWeek = (today.getDay() + 6) % 7; // 0 = จันทร์
+  monday.setDate(today.getDate() - dayOfWeek);
+  monday.setHours(0, 0, 0, 0);
+  function dateOffset(days: number): Date {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + days);
+    return d;
+  }
+
+  const staffShiftSeeds: Array<{ staffName: string; templateName: string; dayOffset: number }> = [
+    { staffName: "นก", templateName: "เช้า", dayOffset: 0 },
+    { staffName: "นก", templateName: "เช้า", dayOffset: 1 },
+    { staffName: "นก", templateName: "เช้า", dayOffset: 2 },
+    { staffName: "แอน", templateName: "บ่าย", dayOffset: 1 },
+    { staffName: "แอน", templateName: "บ่าย", dayOffset: 2 },
+    { staffName: "แอน", templateName: "บ่าย", dayOffset: 3 },
+    { staffName: "ปุ๊ก", templateName: "เต็มวัน", dayOffset: 0 },
+    { staffName: "ปุ๊ก", templateName: "เต็มวัน", dayOffset: 2 },
+    { staffName: "ปุ๊ก", templateName: "เต็มวัน", dayOffset: 4 },
+  ];
+  let staffShiftCount = 0;
+  for (const seed of staffShiftSeeds) {
+    const staff = staffByName.get(seed.staffName)!;
+    const template = shiftTemplateByName.get(seed.templateName)!;
+    const date = dateOffset(seed.dayOffset);
+    const existing = await prisma.staffShift.findFirst({
+      where: { staffId: staff.id, date, shiftTemplateId: template.id },
+    });
+    if (!existing) {
+      await prisma.staffShift.create({
+        data: {
+          branchId: branch.id,
+          staffId: staff.id,
+          shiftTemplateId: template.id,
+          date,
+          startMin: template.startMin,
+          endMin: template.endMin,
+        },
+      });
+    }
+    staffShiftCount += 1;
+  }
+
+  const staffLeaveSeeds: Array<{ staffName: string; dayOffset: number; type: "SICK" }> = [
+    { staffName: "แอน", dayOffset: 4, type: "SICK" },
+  ];
+  for (const seed of staffLeaveSeeds) {
+    const staff = staffByName.get(seed.staffName)!;
+    const date = dateOffset(seed.dayOffset);
+    await prisma.staffLeave.upsert({
+      where: { staffId_date: { staffId: staff.id, date } },
+      update: {},
+      create: { branchId: branch.id, staffId: staff.id, date, type: seed.type, note: "ลาป่วย (ตัวอย่าง)" },
+    });
+  }
+
   console.log(`seed: ready — branch ${branch.name} (${branch.code})`);
   console.log(`seed: device "${device.label}" (${device.id})`);
   console.log(`seed: 4 roles × ${PERMISSIONS.length} permissions`);
@@ -211,6 +288,9 @@ async function main() {
   console.log(`seed: ${roomTypeNames.length} room types, ${roomSeeds.length} rooms`);
   console.log(
     `seed: ${categorySeeds.length} service categories, ${serviceSeeds.length} services, ${variantCount} service variants`,
+  );
+  console.log(
+    `seed: ${shiftTemplateSeeds.length} shift templates, ${staffShiftCount} staff shifts, ${staffLeaveSeeds.length} staff leaves`,
   );
   console.log(
     `seed: dev users — {role}@lotusdesk.local / password "${DEV_PASSWORD}" / PIN "${DEV_PIN}" (dev เท่านั้น)`,

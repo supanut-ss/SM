@@ -21,6 +21,9 @@ export const BRANCH_SCOPED_MODELS = new Set([
   "Room",
   "ServiceCategory",
   "Service",
+  "ShiftTemplate",
+  "StaffShift",
+  "StaffLeave",
 ]);
 
 const SCOPED_OPERATIONS = new Set(["findMany", "findFirst", "findUnique", "count"]);

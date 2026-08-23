@@ -2,7 +2,11 @@ import type {
   CreateRoomInput,
   CreateServiceInput,
   CreateServiceVariantInput,
+  CreateShiftTemplateInput,
   CreateStaffInput,
+  CreateStaffLeaveInput,
+  CreateStaffShiftInput,
+  LeaveType,
   LoginInput,
   MeResponse,
   StaffLevel,
@@ -10,6 +14,7 @@ import type {
   UpdateRoomInput,
   UpdateServiceInput,
   UpdateServiceVariantInput,
+  UpdateShiftTemplateInput,
   UpdateStaffInput,
 } from "@lotus-desk/contracts";
 
@@ -227,5 +232,99 @@ export const serviceApi = {
     apiFetch<ServiceVariant>(`/branches/${branchId}/services/${serviceId}/variants/${variantId}`, {
       method: "PATCH",
       body: JSON.stringify(input),
+    }),
+};
+
+/** ดู ShiftTemplateController — แม่แบบกะ (T2.4) เวลาเป็นนาทีจากเที่ยงคืน */
+export interface ShiftTemplate {
+  id: string;
+  branchId: string;
+  name: string;
+  startMin: number;
+  endMin: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** ดู StaffShiftController — การจ่ายกะจริงต่อวัน (join staff + shiftTemplate มาด้วยเสมอ) */
+export interface StaffShift {
+  id: string;
+  branchId: string;
+  staffId: string;
+  staff: StaffProfile;
+  shiftTemplateId: string;
+  shiftTemplate: ShiftTemplate;
+  date: string;
+  startMin: number;
+  endMin: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** ดู StaffLeaveController — วันลาของพนักงาน (join staff มาด้วยเสมอ) */
+export interface StaffLeave {
+  id: string;
+  branchId: string;
+  staffId: string;
+  staff: StaffProfile;
+  date: string;
+  type: LeaveType;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DateRangeParams {
+  from: string;
+  to: string;
+}
+
+export const shiftTemplateApi = {
+  list: (branchId: string, isActive?: "true" | "false" | "all") => {
+    const qs = isActive ? `?isActive=${isActive}` : "";
+    return apiFetch<ShiftTemplate[]>(`/branches/${branchId}/shift-templates${qs}`);
+  },
+  create: (branchId: string, input: CreateShiftTemplateInput) =>
+    apiFetch<ShiftTemplate>(`/branches/${branchId}/shift-templates`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, shiftTemplateId: string, input: UpdateShiftTemplateInput) =>
+    apiFetch<ShiftTemplate>(`/branches/${branchId}/shift-templates/${shiftTemplateId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+};
+
+export const staffShiftApi = {
+  list: (branchId: string, params: DateRangeParams) =>
+    apiFetch<StaffShift[]>(
+      `/branches/${branchId}/staff-shifts?from=${params.from}&to=${params.to}`,
+    ),
+  create: (branchId: string, input: CreateStaffShiftInput) =>
+    apiFetch<StaffShift>(`/branches/${branchId}/staff-shifts`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  remove: (branchId: string, staffShiftId: string) =>
+    apiFetch<StaffShift>(`/branches/${branchId}/staff-shifts/${staffShiftId}`, {
+      method: "DELETE",
+    }),
+};
+
+export const staffLeaveApi = {
+  list: (branchId: string, params: DateRangeParams) =>
+    apiFetch<StaffLeave[]>(
+      `/branches/${branchId}/staff-leaves?from=${params.from}&to=${params.to}`,
+    ),
+  create: (branchId: string, input: CreateStaffLeaveInput) =>
+    apiFetch<StaffLeave[]>(`/branches/${branchId}/staff-leaves`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  remove: (branchId: string, staffLeaveId: string) =>
+    apiFetch<StaffLeave>(`/branches/${branchId}/staff-leaves/${staffLeaveId}`, {
+      method: "DELETE",
     }),
 };
