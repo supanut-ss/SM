@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Param,
   Patch,
+  Post,
   Query,
   UnprocessableEntityException,
   UseGuards,
@@ -14,11 +15,14 @@ import {
   APPOINTMENT_STATUS_LABEL,
   STAFF_SKILL_LABEL,
   canTransitionAppointmentStatus,
+  createWalkInAppointmentSchema,
   rescheduleAppointmentItemSchema,
   updateAppointmentItemStatusSchema,
+  type CreateWalkInAppointmentInput,
   type RescheduleAppointmentItemInput,
   type UpdateAppointmentItemStatusInput,
 } from "@lotus-desk/contracts";
+import { findAvailableSlots } from "@lotus-desk/core";
 import { Prisma } from "@lotus-desk/db";
 import { AuditEntity } from "../../audit/audit-entity.decorator";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
@@ -27,7 +31,7 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentBranch } from "../rbac/current-branch.decorator";
 import { PermissionGuard } from "../rbac/permission.guard";
 import { RequirePermission } from "../rbac/require-permission.decorator";
-import { bangkokDayRange, toBangkokDateOnly } from "./bangkok-date";
+import { bangkokDayRange, bangkokMinutesToInstant, toBangkokDateOnly } from "./bangkok-date";
 import { moveToFront, reorderAfterJobCompleted, type QueueEntry } from "./staff-queue";
 import type { BranchContext } from "../rbac/permission.guard";
 
@@ -47,12 +51,136 @@ function isExclusionViolation(err: unknown): boolean {
  * จบงาน (→ COMPLETED) หรือยกเลิก/ไม่มา (→ CANCELLED/NO_SHOW) กระทบคิวหมุนด้วย (T4.4) — ทำในทรานแซกชัน
  * เดียวกับการอัปเดตสถานะเสมอ กัน state ไม่ตรงกันถ้า process ล่มกลางคัน ดู docs/decisions.md ADR-022
  *
- * ยังไม่มี endpoint สร้างนัดใหม่ที่นี่ (รอ Task ที่จะสร้าง booking flow จริง — T4.5/T4.6)
+ * จองด่วนจากคิวหมุน (T4.6) เป็น endpoint สร้างนัดใหม่ตัวแรกในระบบ — ใช้ findAvailableSlots (T4.1) เต็มรูป
+ * เพราะไม่มี "นัดเดิม" ให้อ้างอิงเหมือน reschedule (ดู docs/decisions.md ADR-024)
  */
 @Controller("branches/:branchId/appointment-items")
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class AppointmentItemController {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * จองด่วนจากคิวหมุน + เช็คอินทันที (T4.6) — ลูกค้า walk-in ยืนอยู่หน้าร้านแล้ว ไม่ต้องผ่านขั้น
+   * BOOKED/CONFIRMED (ใช้ทางลัดของ state machine ใน T4.3) ระบบเลือกพนักงาน+ห้องให้เองจาก:
+   *   1. คนที่มีทักษะตรง + ห้องประเภทตรง + ว่างจริง "ตอนนี้" (findAvailableSlots ของ T4.1)
+   *   2. ในกลุ่มที่ว่างพร้อมกันเร็วที่สุด เลือกคนที่อยู่หัวคิวหมุนที่สุด (ดู docs/decisions.md ADR-024)
+   * ไม่รับ staffId/roomId จาก client เลย — ตรงกับชื่อ "จองด่วนจากคิวหมุน" (ถ้าอยากเลือกเองต้องใช้ Lane
+   * Board ลาก-วางแทน ไม่ใช่ endpoint นี้)
+   */
+  @Post("walk-in")
+  @RequirePermission("manage", "booking")
+  @AuditEntity("AppointmentItem")
+  async createWalkIn(
+    @CurrentBranch() branch: BranchContext,
+    @Body(new ZodValidationPipe(createWalkInAppointmentSchema)) body: CreateWalkInAppointmentInput,
+  ) {
+    const variant = await this.prisma.client.serviceVariant.findUnique({
+      where: { id: body.serviceVariantId },
+      include: { service: true },
+    });
+    if (!variant || variant.service.branchId !== branch.branchId) {
+      throw new NotFoundException("ไม่พบบริการนี้ในสาขานี้");
+    }
+
+    const now = new Date();
+    const dateLabel = toBangkokDateOnly(now);
+    const { start: dayStart, end: dayEnd } = bangkokDayRange(now);
+
+    const [staffList, rooms, queueEntries, shiftsToday, leavesToday, existingToday] = await Promise.all([
+      this.prisma.client.staffProfile.findMany({ where: { branchId: branch.branchId, isActive: true } }),
+      this.prisma.client.room.findMany({
+        where: { branchId: branch.branchId, roomTypeId: variant.requiredRoomTypeId, isActive: true },
+      }),
+      this.prisma.client.staffQueueEntry.findMany({ where: { branchId: branch.branchId, date: dateLabel } }),
+      this.prisma.client.staffShift.findMany({ where: { branchId: branch.branchId, date: dateLabel } }),
+      this.prisma.client.staffLeave.findMany({ where: { branchId: branch.branchId, date: dateLabel } }),
+      this.prisma.client.appointmentItem.findMany({
+        where: {
+          branchId: branch.branchId,
+          startAt: { gte: dayStart, lt: dayEnd },
+          status: { notIn: ["CANCELLED", "NO_SHOW"] },
+        },
+      }),
+    ]);
+
+    if (rooms.length === 0) {
+      throw new UnprocessableEntityException("ไม่มีห้องที่รองรับบริการนี้ในสาขานี้");
+    }
+
+    const slots = findAvailableSlots({
+      now,
+      date: now,
+      shifts: shiftsToday.map((s) => ({
+        staffId: s.staffId,
+        start: bangkokMinutesToInstant(dateLabel, s.startMin),
+        end: bangkokMinutesToInstant(dateLabel, s.endMin),
+      })),
+      leaves: leavesToday.map((l) => ({ staffId: l.staffId })),
+      existing: existingToday.map((i) => ({
+        staffId: i.staffId,
+        roomId: i.roomId,
+        start: i.startAt,
+        end: i.endAt,
+      })),
+      staff: staffList.map((s) => ({ id: s.id, skills: s.skills, level: s.level })),
+      rooms: rooms.map((r) => ({ id: r.id, roomTypeId: r.roomTypeId, capacity: r.capacity })),
+      service: {
+        durationMin: variant.durationMin,
+        bufferBeforeMin: variant.bufferBeforeMin,
+        bufferAfterMin: variant.bufferAfterMin,
+        requiredSkill: variant.requiredSkill,
+        requiredRoomTypeId: variant.requiredRoomTypeId,
+      },
+      granularityMin: 15,
+    });
+
+    if (slots.length === 0) {
+      throw new UnprocessableEntityException("ไม่มีพนักงานว่างสำหรับบริการนี้ในตอนนี้ กรุณาลองใหม่ภายหลัง");
+    }
+
+    // เอาเฉพาะช่องที่เริ่ม "เร็วที่สุด" (ตอนนี้เลยถ้าเป็นไปได้) แล้วในกลุ่มนั้นเลือกคนที่อยู่หัวคิวที่สุด
+    const earliestStart = Math.min(...slots.map((s) => s.start.getTime()));
+    const earliestSlots = slots.filter((s) => s.start.getTime() === earliestStart);
+    const queuePosition = new Map(queueEntries.map((e) => [e.staffId, e.position]));
+    earliestSlots.sort(
+      (a, b) => (queuePosition.get(a.staffId) ?? Infinity) - (queuePosition.get(b.staffId) ?? Infinity),
+    );
+    const chosen = earliestSlots[0]!;
+    const room = rooms.find((r) => r.id === chosen.roomId)!;
+
+    try {
+      return await this.prisma.client.$transaction(async (tx) => {
+        const appointment = await tx.appointment.create({
+          data: { branchId: branch.branchId, memberId: body.memberId ?? null },
+        });
+        return tx.appointmentItem.create({
+          data: {
+            branchId: branch.branchId,
+            appointmentId: appointment.id,
+            staffId: chosen.staffId,
+            roomId: chosen.roomId,
+            serviceVariantId: variant.id,
+            status: "CHECKED_IN",
+            assignType: "ROTATION",
+            startAt: chosen.start,
+            endAt: chosen.end,
+            roomCapacityAtBooking: room.capacity,
+          },
+          include: {
+            staff: true,
+            room: true,
+            serviceVariant: { include: { service: true } },
+            appointment: { include: { member: true } },
+          },
+        });
+      });
+    } catch (err) {
+      if (isExclusionViolation(err)) {
+        throw new ConflictException("ช่องที่เลือกเพิ่งถูกจองไปแล้วพอดี กรุณาลองจองด่วนใหม่อีกครั้ง");
+      }
+      throw err;
+    }
+  }
 
   /** รายการนัดของวันที่ระบุ (ค่าเริ่มต้น = วันนี้ตามเวลาไทย) — ใช้วาด Lane Board (T4.5) */
   @Get()

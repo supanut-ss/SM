@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bangkokDayRange, toBangkokDateOnly } from "./bangkok-date";
+import { bangkokDayRange, bangkokMinutesToInstant, toBangkokDateOnly } from "./bangkok-date";
 
 describe("toBangkokDateOnly", () => {
   it("เวลาช่วงกลางวันไทยตกวันเดียวกับ UTC (ไม่ข้ามวัน)", () => {
@@ -40,5 +40,17 @@ describe("bangkokDayRange", () => {
   it("ระยะห่างระหว่าง start กับ end ต้องเป็น 24 ชั่วโมงพอดีเสมอ", () => {
     const { start, end } = bangkokDayRange(new Date("2026-09-01T20:00:00.000Z"));
     expect(end.getTime() - start.getTime()).toBe(24 * 60 * 60_000);
+  });
+});
+
+describe("bangkokMinutesToInstant", () => {
+  it("09:00 (540 นาที) ของวัน label ตรงกับ 02:00 UTC ของวันเดียวกัน", () => {
+    const dateLabel = new Date("2026-09-01T00:00:00.000Z");
+    expect(bangkokMinutesToInstant(dateLabel, 9 * 60).toISOString()).toBe("2026-09-01T02:00:00.000Z");
+  });
+
+  it("00:00 (0 นาที) ตรงกับ 17:00 UTC ของวันก่อนหน้า", () => {
+    const dateLabel = new Date("2026-09-01T00:00:00.000Z");
+    expect(bangkokMinutesToInstant(dateLabel, 0).toISOString()).toBe("2026-08-31T17:00:00.000Z");
   });
 });

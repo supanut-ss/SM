@@ -15,3 +15,12 @@ export function bangkokDayRange(instant: Date): { start: Date; end: Date } {
   const end = new Date(start.getTime() + 24 * 60 * 60_000);
   return { start, end };
 }
+
+/**
+ * "label" วันที่ (จาก toBangkokDateOnly — เช่น StaffShift.date) + นาทีจากเที่ยงคืนตามผนังไทย → instant จริง
+ * (UTC) — ใช้แปลง StaffShift.startMin/endMin (T2.4) เป็น Date จริงให้ findAvailableSlots (T4.1) กิน (T4.6)
+ */
+export function bangkokMinutesToInstant(dateLabel: Date, minutesFromMidnight: number): Date {
+  const bangkokMidnight = dateLabel.getTime() - 7 * 60 * 60_000;
+  return new Date(bangkokMidnight + minutesFromMidnight * 60_000);
+}

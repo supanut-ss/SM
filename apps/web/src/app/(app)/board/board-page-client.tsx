@@ -17,6 +17,7 @@ import { addDays, bangkokInstant, startOfToday, toDateKey } from "./date-format"
 import { AppointmentDetailSheet } from "./appointment-detail-sheet";
 import { LaneBoard, type BoardRow } from "./lane-board";
 import { QueueRail } from "./queue-rail";
+import { WalkInSheet } from "./walk-in-sheet";
 import type { AppointmentStatus } from "@lotus-desk/contracts";
 
 type ViewMode = "staff" | "room";
@@ -37,6 +38,7 @@ export function BoardPageClient() {
   const [granularity, setGranularity] = useState<Granularity>(30);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
+  const [walkInOpen, setWalkInOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -163,6 +165,11 @@ export function BoardPageClient() {
           <p className="mt-1 text-sm text-ink-muted">สาขา {branch.branchName}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canManage && (
+            <Button size="sm" onClick={() => setWalkInOpen(true)}>
+              + จองด่วน
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => setDate((d) => addDays(d, -1))}>
             ◀ วันก่อน
           </Button>
@@ -273,6 +280,16 @@ export function BoardPageClient() {
         canManage={canManage}
         isPending={statusMutation.isPending}
         onChangeStatus={(item, status) => statusMutation.mutate({ item, status })}
+      />
+
+      <WalkInSheet
+        open={walkInOpen}
+        onClose={() => setWalkInOpen(false)}
+        branchId={branch.branchId}
+        onBooked={() => {
+          void queryClient.invalidateQueries({ queryKey: itemsKey });
+          void queryClient.invalidateQueries({ queryKey: queueKey });
+        }}
       />
     </div>
   );

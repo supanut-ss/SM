@@ -3,6 +3,7 @@ import {
   APPOINTMENT_STATUSES,
   ASSIGN_TYPES,
   canTransitionAppointmentStatus,
+  createWalkInAppointmentSchema,
   joinStaffQueueSchema,
   nextAppointmentStatuses,
   rescheduleAppointmentItemSchema,
@@ -143,6 +144,27 @@ describe("rescheduleAppointmentItemSchema", () => {
       startAt: "2026-09-01T09:00:00.000Z",
       endAt: "2026-09-01T10:00:00.000Z",
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("createWalkInAppointmentSchema", () => {
+  it("ยอมรับแค่ serviceVariantId อย่างเดียว (ลูกค้า walk-in ไม่มี memberId ก็ได้)", () => {
+    const result = createWalkInAppointmentSchema.safeParse({ serviceVariantId: "variant_1" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.memberId).toBeUndefined();
+  });
+
+  it("ยอมรับ memberId ที่ระบุมาด้วย", () => {
+    const result = createWalkInAppointmentSchema.safeParse({
+      serviceVariantId: "variant_1",
+      memberId: "member_1",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("ปฏิเสธเมื่อไม่ส่ง serviceVariantId มา", () => {
+    const result = createWalkInAppointmentSchema.safeParse({});
     expect(result.success).toBe(false);
   });
 });

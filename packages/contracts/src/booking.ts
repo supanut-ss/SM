@@ -88,3 +88,12 @@ export const rescheduleAppointmentItemSchema = z
   });
 
 export type RescheduleAppointmentItemInput = z.infer<typeof rescheduleAppointmentItemSchema>;
+
+// จองด่วนจากคิวหมุน (T4.6) — ไม่ต้องเลือกพนักงาน/ห้อง/เวลาเอง ระบบเลือกให้จากคิวหมุน+ห้องว่างที่ใกล้ที่สุด
+// (ดู apps/api availability engine integration) memberId ไม่ใส่ได้ (ลูกค้า walk-in ที่ยังไม่ได้ลงทะเบียนสมาชิก)
+export const createWalkInAppointmentSchema = z.object({
+  serviceVariantId: z.string().min(1, "กรุณาเลือกบริการ"),
+  memberId: z.string().optional(),
+});
+
+export type CreateWalkInAppointmentInput = z.infer<typeof createWalkInAppointmentSchema>;
