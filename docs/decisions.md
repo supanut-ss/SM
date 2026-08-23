@@ -567,3 +567,54 @@ import type-only (`import type { StaffLevel } from "@lotus-desk/contracts"`) —
 package.json ที่ CLAUDE.md บอกว่า "ห้ามเพิ่ม dependency ใหม่โดยไม่ถาม" — Task T5.3 (promotion engine) และ
 T6.2 (commission engine) ที่จะตามมาใน `packages/core` เช่นกัน ควรใช้แนวทางเดียวกันนี้ (ประกาศ type ของ
 ตัวเอง ไม่ import จาก contracts) เพื่อความสม่ำเสมอ
+
+---
+
+## ADR-020: Appointment/AppointmentItem — สถานะอยู่ที่ AppointmentItem, EXCLUDE constraint กันพนักงานเสมอ แต่กันห้องเฉพาะ capacity=1
+
+วันที่: 2026-08-23
+Task ที่เกี่ยวข้อง: T4.2
+
+บริบท: T4.2 ต้องกันจองซ้อนทั้งพนักงานและห้องด้วย PostgreSQL `EXCLUDE USING gist` ให้ทนต่อ concurrent request
+จริง (เกณฑ์ผ่าน: ยิงจองพร้อมกัน 50 request ช่องเดียวกัน ต้องสำเร็จ 1 เท่านั้น) ระหว่างออกแบบพบ 3 ปัญหาที่
+เอกสารไม่ได้ระบุไว้ตรง ๆ — ถามผู้ใช้แล้ว 1 ข้อ (เรื่อง room capacity) ส่วนอีก 2 ข้อตัดสินใจเองเพราะมีคำตอบ
+ที่ถูกต้องทางเทคนิคชัดเจน
+
+ตัดสินใจ:
+1. **`status` อยู่ที่ `AppointmentItem` ไม่ใช่ `Appointment`** — เพราะ EXCLUDE constraint เป็น single-table
+   constraint อ้างคอลัมน์ของตารางอื่นผ่าน JOIN ไม่ได้ ถ้า WHERE clause ของ constraint ต้องกันเฉพาะสถานะที่
+   ยัง "กันช่องจริง" (ไม่รวม CANCELLED/NO_SHOW) สถานะต้องอยู่ตารางเดียวกับ staffId/roomId/startAt/endAt
+   ผลพลอยได้ที่สมเหตุสมผลด้วย: 1 นัดมีหลายบริการต่อกันได้ (เช่น นวด 60 นาทีต่อด้วยทำหน้า 30 นาที)
+   แต่ละอันควรเดินสถานะอิสระจากกัน (Lane Board ที่ T4.5 ก็วาดสีสถานะต่อ "บล็อก" = ต่อ item อยู่แล้ว)
+2. **EXCLUDE ของ staffId ใช้เสมอทุกกรณี ไม่มีเงื่อนไข capacity** — พนักงาน 1 คนมี "capacity" เป็น 1 เสมอ
+   โดยธรรมชาติทางกายภาพ ไม่ต้องถามผู้ใช้เพราะไม่มีทางเลือกอื่นที่สมเหตุสมผล
+3. **EXCLUDE ของ roomId ใช้เฉพาะห้อง capacity=1** (ถามผู้ใช้แล้วเลือกตัวเลือกนี้จาก 3 ตัวเลือก) — เก็บ
+   `roomCapacityAtBooking` (snapshot ของ `Room.capacity` ตอนสร้างแถว คล้ายหลักการ ADR-008) ไว้บน
+   `AppointmentItem` แล้วใส่ในเงื่อนไข WHERE ของ constraint เอง (`WHERE ... AND "roomCapacityAtBooking" = 1`)
+   ห้อง capacity > 1 (เช่นห้องทำเล็บ 2 ที่นั่ง) ไม่ได้รับการป้องกันที่ระดับ DB constraint เลยตอนนี้ — ต้องกัน
+   ด้วย transaction + row lock ที่ระดับ service ตอนสร้างนัดจริง (ยังไม่ได้ implement เพราะ endpoint สร้างนัด
+   ยังไม่เกิดใน T4.2 — Task ที่จะสร้าง endpoint นี้ในอนาคตต้องอ่าน ADR นี้ก่อนเขียน service.create ของ
+   Appointment)
+4. **เพิ่ม EXCLUDE constraint ด้วย raw SQL เขียนเองในไฟล์ migration** — Prisma schema DSL ไม่มีทางประกาศ
+   EXCLUDE constraint ได้เลย (ต่างจาก GIN trgm index ที่ยังพอมี `@@index(type: Gin)` ให้ใช้ตาม ADR-017)
+   **ทดสอบแล้วจริง**: รัน `prisma migrate dev` ซ้ำหลังใส่ constraint เข้าไป ผลคือ "Already in sync, no
+   schema change or pending migration was found" — Prisma ไม่เสนอ DROP CONSTRAINT ทิ้งเหมือนที่เคยเกิดกับ
+   index ใน ADR-017 เพราะ EXCLUDE constraint ไม่ใช่ concept ที่ Prisma รู้จัก/diff เทียบกับ schema.prisma
+   เลยด้วยซ้ำ (ต่างจาก index ที่ Prisma รู้จักและ diff ผ่าน `@@index` แต่แค่ไม่มี syntax ให้ประกาศ EXCLUDE
+   โดยเฉพาะ) — สรุปคือ **ปลอดภัยกว่ากรณี index เดิม ไม่ต้องกังวลเรื่องนี้ซ้ำอีก** แต่ก็แปลว่า schema.prisma
+   "โกหก" อยู่เล็กน้อย (ไม่ได้สะท้อนทุก constraint ที่มีจริงในตาราง) — แก้ด้วยการเขียนคอมเมนต์อธิบายไว้ในตัว
+   schema.prisma ตรงโมเดล `AppointmentItem` เอง ให้คนอ่านรู้ทันทีว่าต้องดูไฟล์ migration ประกอบด้วย
+
+เหตุผล: ตัวเลือกที่ถูกเลือกสำหรับ room capacity (ข้อ 3) เป็นตัวเลือกที่ implement น้อยที่สุดตอนนี้ (ไม่ต้อง
+เพิ่ม concept "ที่นั่ง/seat" ใหม่ที่ไม่มีใครขอ และไม่กระทบ T4.1 ที่ทำเสร็จไปแล้ว) ตรงกับสภาพร้านจริงที่ห้อง
+ส่วนใหญ่ capacity=1 (`Room.capacity @default(1)`) และไม่ปิดทางแก้ทีหลังถ้าร้านต้องการห้อง multi-seat จริงจัง
+(เพิ่ม transaction+lock ตอนสร้าง endpoint จองจริงได้โดยไม่ต้อง migrate schema ใหม่)
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ทางเลือกที่ไม่เลือกคือ (1) เพิ่ม concept "ที่นั่ง" (seatIndex) ให้ทุกห้องแล้ว
+EXCLUDE บน roomId+seatIndex+ช่วงเวลา — ปฏิเสธเพราะ over-engineer เกินความจำเป็นตอนนี้และต้องแก้ T4.1 ที่ปิด
+งานไปแล้วให้คืน seat ด้วย (2) ตัดฟีเจอร์ room capacity>1 ออกจากระบบทั้งหมด (ล็อก capacity=1 เสมอ) —
+ปฏิเสธเพราะ T4.1 ทำรองรับไว้แล้วและอาจมีประโยชน์จริงในอนาคต ไม่มีเหตุผลต้องตัดทิ้งทั้งที่ schema เดิมรองรับ
+อยู่แล้ว — **ข้อควรระวังสำหรับ Task ในอนาคตที่จะสร้าง endpoint จองจริง**: ต้องจำไว้ว่าห้อง capacity>1 ยังไม่
+มี hard guarantee ระดับ DB กันชนกันเกิน capacity เลยตอนนี้ ต้องเพิ่ม transaction+`SELECT ... FOR UPDATE`
+หรือเทียบเท่าเองตอน implement การสร้างนัดจริง มิเช่นนั้นจะมี race condition ที่ EXCLUDE constraint ปัจจุบัน
+จับไม่ได้

@@ -10,9 +10,11 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  // ต้องมี map: "pg_trgm" เสมอ — ไม่งั้น Prisma สร้าง `CREATE EXTENSION "pgTrgm"` (camelCase ตรง ๆ) ซึ่งไม่มี
+  // ต้องมี map: เสมอทุกตัว — ไม่งั้น Prisma สร้าง `CREATE EXTENSION "pgTrgm"` (camelCase ตรง ๆ) ซึ่งไม่มี
   // extension ชื่อนี้จริงใน Postgres (พิสูจน์แล้วจาก error จริงตอนรัน migrate — ดู ADR-017)
-  extensions = [pgTrgm(map: "pg_trgm")]
+  // btreeGist (T4.2): จำเป็นสำหรับ EXCLUDE USING gist บน AppointmentItem — GiST ปกติเทียบ equality
+  // (staffId/roomId) ไม่ได้ ต้องมี operator class จาก btree_gist มาเสริมก่อน
+  extensions = [pgTrgm(map: "pg_trgm"), btreeGist(map: "btree_gist")]
 }
 
 /// ประเภทการกระทำที่ AuditLog บันทึก — ดู docs/PLAN.md T1.5 (interceptor เต็มรูปยังไม่ทำที่นี่)
@@ -45,6 +47,8 @@ model Branch {
   staffLeaves       StaffLeave[]
   members           Member[]
   memberConsents    MemberConsent[]
+  appointments      Appointment[]
+  appointmentItems  AppointmentItem[]
 
   @@map("branches")
 }
@@ -208,8 +212,9 @@ model StaffProfile {
   createdAt DateTime     @default(now()) @db.Timestamptz
   updatedAt DateTime     @updatedAt @db.Timestamptz
 
-  staffShifts StaffShift[]
-  staffLeaves StaffLeave[]
+  staffShifts      StaffShift[]
+  staffLeaves      StaffLeave[]
+  appointmentItems AppointmentItem[]
 
   @@index([branchId])
   @@map("staff_profiles")
@@ -247,6 +252,8 @@ model Room {
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now()) @db.Timestamptz
   updatedAt  DateTime @updatedAt @db.Timestamptz
+
+  appointmentItems AppointmentItem[]
 
   @@unique([branchId, name])
   @@index([branchId])
@@ -317,6 +324,8 @@ model ServiceVariant {
   isActive               Boolean    @default(true)
   createdAt              DateTime   @default(now()) @db.Timestamptz
   updatedAt              DateTime   @updatedAt @db.Timestamptz
+
+  appointmentItems AppointmentItem[]
 
   @@unique([serviceId, durationMin])
   @@index([serviceId])
@@ -417,7 +426,8 @@ model Member {
   createdAt    DateTime @default(now()) @db.Timestamptz
   updatedAt    DateTime @updatedAt @db.Timestamptz
 
-  consents MemberConsent[]
+  consents     MemberConsent[]
+  appointments Appointment[]
 
   @@unique([branchId, code])
   @@index([branchId])
@@ -458,4 +468,78 @@ model MemberConsent {
   @@index([branchId])
   @@index([memberId, type, createdAt])
   @@map("member_consents")
+}
+
+/// นัด 1 ครั้งของลูกค้า — เป็นแค่ตัวรวม (container) ของ AppointmentItem หนึ่งรายการขึ้นไป (T4.2)
+/// ไม่มีสถานะของตัวเอง — สถานะอยู่ที่ AppointmentItem แต่ละรายการ (ดู docs/decisions.md ADR-020) เพราะ
+/// นัดเดียวมีหลายบริการต่อกันได้ (เช่น นวด 60 นาที ต่อด้วยทำหน้า 30 นาที) แต่ละอันต้องเดินสถานะเอง
+/// (บริการแรกอาจ "กำลังบริการ" ขณะบริการที่สองยัง "จองไว้" อยู่)
+model Appointment {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  memberId  String?
+  member    Member?  @relation(fields: [memberId], references: [id])
+  note      String?
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  items AppointmentItem[]
+
+  @@index([branchId])
+  @@index([memberId])
+  @@map("appointments")
+}
+
+/// สถานะของ AppointmentItem แต่ละรายการ — enum ประกาศครบตาม docs/PLAN.md T4.3 ตั้งแต่ตอนนี้เพราะ
+/// EXCLUDE constraint ด้านล่างต้องรู้ค่าที่ "ไม่กันช่อง" แล้ว (CANCELLED/NO_SHOW) — T4.3 จะเพิ่ม logic
+/// การเปลี่ยนสถานะ/สิทธิ์/กติกาการข้ามสถานะจริง ที่นี่แค่ประกาศ type และค่าเริ่มต้นเท่านั้น
+enum AppointmentStatus {
+  BOOKED
+  CONFIRMED
+  CHECKED_IN
+  IN_SERVICE
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+/// รายการบริการย่อย 1 ชิ้นของนัด = พนักงาน 1 คน + ห้อง 1 ห้อง + ช่วงเวลา 1 ช่วง (T4.2)
+///
+/// กันจองซ้อนด้วย PostgreSQL `EXCLUDE USING gist` ที่เพิ่มด้วย raw SQL ในไฟล์ migration เอง (Prisma schema
+/// DSL ไม่มีทางประกาศ EXCLUDE constraint ได้เลย) แบ่งเป็น 2 constraint:
+///   1. staffId — กันเสมอทุกกรณี (พนักงาน 1 คนมีจริงแค่ตัวเดียว "capacity" เป็น 1 เสมอโดยธรรมชาติ)
+///   2. roomId — กันเฉพาะห้องที่ roomCapacityAtBooking = 1 เท่านั้น (ห้อง capacity > 1 เช่นห้องทำเล็บ
+///      2 ที่นั่ง ต้องกันด้วย transaction+lock ที่ระดับ service ตอนสร้างนัดจริงแทน เพราะ EXCLUDE
+///      constraint ไม่มีทางนับจำนวนแถวที่ทับกันพร้อมกันได้ ทำได้แค่ "ห้ามทับกันเลย" หรือ "ทับได้ไม่จำกัด"
+///      ดู docs/decisions.md ADR-020 สำหรับเหตุผลเต็ม)
+/// ทั้งสอง constraint มี `WHERE status NOT IN ('CANCELLED','NO_SHOW')` กันนัดที่ยกเลิก/ไม่มาแล้วบล็อกช่อง
+/// ถาวร — สถานะจึงต้องอยู่ที่ตารางนี้ (ไม่ใช่ Appointment) เพราะ EXCLUDE constraint อ้างได้แค่คอลัมน์ของ
+/// ตัวเองเท่านั้น อ้ามข้ามไป join ตารางอื่นไม่ได้
+model AppointmentItem {
+  id                    String            @id @default(cuid())
+  branchId              String
+  branch                Branch            @relation(fields: [branchId], references: [id])
+  appointmentId         String
+  appointment           Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  staffId               String
+  staff                 StaffProfile      @relation(fields: [staffId], references: [id])
+  roomId                String
+  room                  Room              @relation(fields: [roomId], references: [id])
+  serviceVariantId      String
+  serviceVariant        ServiceVariant    @relation(fields: [serviceVariantId], references: [id])
+  status                AppointmentStatus @default(BOOKED)
+  startAt               DateTime          @db.Timestamptz
+  endAt                 DateTime          @db.Timestamptz
+  /// snapshot ของ Room.capacity ตอนสร้างแถวนี้ — ใช้กำหนดขอบเขตของ EXCLUDE constraint ข้างบนเท่านั้น
+  /// (ไม่ใช่ค่าที่ต้อง sync ตามห้องตลอดไป เหมือนหลักการ snapshot ราคา/ค่ามือใน ADR-008)
+  roomCapacityAtBooking Int
+  createdAt             DateTime          @default(now()) @db.Timestamptz
+  updatedAt             DateTime          @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([staffId, startAt])
+  @@index([roomId, startAt])
+  @@index([appointmentId])
+  @@map("appointment_items")
 }
