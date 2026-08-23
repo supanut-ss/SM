@@ -1,11 +1,15 @@
 import type {
   CreateRoomInput,
+  CreateServiceInput,
+  CreateServiceVariantInput,
   CreateStaffInput,
   LoginInput,
   MeResponse,
   StaffLevel,
   StaffSkill,
   UpdateRoomInput,
+  UpdateServiceInput,
+  UpdateServiceVariantInput,
   UpdateStaffInput,
 } from "@lotus-desk/contracts";
 
@@ -134,6 +138,93 @@ export const roomApi = {
     }),
   update: (branchId: string, roomId: string, input: UpdateRoomInput) =>
     apiFetch<Room>(`/branches/${branchId}/rooms/${roomId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู ServiceCategoryController — หมวดบริการ (catalog แยกต่อสาขา ไม่มี CRUD ของตัวเอง เหมือน RoomType) */
+export interface ServiceCategory {
+  id: string;
+  branchId: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** ดู ServiceController — ตัวเลือกเวลาของบริการ (durationMin ต่างกัน คนละราคา คนละค่ามือ) */
+export interface ServiceVariant {
+  id: string;
+  serviceId: string;
+  durationMin: number;
+  priceSatang: number;
+  commissionJuniorSatang: number;
+  commissionSeniorSatang: number;
+  commissionMasterSatang: number;
+  bufferBeforeMin: number;
+  bufferAfterMin: number;
+  requiredSkill: StaffSkill;
+  requiredRoomTypeId: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** shape จริงที่ API ตอบกลับ (join category + variants มาด้วยเสมอ) */
+export interface Service {
+  id: string;
+  branchId: string;
+  categoryId: string;
+  category: ServiceCategory;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  variants: ServiceVariant[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceListParams {
+  q?: string;
+  isActive?: "true" | "false" | "all";
+}
+
+export const serviceCategoryApi = {
+  list: (branchId: string) =>
+    apiFetch<ServiceCategory[]>(`/branches/${branchId}/service-categories`),
+};
+
+export const serviceApi = {
+  list: (branchId: string, params?: ServiceListParams) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.isActive) query.set("isActive", params.isActive);
+    const qs = query.toString();
+    return apiFetch<Service[]>(`/branches/${branchId}/services${qs ? `?${qs}` : ""}`);
+  },
+  create: (branchId: string, input: CreateServiceInput) =>
+    apiFetch<Service>(`/branches/${branchId}/services`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, serviceId: string, input: UpdateServiceInput) =>
+    apiFetch<Service>(`/branches/${branchId}/services/${serviceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  addVariant: (branchId: string, serviceId: string, input: CreateServiceVariantInput) =>
+    apiFetch<ServiceVariant>(`/branches/${branchId}/services/${serviceId}/variants`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateVariant: (
+    branchId: string,
+    serviceId: string,
+    variantId: string,
+    input: UpdateServiceVariantInput,
+  ) =>
+    apiFetch<ServiceVariant>(`/branches/${branchId}/services/${serviceId}/variants/${variantId}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     }),

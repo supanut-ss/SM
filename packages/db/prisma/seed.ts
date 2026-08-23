@@ -125,11 +125,93 @@ async function main() {
     });
   }
 
+  const categorySeeds = ["นวด", "เสริมความงาม"];
+  const categoryByName = new Map<string, { id: string }>();
+  for (const [index, name] of categorySeeds.entries()) {
+    const category = await prisma.serviceCategory.upsert({
+      where: { branchId_name: { branchId: branch.id, name } },
+      update: {},
+      create: { branchId: branch.id, name, sortOrder: index },
+    });
+    categoryByName.set(name, category);
+  }
+
+  // ค่ามือ/ราคาในนี้เป็นตัวเลขตัวอย่างสำหรับ dev เท่านั้น — ยังไม่ใช่เรตจริงของร้าน
+  // (ดู docs/DOMAIN.md ข้อ 9: ต้องขอตัวเลขค่ามือจริงจากเจ้าของร้านก่อนเริ่ม T6.2)
+  const serviceSeeds = [
+    {
+      category: "นวด",
+      name: "นวดไทย",
+      requiredSkill: "THAI_MASSAGE" as const,
+      roomType: "ห้องนวดเดี่ยว",
+      variants: [
+        { durationMin: 60, priceSatang: 30000, commissionJunior: 15000, commissionSenior: 18000, commissionMaster: 21000 },
+        { durationMin: 90, priceSatang: 45000, commissionJunior: 22000, commissionSenior: 26000, commissionMaster: 30000 },
+        { durationMin: 120, priceSatang: 60000, commissionJunior: 29000, commissionSenior: 34000, commissionMaster: 39000 },
+      ],
+    },
+    {
+      category: "นวด",
+      name: "นวดน้ำมัน",
+      requiredSkill: "OIL" as const,
+      roomType: "ห้องนวดเดี่ยว",
+      variants: [
+        { durationMin: 60, priceSatang: 35000, commissionJunior: 17000, commissionSenior: 20000, commissionMaster: 23000 },
+        { durationMin: 90, priceSatang: 50000, commissionJunior: 24000, commissionSenior: 28000, commissionMaster: 32000 },
+      ],
+    },
+    {
+      category: "เสริมความงาม",
+      name: "ทำหน้า",
+      requiredSkill: "FACIAL" as const,
+      roomType: "ห้องทำหน้า",
+      variants: [
+        { durationMin: 60, priceSatang: 40000, commissionJunior: 19000, commissionSenior: 22000, commissionMaster: 25000 },
+      ],
+    },
+  ];
+  let variantCount = 0;
+  for (const serviceSeed of serviceSeeds) {
+    const category = categoryByName.get(serviceSeed.category)!;
+    const roomType = roomTypeByName.get(serviceSeed.roomType)!;
+    const service = await prisma.service.upsert({
+      where: { branchId_name: { branchId: branch.id, name: serviceSeed.name } },
+      update: {},
+      create: {
+        branchId: branch.id,
+        categoryId: category.id,
+        name: serviceSeed.name,
+      },
+    });
+    for (const variant of serviceSeed.variants) {
+      await prisma.serviceVariant.upsert({
+        where: {
+          serviceId_durationMin: { serviceId: service.id, durationMin: variant.durationMin },
+        },
+        update: {},
+        create: {
+          serviceId: service.id,
+          durationMin: variant.durationMin,
+          priceSatang: variant.priceSatang,
+          commissionJuniorSatang: variant.commissionJunior,
+          commissionSeniorSatang: variant.commissionSenior,
+          commissionMasterSatang: variant.commissionMaster,
+          requiredSkill: serviceSeed.requiredSkill,
+          requiredRoomTypeId: roomType.id,
+        },
+      });
+      variantCount += 1;
+    }
+  }
+
   console.log(`seed: ready — branch ${branch.name} (${branch.code})`);
   console.log(`seed: device "${device.label}" (${device.id})`);
   console.log(`seed: 4 roles × ${PERMISSIONS.length} permissions`);
   console.log(`seed: ${staffSeeds.length} staff profiles`);
   console.log(`seed: ${roomTypeNames.length} room types, ${roomSeeds.length} rooms`);
+  console.log(
+    `seed: ${categorySeeds.length} service categories, ${serviceSeeds.length} services, ${variantCount} service variants`,
+  );
   console.log(
     `seed: dev users — {role}@lotusdesk.local / password "${DEV_PASSWORD}" / PIN "${DEV_PIN}" (dev เท่านั้น)`,
   );

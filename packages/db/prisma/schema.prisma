@@ -24,12 +24,14 @@ model Branch {
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
 
-  auditLogs     AuditLog[]
-  userBranches  UserBranch[]
-  devices       Device[]
-  staffProfiles StaffProfile[]
-  roomTypes     RoomType[]
-  rooms         Room[]
+  auditLogs         AuditLog[]
+  userBranches      UserBranch[]
+  devices           Device[]
+  staffProfiles     StaffProfile[]
+  roomTypes         RoomType[]
+  rooms             Room[]
+  serviceCategories ServiceCategory[]
+  services          Service[]
 
   @@map("branches")
 }
@@ -57,20 +59,20 @@ model AuditLog {
 
 /// ผู้ใช้งานระบบ — พนักงานต้อนรับ ผู้จัดการ เจ้าของร้าน (ไม่ใช่ "พนักงานให้บริการ" ที่มีโปรไฟล์แยกใน T2.1)
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id                String    @id @default(cuid())
+  email             String    @unique
   /// เข้ารหัสด้วย argon2 — nullable เพราะพนักงานที่ใช้ PIN login อย่างเดียว (T1.3) อาจไม่มีรหัสผ่าน
-  passwordHash String?
+  passwordHash      String?
   /// เข้ารหัสด้วย argon2 เช่นกัน — สำหรับ PIN login เครื่องหน้าร้าน (T1.3)
-  pinHash      String?
+  pinHash           String?
   /// นับใหม่เป็น 0 ทุกครั้งที่ PIN ถูก หรือเมื่อครบล็อกแล้ว (ดู T1.3)
   pinFailedAttempts Int       @default(0)
   /// ไม่ null แปลว่าโดนล็อกอยู่ — ปลดล็อกอัตโนมัติเมื่อเวลาปัจจุบันผ่านค่านี้ไปแล้ว
   pinLockedUntil    DateTime? @db.Timestamptz
-  name         String
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now()) @db.Timestamptz
-  updatedAt    DateTime @updatedAt @db.Timestamptz
+  name              String
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
 
   branches      UserBranch[]
   auditLogs     AuditLog[]
@@ -115,9 +117,9 @@ model RefreshToken {
 
 /// บทบาท — seed ไว้ 4 บทบาทตายตัว (เจ้าของ/ผู้จัดการ/แคชเชียร์/พนักงานบริการ) ดู prisma/seed.ts
 model Role {
-  id  String @id @default(cuid())
+  id   String @id @default(cuid())
   /// คีย์ภาษาอังกฤษคงที่ใช้ใน @RequirePermission() — ห้ามเปลี่ยนหลัง seed แล้ว
-  key String @unique
+  key  String @unique
   /// ชื่อไทยสำหรับแสดงผล
   name String
 
@@ -208,7 +210,8 @@ model RoomType {
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
 
-  rooms Room[]
+  rooms           Room[]
+  serviceVariants ServiceVariant[]
 
   @@unique([branchId, name])
   @@index([branchId])
@@ -233,4 +236,74 @@ model Room {
   @@index([branchId])
   @@index([roomTypeId])
   @@map("rooms")
+}
+
+/// หมวดบริการ — catalog แยกต่อสาขา เหมือน RoomType (ดู ADR-010/ADR-012) ยังไม่มี CRUD UI ของตัวเอง
+/// ใน T2.3 seed ค่าเริ่มต้นให้พอใช้งาน ฟอร์มสร้าง/แก้ไขบริการเลือกจาก dropdown ที่ดึงจาก
+/// GET /branches/:branchId/service-categories (read-only endpoint)
+model ServiceCategory {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  services Service[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@map("service_categories")
+}
+
+/// บริการ — อยู่ในหมวด มีตัวเลือกเวลาหลายแบบ (ServiceVariant) เช่น "นวดไทย" มี 60/90/120 นาที
+/// isActive ที่นี่ปิดทั้งบริการทุกตัวเลือกเวลาพร้อมกัน (ดู ADR-012) — ปิดเฉพาะตัวเลือกเวลาเดียวใช้
+/// ServiceVariant.isActive แทน
+model Service {
+  id          String          @id @default(cuid())
+  branchId    String
+  branch      Branch          @relation(fields: [branchId], references: [id])
+  categoryId  String
+  category    ServiceCategory @relation(fields: [categoryId], references: [id])
+  name        String
+  description String?
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now()) @db.Timestamptz
+  updatedAt   DateTime        @updatedAt @db.Timestamptz
+
+  variants ServiceVariant[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@index([categoryId])
+  @@map("services")
+}
+
+/// ตัวเลือกเวลาของบริการ — คนละราคา คนละค่ามือต่อระดับพนักงาน (ดู docs/DOMAIN.md ข้อ 9/10, ADR-008)
+/// field ที่นี่ตรงกับ signature ของ findAvailableSlots (T4.1, ดู docs/PLAN.md §7.2) โดยตั้งใจ —
+/// buffer/ทักษะที่ต้องใช้/ประเภทห้องที่ต้องใช้ ผูกกับตัวเลือกเวลาแต่ละอัน ไม่ใช่ทั้งบริการ เพราะ
+/// availability engine ต้องอ่านค่าพวกนี้ต่อ variant ตรง ๆ โดยไม่ join ย้อนไปที่ Service
+model ServiceVariant {
+  id                     String     @id @default(cuid())
+  serviceId              String
+  service                Service    @relation(fields: [serviceId], references: [id])
+  durationMin            Int
+  priceSatang            Int
+  commissionJuniorSatang Int
+  commissionSeniorSatang Int
+  commissionMasterSatang Int
+  bufferBeforeMin        Int        @default(0)
+  bufferAfterMin         Int        @default(0)
+  requiredSkill          StaffSkill
+  requiredRoomTypeId     String
+  requiredRoomType       RoomType   @relation(fields: [requiredRoomTypeId], references: [id])
+  isActive               Boolean    @default(true)
+  createdAt              DateTime   @default(now()) @db.Timestamptz
+  updatedAt              DateTime   @updatedAt @db.Timestamptz
+
+  @@unique([serviceId, durationMin])
+  @@index([serviceId])
+  @@index([requiredRoomTypeId])
+  @@map("service_variants")
 }

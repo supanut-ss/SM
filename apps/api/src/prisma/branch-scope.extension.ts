@@ -8,6 +8,9 @@ import type { PrismaClient } from "@lotus-desk/db";
  * หมายเหตุ: ครอบเฉพาะ read operation (findMany/findFirst/findUnique/count) ที่มีตัวเรียกจริงตอนนี้
  * ยังไม่ครอบ create/update/delete เพราะยังไม่มี endpoint เขียนข้อมูลโมเดลเหล่านี้ (Branch เอง ไม่ใช่
  * "ข้อมูลที่อยู่ในสาขา" จึงไม่อยู่ในลิสต์นี้ — กรองด้วย id ตรง ๆ ในตัว endpoint แทน)
+ *
+ * ServiceVariant (T2.3) ไม่อยู่ในลิสต์นี้โดยตั้งใจ — ตัวมันเองไม่มีคอลัมน์ branchId (มีแค่ serviceId
+ * อ้างไปที่ Service) ต้องกรองผ่านการเช็ค Service เจ้าของก่อนเสมอ (ดู ServiceController.findOwnedService)
  */
 export const BRANCH_SCOPED_MODELS = new Set([
   "AuditLog",
@@ -16,6 +19,8 @@ export const BRANCH_SCOPED_MODELS = new Set([
   "StaffProfile",
   "RoomType",
   "Room",
+  "ServiceCategory",
+  "Service",
 ]);
 
 const SCOPED_OPERATIONS = new Set(["findMany", "findFirst", "findUnique", "count"]);
