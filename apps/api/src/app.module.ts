@@ -11,6 +11,7 @@ import { RoomModule } from "./modules/room/room.module";
 import { ServiceModule } from "./modules/service/service.module";
 import { ShiftModule } from "./modules/shift/shift.module";
 import { MemberModule } from "./modules/member/member.module";
+import { BookingModule } from "./modules/booking/booking.module";
 import { AuditModule } from "./audit/audit.module";
 
 @Module({
@@ -32,6 +33,7 @@ import { AuditModule } from "./audit/audit.module";
     ServiceModule,
     ShiftModule,
     MemberModule,
+    BookingModule,
   ],
   controllers: [AppController],
 })
