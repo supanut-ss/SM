@@ -350,3 +350,61 @@ deploy จะไม่มี extension นี้เลยถ้าไม่แ�
 ADR-012/013: migration `20260823100431_members` สร้างด้วย `prisma migrate diff` แบบ schema-to-schema ผสม
 raw SQL ส่วน trgm เอง (Docker ใช้งานไม่ได้ในเซสชันนี้) **ยังไม่เคย apply/รัน e2e จริง และยังไม่ได้วัดผล
 performance ค้นหา 10,000 แถวจริงตามเกณฑ์ผ่าน** ต้องยืนยันทั้งสองเรื่องเมื่อ Docker พร้อมใช้งาน
+
+---
+
+## ADR-015: แก้บั๊กจริง — `export * from "@prisma/client"` ทำให้ `prisma` singleton หายตอนรันจริง (production-blocking)
+วันที่: 2026-08-23
+Task ที่เกี่ยวข้อง: ไม่ผูกกับ Task เดียว — พบระหว่างยืนยัน T2.3–T3.1 หลัง Docker ใช้งานได้ในเซสชันนี้
+
+บริบท: หลัง Docker กลับมาใช้งานได้ รัน `pnpm db:migrate` + `pnpm db:seed` สำเร็จ (10 migrations รวม T2.3–T3.1
+apply ผ่านหมด, trgm index ทำงานจริง — วัด perf ค้นหา 10,000 แถวได้ ~17ms เฉลี่ย ผ่านเกณฑ์ T3.1 ขาดแค่นี้จาก
+ADR-014) รัน e2e suite เต็ม (`pnpm test:e2e`, 8 spec ไฟล์) ผ่านทั้งหมด 67/67 หลังแก้ 2 จุดเล็ก (ดูท้าย ADR นี้)
+แต่พอลองบูตแอปจริงด้วย `node dist/main.js` แล้วเปิด browser จริงเพื่อ login กลับพัง 500 ทุกครั้งด้วย
+`TypeError: Cannot read properties of undefined (reading 'user')` ที่ `AuthService.validateCredentials`
+บรรทัด `this.prisma.client.user.findUnique(...)` — ไล่จนถึงต้นตอพบว่า `PrismaService.client` (ซึ่ง copy
+มาจาก `prisma` ที่ export จาก `packages/db/src/index.ts`) เป็น `undefined` ทั้งกระบวนการ ทำทุก endpoint ที่
+แตะ DB พังเหมือนกันหมด ไม่ใช่แค่ login
+
+สาเหตุ: `packages/db/src/index.ts` มี `export * from "@prisma/client";` ควบคู่กับ `export const prisma = ...`
+ที่ประกาศเอง — เมื่อ `apps/api` (CommonJS, ดู ADR-005) ทำ `require("@lotus-desk/db")` ผ่าน Node's
+require(esm) interop (จำเป็นเพราะ packages/db เป็น ESM แท้) พบว่า `export *` ของ CJS module ขนาดใหญ่แบบ
+`@prisma/client` ทำให้ named export ที่ประกาศเองในไฟล์เดียวกัน (`prisma`) หายไปเงียบ ๆ จากผลลัพธ์ของ
+`require()` — ยืนยันด้วย minimal repro แยกต่างหาก (`export * from "@prisma/client"; export const prisma = "x";`
+แล้ว `require()` คืน `prisma: undefined` แต่พอเปลี่ยนเป็น named re-export `export { PrismaClient } from ...`
+แทน `export *` กลับได้ค่าปกติ) เป็นข้อจำกัด/บั๊กจริงของ Node's require(esm) ไม่ใช่โค้ดเราเขียนผิด syntax —
+บั๊กนี้ไม่มีทางถูกจับได้ผ่าน e2e spec เลยเพราะทุก spec ใช้ dynamic `await import("@lotus-desk/db")` ซึ่งเป็น
+native ESM import ไม่ผ่านเส้นทาง require(esm) ที่มีปัญหา และ ADR-004 เดิมก็ระบุวิธี smoke-test ไว้แค่ "บูต
+แอปแล้วดูว่า start ได้ไหม" ไม่เคยยิง request จริงที่แตะ DB ผ่าน `node dist/main.js` มาก่อนในเซสชันไหนเลย —
+บั๊กนี้จึงแฝงอยู่ตั้งแต่ T1.2 (จุดที่ apps/api เริ่ม import `@lotus-desk/db` ผ่าน static import จริง) แต่ไม่
+เคยถูกจับได้จนกว่าจะมีคนลอง login ผ่าน browser จริงกับแอปที่บูตแบบ production
+
+ตัดสินใจ:
+- ห้ามใช้ `export * from "@prisma/client"` ใน `packages/db/src/index.ts` อีก — เปลี่ยนเป็น re-export ค่า
+  (value) ที่ apps/api ใช้จริงแบบ explicit เท่านั้น: `export { PrismaClient, Prisma, AuditAction } from
+  "@prisma/client";`
+- เพิ่ม `export type * from "@prisma/client";` แยกบรรทัดสำหรับ type (ไม่มี JS ถูก emit เลยจากบรรทัดนี้ —
+  ตรวจแล้วจาก `dist/index.js` — จึงไม่มีทางโดนบั๊กเดียวกัน) จำเป็นเพราะไม่งั้น TS ขึ้น TS2742 ("inferred type
+  ... cannot be named") ทุก controller method ที่คืนค่าตรงจาก Prisma Client (เช่น `member.findMany()`)
+  เพราะ TS ต้องการ public path ไปยัง type ของ Prisma model ที่ inferred ไว้เสมอ
+- แก้ `service.e2e-spec.ts` เพิ่มเติม: `.sort()` ธรรมดา (ไม่มี comparator) sort ตัวเลขแบบ string ทำให้
+  `[60,90,120]` เพี้ยนเป็น `[120,60,90]` — เปลี่ยนเป็น `.sort((a,b) => a-b)` (บั๊กใน test เอง ไม่ใช่ API)
+- แก้ `apps/api/src/main.ts`: เพิ่ม `if (require.main === module) { void bootstrap(); }` ครอบ `bootstrap()`
+  — ก่อนหน้านี้ทุกไฟล์ e2e spec ที่ `import { createApp } from "../../../main"` จะสั่ง `bootstrap()` (ซึ่ง
+  เรียก `app.listen()`) ไปด้วยเสมอเป็นผลข้างเคียง พอรันหลาย spec พร้อมกัน (ปกติของ vitest) ทุกไฟล์แย่งฟัง
+  PORT เดียวกันจน `EADDRINUSE` (ไม่กระทบผลการทดสอบเพราะ e2e ใช้ `app.init()` ไม่ใช่ `app.listen()` แต่ทำให้
+  เห็น unhandled rejection เต็มหน้าจอ)
+
+เหตุผล: นี่คือบั๊กที่ทำให้ระบบทั้งระบบใช้งานจริงไม่ได้เลยสักครั้ง (ทุก request ที่แตะ DB คืน 500) แต่ไม่มีทาง
+ตรวจพบผ่าน `pnpm verify` (typecheck/lint/unit test ผ่านหมดตลอดมา) หรือ e2e (dynamic import หลบบั๊กได้พอดี)
+— พบได้เพราะทำตามธรรมเนียมเดิมของ repo (ดู ADR-004/006/007: ทุกบั๊กใหญ่ก่อนหน้านี้ก็ถูกจับได้จากการบูตแอปจริง
+ด้วย `node dist/main.js` ไม่ใช่จาก automated test) — ยืนยันความสำคัญของขั้นตอนนี้ว่ายังจำเป็นอยู่ แม้จะมี e2e
+suite ครบแล้วก็ตาม เพราะ e2e เองก็มี blind spot ของตัวเอง (dynamic import)
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ทางเลือกอื่นคือเปลี่ยน `PrismaService.client` จาก static import เป็น async
+factory provider (`useFactory: async () => (await import("@lotus-desk/db")).prisma`) เพื่อเลี่ยง require(esm)
+ไปเลย — ปฏิเสธเพราะเปลี่ยนโครงสร้าง DI ทั้งระบบ (ทุกที่ที่ inject `PrismaService` จะกลายเป็น async ไปด้วย)
+ซับซ้อนและเสี่ยงกว่าการแก้ที่ต้นตอ (barrel export) มาก — ผลกระทบต่อโค้ดเดิม: ไม่มี breaking change เพราะ
+`@lotus-desk/db`'s public API (สิ่งที่ import ได้จริง) เหมือนเดิมทุกจุดที่มีการใช้งานอยู่แล้วในโค้ด — แค่ไม่
+export symbol ที่ไม่เคยมีใครใช้ผ่านทางนี้อีกต่อไป (ถ้าต้องใช้ symbol ใหม่จาก `@prisma/client` ในอนาคต ต้องมา
+เพิ่มชื่อในรายการ explicit re-export นี้ด้วยเสมอ — ห้ามกลับไปใช้ `export *` เด็ดขาด)

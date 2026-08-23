@@ -19,4 +19,10 @@ async function bootstrap() {
   await app.listen(config.get("PORT", { infer: true }));
 }
 
-void bootstrap();
+// เรียก bootstrap() เฉพาะตอนรันไฟล์นี้เป็น entry point จริง (node dist/main.js) ไม่ใช่ตอนถูก import —
+// e2e spec ทุกไฟล์ import { createApp } จากไฟล์นี้ (ดู *.e2e-spec.ts) ถ้าไม่มี guard นี้ทุกไฟล์ที่ import
+// จะสั่ง listen() บน PORT เดียวกันไปด้วยเสมอ พอรันหลาย spec พร้อมกัน (ปกติของ vitest) จะชนพอร์ตกันเอง
+// (EADDRINUSE) — apps/api compile เป็น CommonJS (ดู docs/decisions.md ADR-005) จึงใช้ require.main ตรวจได้
+if (require.main === module) {
+  void bootstrap();
+}

@@ -148,9 +148,9 @@ describe("Services (real Postgres via Testcontainers)", () => {
     expect(res.body.name).toBe("นวดไทย");
     expect(res.body.branchId).toBe(branchAId);
     expect(res.body.variants).toHaveLength(3);
-    expect((res.body.variants as Array<{ durationMin: number }>).map((v) => v.durationMin).sort()).toEqual([
-      60, 90, 120,
-    ]);
+    expect(
+      (res.body.variants as Array<{ durationMin: number }>).map((v) => v.durationMin).sort((a, b) => a - b),
+    ).toEqual([60, 90, 120]);
   });
 
   it("rejects a negative price (validation — money must never go negative or float)", async () => {
