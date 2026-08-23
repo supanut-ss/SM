@@ -18,4 +18,5 @@ export const AUDIT_ENTITY_FETCHERS: Record<string, EntityFetcher> = {
   StaffLeave: (id, prisma) => prisma.client.staffLeave.findUnique({ where: { id } }),
   Member: (id, prisma) => prisma.client.member.findUnique({ where: { id } }),
   AppointmentItem: (id, prisma) => prisma.client.appointmentItem.findUnique({ where: { id } }),
+  StaffQueueEntry: (id, prisma) => prisma.client.staffQueueEntry.findUnique({ where: { id } }),
 };

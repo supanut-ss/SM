@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   APPOINTMENT_STATUSES,
+  ASSIGN_TYPES,
   canTransitionAppointmentStatus,
+  joinStaffQueueSchema,
   nextAppointmentStatuses,
   updateAppointmentItemStatusSchema,
   type AppointmentStatus,
@@ -89,5 +91,27 @@ describe("updateAppointmentItemStatusSchema", () => {
   it("ปฏิเสธเมื่อไม่ส่ง status มา", () => {
     const result = updateAppointmentItemStatusSchema.safeParse({});
     expect(result.success).toBe(false);
+  });
+});
+
+describe("joinStaffQueueSchema", () => {
+  it("ยอมรับ staffId อย่างเดียวโดยไม่ต้องมี date", () => {
+    const result = joinStaffQueueSchema.safeParse({ staffId: "staff_1" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.date).toBeUndefined();
+  });
+
+  it("ยอมรับ date ที่ระบุมาด้วย", () => {
+    const result = joinStaffQueueSchema.safeParse({ staffId: "staff_1", date: "2026-09-01" });
+    expect(result.success).toBe(true);
+  });
+
+  it("ปฏิเสธเมื่อไม่ส่ง staffId มา", () => {
+    const result = joinStaffQueueSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it("ASSIGN_TYPES มีค่าครบ 2 แบบ", () => {
+    expect(ASSIGN_TYPES).toEqual(["ROTATION", "CUSTOMER_REQUEST"]);
   });
 });

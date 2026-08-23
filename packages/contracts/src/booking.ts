@@ -54,3 +54,21 @@ export const updateAppointmentItemStatusSchema = z.object({
 });
 
 export type UpdateAppointmentItemStatusInput = z.infer<typeof updateAppointmentItemStatusSchema>;
+
+// วิธีที่นัดถูกจ่ายให้พนักงาน (T4.4) — ตรงกับ enum AssignType ใน packages/db/prisma/schema.prisma
+// มีผลต่อคิวหมุนตอนจบงาน (ดู docs/DOMAIN.md ข้อ 2, docs/decisions.md ADR-022)
+export const ASSIGN_TYPES = ["ROTATION", "CUSTOMER_REQUEST"] as const;
+export type AssignType = (typeof ASSIGN_TYPES)[number];
+
+export const ASSIGN_TYPE_LABEL: Record<AssignType, string> = {
+  ROTATION: "คิวหมุน",
+  CUSTOMER_REQUEST: "ลูกค้าขอ",
+};
+
+// เข้าคิวหมุน (T4.4) — date ไม่ระบุ = วันนี้ตามเวลาไทย (ฝั่ง apps/api เป็นคนคำนวณ ไม่ใช่ client)
+export const joinStaffQueueSchema = z.object({
+  staffId: z.string().min(1, "กรุณาเลือกพนักงาน"),
+  date: z.coerce.date().optional(),
+});
+
+export type JoinStaffQueueInput = z.infer<typeof joinStaffQueueSchema>;

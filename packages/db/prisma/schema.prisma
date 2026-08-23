@@ -26,13 +26,16 @@ enum AuditAction {
 
 /// สาขาของร้าน — ทุกตารางที่ผูกกับข้อมูลร้านต้องมี branchId อ้างมาที่นี่ (ดู CLAUDE.md ข้อ 5)
 model Branch {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  timezone  String   @default("Asia/Bangkok")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  id                              String   @id @default(cuid())
+  name                            String
+  code                            String   @unique
+  timezone                        String   @default("Asia/Bangkok")
+  isActive                        Boolean  @default(true)
+  /// ค่าตั้งต้น false ตรงกับ docs/DOMAIN.md ข้อ 2 ของร้านนี้ ("เสียตำแหน่ง — นับเป็นงานปกติ") แต่ทำเป็น
+  /// ค่าตั้งค่าต่อสาขาได้ตามที่ docs/PLAN.md T4.4 ระบุไว้ตรง ๆ (เผื่อร้านอื่นในอนาคตต้องการพฤติกรรมต่างกัน)
+  customRequestKeepsQueuePosition Boolean  @default(false)
+  createdAt                       DateTime @default(now()) @db.Timestamptz
+  updatedAt                       DateTime @updatedAt @db.Timestamptz
 
   auditLogs         AuditLog[]
   userBranches      UserBranch[]
@@ -49,6 +52,7 @@ model Branch {
   memberConsents    MemberConsent[]
   appointments      Appointment[]
   appointmentItems  AppointmentItem[]
+  staffQueueEntries StaffQueueEntry[]
 
   @@map("branches")
 }
@@ -215,6 +219,7 @@ model StaffProfile {
   staffShifts      StaffShift[]
   staffLeaves      StaffLeave[]
   appointmentItems AppointmentItem[]
+  queueEntries     StaffQueueEntry[]
 
   @@index([branchId])
   @@map("staff_profiles")
@@ -504,6 +509,14 @@ enum AppointmentStatus {
   CANCELLED
 }
 
+/// วิธีที่นัดนี้ถูกจ่ายให้พนักงานคนนี้ (T4.4) — มีผลต่อ "คิวหมุน": CUSTOMER_REQUEST อาจเสียตำแหน่งคิวหรือไม่
+/// ก็ได้แล้วแต่ Branch.customRequestKeepsQueuePosition (docs/DOMAIN.md ข้อ 2) ส่วน ROTATION เสียตำแหน่งเสมอ
+/// (จบงานแล้วต่อท้ายคิวเป็นปกติ) — ดู docs/decisions.md ADR-022
+enum AssignType {
+  ROTATION
+  CUSTOMER_REQUEST
+}
+
 /// รายการบริการย่อย 1 ชิ้นของนัด = พนักงาน 1 คน + ห้อง 1 ห้อง + ช่วงเวลา 1 ช่วง (T4.2)
 ///
 /// กันจองซ้อนด้วย PostgreSQL `EXCLUDE USING gist` ที่เพิ่มด้วย raw SQL ในไฟล์ migration เอง (Prisma schema
@@ -529,6 +542,8 @@ model AppointmentItem {
   serviceVariantId      String
   serviceVariant        ServiceVariant    @relation(fields: [serviceVariantId], references: [id])
   status                AppointmentStatus @default(BOOKED)
+  /// ดู enum AssignType — กระทบคิวหมุนตอนจบงาน (T4.4)
+  assignType            AssignType        @default(ROTATION)
   startAt               DateTime          @db.Timestamptz
   endAt                 DateTime          @db.Timestamptz
   /// snapshot ของ Room.capacity ตอนสร้างแถวนี้ — ใช้กำหนดขอบเขตของ EXCLUDE constraint ข้างบนเท่านั้น
@@ -542,4 +557,24 @@ model AppointmentItem {
   @@index([roomId, startAt])
   @@index([appointmentId])
   @@map("appointment_items")
+}
+
+/// ตำแหน่งในคิวหมุนของพนักงาน 1 คน ต่อ 1 วัน (T4.4) — position ยิ่งน้อยยิ่งอยู่หัวคิว (ตัวถัดไปที่จะได้งาน
+/// คิวหมุน) ตัวเลขไม่ต่อเนื่องจำเป็นเสมอ (renumber ใหม่ทุกครั้งที่คิวเปลี่ยน ดู staff-queue.ts ฝั่ง apps/api)
+/// เริ่มต้นวันใหม่ด้วยการ "เข้าคิว" ผ่าน endpoint POST .../staff-queue/join (เรียงตามเวลาที่กดจริง —
+/// ตรงกับ docs/DOMAIN.md ข้อ 1 "เรียงตามเวลามาถึง" จนกว่า T6.1 จะมี clock-in จริงมาเรียกแทน)
+model StaffQueueEntry {
+  id        String       @id @default(cuid())
+  branchId  String
+  branch    Branch       @relation(fields: [branchId], references: [id])
+  staffId   String
+  staff     StaffProfile @relation(fields: [staffId], references: [id])
+  date      DateTime     @db.Date
+  position  Int
+  createdAt DateTime     @default(now()) @db.Timestamptz
+  updatedAt DateTime     @updatedAt @db.Timestamptz
+
+  @@unique([staffId, date])
+  @@index([branchId, date, position])
+  @@map("staff_queue_entries")
 }
