@@ -8,23 +8,28 @@ import {
   Patch,
   Post,
   Query,
+  UnprocessableEntityException,
   UseGuards,
 } from "@nestjs/common";
 import {
   createMemberSchema,
+  mergeMemberSchema,
   updateMemberSchema,
   type CreateMemberInput,
+  type MergeMemberInput,
   type UpdateMemberInput,
 } from "@lotus-desk/contracts";
-import { Prisma } from "@lotus-desk/db";
+import { AuditAction, Prisma } from "@lotus-desk/db";
 import { AuditEntity } from "../../audit/audit-entity.decorator";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
 import { PrismaService } from "../../prisma/prisma.service";
+import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentBranch } from "../rbac/current-branch.decorator";
 import { PermissionGuard } from "../rbac/permission.guard";
 import { RequirePermission } from "../rbac/require-permission.decorator";
 import type { BranchContext } from "../rbac/permission.guard";
+import type { AuthenticatedUser } from "../auth/jwt-auth.guard";
 import type { ConsentStatus, ConsentType } from "@lotus-desk/db";
 
 const CODE_GENERATION_ATTEMPTS = 5;
@@ -129,6 +134,71 @@ export class MemberController {
       throw new NotFoundException("ไม่พบสมาชิกนี้");
     }
     return this.prisma.client.member.update({ where: { id: memberId }, data: body });
+  }
+
+  /**
+   * รวมสมาชิกซ้ำ (T3.4) — :memberId ในเส้นทางคือ "รายการรอง" (ตัวที่จะถูกปิดใช้งาน) ให้ AuditInterceptor
+   * จับ before/after ของสมาชิกรองอัตโนมัติผ่าน @AuditEntity("Member") ปกติ ส่วนการย้าย MemberConsent
+   * (คนละ entity ที่ interceptor ตัวเดียวจับไม่ครบ) เขียน audit log เพิ่มเองต่อแถวภายใน transaction เดียวกัน
+   * ไม่ใช่การเลี่ยง AuditInterceptor (ยังผ่านปกติสำหรับ Member) แค่เสริมให้ reconstruct ครบ (เกณฑ์ผ่าน
+   * T3.4: "ย้อนกลับได้ผ่าน audit log") — ยังไม่มี MemberPackage/แต้มในระบบตอนนี้ (รอ T5.2/loyalty ในอนาคต)
+   * จึงย้ายแค่ MemberConsent เท่าที่มีจริง ดู docs/decisions.md ADR-018
+   */
+  @Post(":memberId/merge")
+  @RequirePermission("manage", "member")
+  @AuditEntity("Member")
+  async merge(
+    @CurrentBranch() branch: BranchContext,
+    @Param("memberId") memberId: string,
+    @Body(new ZodValidationPipe(mergeMemberSchema)) body: MergeMemberInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (body.primaryMemberId === memberId) {
+      throw new UnprocessableEntityException("ไม่สามารถรวมสมาชิกเข้ากับตัวเองได้");
+    }
+
+    const secondary = await this.prisma.client.member.findUnique({ where: { id: memberId } });
+    if (!secondary || secondary.branchId !== branch.branchId) {
+      throw new NotFoundException("ไม่พบสมาชิกนี้");
+    }
+    if (secondary.mergedIntoId) {
+      throw new ConflictException("สมาชิกนี้ถูกรวมเข้ากับสมาชิกอื่นไปแล้ว");
+    }
+
+    const primary = await this.prisma.client.member.findUnique({
+      where: { id: body.primaryMemberId },
+    });
+    if (!primary || primary.branchId !== branch.branchId) {
+      throw new NotFoundException("ไม่พบสมาชิกหลักที่จะรวมเข้า");
+    }
+    if (primary.mergedIntoId) {
+      throw new UnprocessableEntityException(
+        "ไม่สามารถรวมเข้ากับสมาชิกที่ถูกรวมไปแล้วได้ — เลือกสมาชิกหลักตัวจริง",
+      );
+    }
+
+    return this.prisma.client.$transaction(async (tx) => {
+      const consents = await tx.memberConsent.findMany({ where: { memberId } });
+      for (const consent of consents) {
+        await tx.memberConsent.update({ where: { id: consent.id }, data: { memberId: primary.id } });
+        await tx.auditLog.create({
+          data: {
+            branchId: branch.branchId,
+            actorId: user.sub,
+            action: AuditAction.UPDATE,
+            entity: "MemberConsent",
+            entityId: consent.id,
+            before: { memberId },
+            after: { memberId: primary.id },
+          },
+        });
+      }
+
+      return tx.member.update({
+        where: { id: memberId },
+        data: { isActive: false, mergedIntoId: primary.id },
+      });
+    });
   }
 
   /**

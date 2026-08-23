@@ -9,6 +9,7 @@ import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
 import { MemberConsentSection } from "./member-consent-section";
 import { MemberForm, type MemberFormValues } from "./member-form";
+import { MemberMergeSection } from "./member-merge-section";
 
 type ActiveFilter = "true" | "false" | "all";
 
@@ -176,12 +177,14 @@ export function MemberPageClient() {
                 <TableCell>
                   <span
                     className={
-                      member.isActive
-                        ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
-                        : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+                      member.mergedIntoId
+                        ? "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+                        : member.isActive
+                          ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
+                          : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
                     }
                   >
-                    {member.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}
+                    {member.mergedIntoId ? "รวมเข้าสมาชิกอื่นแล้ว" : member.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}
                   </span>
                 </TableCell>
                 {canManage && (
@@ -190,7 +193,7 @@ export function MemberPageClient() {
                       <Button variant="ghost" size="sm" onClick={() => setSheetTarget(member)}>
                         แก้ไข
                       </Button>
-                      {confirmingDeactivateId === member.id ? (
+                      {member.mergedIntoId ? null : confirmingDeactivateId === member.id ? (
                         <>
                           <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
                           <Button
@@ -261,7 +264,14 @@ export function MemberPageClient() {
             }}
           />
           {editingRecord && (
-            <MemberConsentSection branchId={branch.branchId} memberId={editingRecord.id} />
+            <>
+              <MemberConsentSection branchId={branch.branchId} memberId={editingRecord.id} />
+              <MemberMergeSection
+                branchId={branch.branchId}
+                member={editingRecord}
+                onMerged={() => setSheetTarget(null)}
+              />
+            </>
           )}
         </div>
       </Sheet>

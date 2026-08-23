@@ -485,3 +485,51 @@ index เหล่านี้ทิ้งโดยไม่ตั้งใจ�
 เดิม (ยังคงมีคอมเมนต์อธิบายว่าทำไมเป็น raw SQL ตามบริบทตอนนั้น) แล้วให้ migration ใหม่ (`member_consents`)
 เป็นตัวประสาน (RENAME INDEX ให้ตรงชื่อที่ Prisma คาดหวัง) แทน — Prisma ทำ RENAME ให้อัตโนมัติเองเมื่อ schema
 ประกาศ index ที่มีอยู่แล้วในชื่ออื่น ไม่ต้องเขียน SQL เพิ่มเอง
+
+---
+
+## ADR-018: รวมสมาชิกซ้ำ (T3.4) — soft-merge ผ่าน self-relation, ย้ายเฉพาะ MemberConsent เท่าที่มีจริง, และ POST /merge ได้ audit action เป็น CREATE ไม่ใช่ UPDATE
+
+วันที่: 2026-08-23
+Task ที่เกี่ยวข้อง: T3.4
+
+บริบท: สมาชิกที่พนักงานสร้างซ้ำโดยไม่ตั้งใจ (เบอร์ตรงกับสมาชิกเดิม แต่ยืนยัน `confirmDuplicate` สร้างต่อ
+ตอน T3.1/ADR-014) ต้องรวมกลับเป็นคนเดียวได้ในภายหลัง โดยไม่ทำให้ประวัติที่ผูกกับ "รายการรอง" หายไป และต้อง
+ย้อนกลับ (reconstruct) ได้ว่าเกิดอะไรขึ้นบ้าง
+
+ตัดสินใจ:
+- **Soft-merge ผ่าน self-relation** (`Member.mergedIntoId` ชี้กลับไปที่ `Member` อีกแถวหนึ่ง) แทนการลบ
+  หรือย้ายข้อมูลจริงแล้วลบ "รายการรอง" ทิ้ง — รายการรองยังอยู่ในตาราง (แค่ `isActive: false` +
+  `mergedIntoId` ไม่ null) กันไม่ให้ FK ที่อ้างถึง memberId เดิม (เช่น booking/transaction ในอนาคต) พัง และ
+  ทำให้ตรวจสอบสถานะ "ถูกรวมไปแล้ว" ได้ตรง ๆ ผ่านฟิลด์เดียว ไม่ต้องไล่ audit log ทุกครั้งที่จะเช็ค
+- **ย้ายเฉพาะ `MemberConsent`** จากรายการรองไปหารายการหลัก (UPDATE `memberId` ทีละแถวใน transaction เดียว
+  กับการปิดใช้งานรายการรอง) — ยังไม่มี MemberPackage/แต้มสะสมในระบบตอนนี้ (รอโมดูลในอนาคต) เมื่อโมดูลเหล่านั้น
+  มาถึงต้องมาต่อ logic ย้ายที่นี่ด้วย (ไม่ใช่แค่ MemberConsent อีกต่อไป)
+- **เขียน audit log ของ `MemberConsent` เอง**ในทรานแซกชันเดียวกัน (นอกเหนือจากที่ `AuditInterceptor` จับ
+  `Member` ให้อัตโนมัติผ่าน `@AuditEntity("Member")`) เพราะ interceptor ตัวเดียวจับได้แค่ entity เดียวต่อ
+  request (ตาม route param `:memberId`) — ไม่ใช่การเลี่ยง `AuditInterceptor` ตาม CLAUDE.md ข้อ 6 (route ยัง
+  ผ่าน interceptor ปกติสำหรับ `Member`) แค่เสริมให้ entity อื่นที่ mutation นี้แตะด้วยถูกบันทึกครบเช่นกัน
+- **Route เป็น `POST /branches/:branchId/members/:memberId/merge`** (action-style endpoint แบบเดียวกับ
+  `/consents`, `/auth/login`, `/auth/logout-all` ที่มีอยู่แล้วในโค้ดเบสนี้) ไม่ใช่ `PATCH` — ผลข้างเคียงที่
+  พบตอนรัน e2e จริง: `AuditInterceptor` map action จาก HTTP method ตรง ๆ (`POST` → `CREATE` เสมอ ดู
+  `apps/api/src/audit/audit.interceptor.ts`) จึงได้ audit log ของ `Member` เป็น action `"CREATE"` ทั้งที่
+  เนื้อหาจริงเป็นการแก้ไข (`isActive`, `mergedIntoId` เปลี่ยน) — พิจารณาแล้วว่า **ไม่แก้** ทั้งสองทาง
+  (ไม่เปลี่ยน route เป็น PATCH และไม่เปลี่ยน interceptor ให้ฉลาดกว่า HTTP method) เพราะ before/after ที่เก็บ
+  ไว้ยังครบถ้วนถูกต้อง — เกณฑ์ผ่าน T3.4 ("ย้อนกลับได้ผ่าน audit log") วัดที่ข้อมูล before/after สร้างสถานะ
+  เดิมกลับมาได้ ไม่ใช่ที่ label `action` ตรงเป๊ะ — ยืนยันด้วย unit test ที่ค้นด้วย `action: "CREATE"` ตรง ๆ
+
+เหตุผล: การลบข้อมูลจริงระดับแถวขัดกับหลักการ append-only/ห้ามข้อมูลหายที่ใช้ทั้งเอกสาร (เทียบ ADR-016 เรื่อง
+`AuditLog`/`MemberConsent`) — soft-merge ทำให้ทุกอย่างที่เคยผูกกับรายการรองยังสืบย้อนกลับไปหาได้เสมอ ส่วน
+เรื่อง audit action label: การเปลี่ยน `METHOD_TO_ACTION` ให้รับ override ต่อ route เป็นการเปลี่ยนกลไก
+cross-cutting ที่กระทบทุก endpoint ที่มี `@AuditEntity` อยู่แล้ว (ความเสี่ยงสูงกว่าประโยชน์ที่ได้ ซึ่งเป็นแค่
+label สวยขึ้น) ส่วนการเปลี่ยนเป็น PATCH จะขัดกับความหมายของ REST ที่ endpoint นี้ทำมากกว่าการ "แก้ไขฟิลด์"
+ตรง ๆ — มันเป็น action ที่ปิดใช้งานสมาชิกหนึ่งและย้ายข้อมูลของมันไปอีกที่หนึ่งพร้อมกัน ใกล้เคียง `/consents`
+(POST สร้างประวัติใหม่) มากกว่า `PATCH /members/:id` (แก้ไขฟิลด์ของ resource เดิมตรง ๆ)
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ทางเลือกที่ไม่เลือกคือ (1) ลบรายการรองทิ้งจริงหลัง merge — ปฏิเสธเพราะขัด
+หลักการห้ามข้อมูลหาย และจะทำให้ FK ในอนาคตพังถ้ามีอะไรอ้างถึง memberId เดิม (2) เปลี่ยน route เป็น PATCH
+เพื่อให้ได้ audit action `UPDATE` ฟรี — ปฏิเสธตามเหตุผลข้างต้น (3) แก้ `AuditInterceptor` ให้รับ action
+override ต่อ handler ผ่าน decorator — เก็บไว้เป็นตัวเลือกสำหรับอนาคตถ้าพบว่า action label ผิดแบบนี้เกิดขึ้น
+บ่อยจนกระทบการใช้งานจริง (เช่น เจ้าของร้านกรอง audit log ด้วย action แล้วพลาดรายการ) แต่ตอนนี้ยังไม่มีหน้า UI
+ไหนกรอง audit log ด้วย action เลย จึงยังไม่ใช่ปัญหาจริง — ยังไม่มี MemberPackage/แต้มให้ย้ายจึงยังทดสอบเกณฑ์
+"ยอดคงเหลือของคอร์สไม่หาย" ไม่ได้เต็มรูปแบบ รอ T5.x/loyalty ในอนาคตมาเติม logic ย้ายเพิ่ม

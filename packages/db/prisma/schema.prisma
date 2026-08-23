@@ -400,17 +400,22 @@ model StaffLeave {
 /// ข้อมูลสุขภาพ/ความชอบ (เข้ารหัสระดับคอลัมน์) เป็น T3.2 แยกต่างหาก ยังไม่อยู่ในโมเดลนี้
 /// ค้นหาแบบพิมพ์ไม่ครบก็เจอ (name/phone) ใช้ GIN trigram index ที่สร้างด้วย raw SQL ในไฟล์ migration
 /// เดียวกัน (Prisma schema DSL ทำ operator class แบบนี้ไม่ได้ชัวร์พอ ดู docs/decisions.md ADR-014)
+/// สมาชิก — mergedIntoId ไม่ null แปลว่ารายการนี้เป็น "รายการรอง" ที่ถูกรวมเข้ากับสมาชิกอีกคนแล้ว (T3.4)
+/// ไม่ลบทิ้งเด็ดขาด (ต้องคงประวัติ/audit log ไว้) แค่ทำเครื่องหมาย + ปิดใช้งาน (isActive=false) เสมอตอน merge
 model Member {
-  id        String   @id @default(cuid())
-  branchId  String
-  branch    Branch   @relation(fields: [branchId], references: [id])
-  code      String
-  name      String
-  phone     String
-  note      String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  id           String   @id @default(cuid())
+  branchId     String
+  branch       Branch   @relation(fields: [branchId], references: [id])
+  code         String
+  name         String
+  phone        String
+  note         String?
+  isActive     Boolean  @default(true)
+  mergedIntoId String?
+  mergedInto   Member?  @relation("MemberMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom   Member[] @relation("MemberMerge")
+  createdAt    DateTime @default(now()) @db.Timestamptz
+  updatedAt    DateTime @updatedAt @db.Timestamptz
 
   consents MemberConsent[]
 

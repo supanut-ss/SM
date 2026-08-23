@@ -28,3 +28,12 @@ export const updateMemberSchema = createMemberSchema.omit({ confirmDuplicate: tr
 
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 export type UpdateMemberFormInput = z.input<typeof updateMemberSchema>;
+
+// รวมสมาชิกซ้ำ (T3.4) — สมาชิกใน route param (:memberId) คือ "รายการรอง" ที่จะถูกปิดใช้งานและย้าย
+// ประวัติไปหา primaryMemberId (ดู docs/decisions.md ADR-018)
+export const mergeMemberSchema = z.object({
+  primaryMemberId: z.string().min(1, "กรุณาเลือกสมาชิกหลักที่จะรวมเข้า"),
+});
+
+export type MergeMemberInput = z.infer<typeof mergeMemberSchema>;
+export type MergeMemberFormInput = z.input<typeof mergeMemberSchema>;

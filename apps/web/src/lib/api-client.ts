@@ -13,6 +13,7 @@ import type {
   LeaveType,
   LoginInput,
   MeResponse,
+  MergeMemberInput,
   StaffLevel,
   StaffSkill,
   UpdateRoomInput,
@@ -348,6 +349,8 @@ export interface Member {
   phone: string;
   note: string | null;
   isActive: boolean;
+  // ไม่ null แปลว่ารายการนี้เป็น "รายการรอง" ที่ถูกรวมเข้ากับสมาชิกอีกคนแล้ว (T3.4)
+  mergedIntoId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -373,6 +376,8 @@ export const memberApi = {
     const qs = query.toString();
     return apiFetch<Member[]>(`/branches/${branchId}/members${qs ? `?${qs}` : ""}`);
   },
+  get: (branchId: string, memberId: string) =>
+    apiFetch<Member>(`/branches/${branchId}/members/${memberId}`),
   create: (branchId: string, input: CreateMemberInput) =>
     apiFetch<Member>(`/branches/${branchId}/members`, {
       method: "POST",
@@ -381,6 +386,12 @@ export const memberApi = {
   update: (branchId: string, memberId: string, input: UpdateMemberInput) =>
     apiFetch<Member>(`/branches/${branchId}/members/${memberId}`, {
       method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  // memberId คือ "รายการรอง" ที่จะถูกปิดใช้งานและรวมประวัติเข้ากับ input.primaryMemberId (ดู T3.4)
+  merge: (branchId: string, memberId: string, input: MergeMemberInput) =>
+    apiFetch<Member>(`/branches/${branchId}/members/${memberId}/merge`, {
+      method: "POST",
       body: JSON.stringify(input),
     }),
 };

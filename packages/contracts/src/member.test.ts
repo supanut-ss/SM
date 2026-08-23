@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMemberSchema, updateMemberSchema } from "./member.js";
+import { createMemberSchema, mergeMemberSchema, updateMemberSchema } from "./member.js";
 
 describe("createMemberSchema", () => {
   it("accepts a valid member", () => {
@@ -71,5 +71,22 @@ describe("updateMemberSchema", () => {
     if (result.success) {
       expect((result.data as Record<string, unknown>).confirmDuplicate).toBeUndefined();
     }
+  });
+});
+
+describe("mergeMemberSchema", () => {
+  it("accepts a valid primaryMemberId", () => {
+    const result = mergeMemberSchema.safeParse({ primaryMemberId: "member_1" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a missing primaryMemberId", () => {
+    const result = mergeMemberSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty primaryMemberId", () => {
+    const result = mergeMemberSchema.safeParse({ primaryMemberId: "" });
+    expect(result.success).toBe(false);
   });
 });
