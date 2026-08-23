@@ -35,6 +35,7 @@ model Branch {
   shiftTemplates    ShiftTemplate[]
   staffShifts       StaffShift[]
   staffLeaves       StaffLeave[]
+  members           Member[]
 
   @@map("branches")
 }
@@ -384,4 +385,26 @@ model StaffLeave {
   @@index([branchId])
   @@index([staffId, date])
   @@map("staff_leaves")
+}
+
+/// สมาชิก (T3.1) — รหัสสมาชิก (code) รันอัตโนมัติต่อสาขา รูปแบบ "M" + เลข 6 หลัก (ดู MemberController)
+/// ข้อมูลสุขภาพ/ความชอบ (เข้ารหัสระดับคอลัมน์) เป็น T3.2 แยกต่างหาก ยังไม่อยู่ในโมเดลนี้
+/// ค้นหาแบบพิมพ์ไม่ครบก็เจอ (name/phone) ใช้ GIN trigram index ที่สร้างด้วย raw SQL ในไฟล์ migration
+/// เดียวกัน (Prisma schema DSL ทำ operator class แบบนี้ไม่ได้ชัวร์พอ ดู docs/decisions.md ADR-014)
+model Member {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  code      String
+  name      String
+  phone     String
+  note      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([branchId, code])
+  @@index([branchId])
+  @@index([branchId, phone])
+  @@map("members")
 }

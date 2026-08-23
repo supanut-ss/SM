@@ -281,6 +281,22 @@ async function main() {
     });
   }
 
+  const memberSeeds = [
+    { name: "สมหญิง ใจดี", phone: "0812345678" },
+    { name: "สมชาย รักสุขภาพ", phone: "0823456789" },
+    { name: "มาลี สวยงาม", phone: "0834567890" },
+  ];
+  let memberCount = 0;
+  for (const [index, memberSeed] of memberSeeds.entries()) {
+    const code = `M${(index + 1).toString().padStart(6, "0")}`;
+    await prisma.member.upsert({
+      where: { branchId_code: { branchId: branch.id, code } },
+      update: {},
+      create: { branchId: branch.id, code, name: memberSeed.name, phone: memberSeed.phone },
+    });
+    memberCount += 1;
+  }
+
   console.log(`seed: ready — branch ${branch.name} (${branch.code})`);
   console.log(`seed: device "${device.label}" (${device.id})`);
   console.log(`seed: 4 roles × ${PERMISSIONS.length} permissions`);
@@ -292,6 +308,7 @@ async function main() {
   console.log(
     `seed: ${shiftTemplateSeeds.length} shift templates, ${staffShiftCount} staff shifts, ${staffLeaveSeeds.length} staff leaves`,
   );
+  console.log(`seed: ${memberCount} members`);
   console.log(
     `seed: dev users — {role}@lotusdesk.local / password "${DEV_PASSWORD}" / PIN "${DEV_PIN}" (dev เท่านั้น)`,
   );

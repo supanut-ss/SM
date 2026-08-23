@@ -6,6 +6,7 @@ import type {
   CreateStaffInput,
   CreateStaffLeaveInput,
   CreateStaffShiftInput,
+  CreateMemberInput,
   LeaveType,
   LoginInput,
   MeResponse,
@@ -16,13 +17,19 @@ import type {
   UpdateServiceVariantInput,
   UpdateShiftTemplateInput,
   UpdateStaffInput,
+  UpdateMemberInput,
 } from "@lotus-desk/contracts";
 
-/** โยนเมื่อ fetch สำเร็จ (มี HTTP response) แต่ status ไม่ใช่ 2xx — เก็บ status ไว้ให้ผู้เรียกตัดสินใจต่อ */
+/**
+ * โยนเมื่อ fetch สำเร็จ (มี HTTP response) แต่ status ไม่ใช่ 2xx — เก็บ status ไว้ให้ผู้เรียกตัดสินใจต่อ
+ * `body` คือ response JSON ดิบ (ถ้ามี) ใช้เมื่อ endpoint ส่งข้อมูลเพิ่มเติมมากับ error เช่น
+ * รายชื่อสมาชิกที่เบอร์ซ้ำจาก MemberController.create (ดู docs/decisions.md ADR-014)
+ */
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly body?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -42,7 +49,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       body && typeof body === "object" && "message" in body
         ? String((body as { message: unknown }).message)
         : `เรียก API ไม่สำเร็จ (${res.status})`;
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res.status, body);
   }
 
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
@@ -326,5 +333,49 @@ export const staffLeaveApi = {
   remove: (branchId: string, staffLeaveId: string) =>
     apiFetch<StaffLeave>(`/branches/${branchId}/staff-leaves/${staffLeaveId}`, {
       method: "DELETE",
+    }),
+};
+
+/** ดู MemberController — shape จริงที่ API ตอบกลับ */
+export interface Member {
+  id: string;
+  branchId: string;
+  code: string;
+  name: string;
+  phone: string;
+  note: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemberListParams {
+  q?: string;
+  isActive?: "true" | "false" | "all";
+}
+
+/** payload ของ 409 จาก MemberController.create ตอนพบเบอร์ซ้ำ (ดู docs/decisions.md ADR-014) */
+export interface MemberDuplicatePhoneConflict {
+  message: string;
+  duplicates: Array<{ id: string; code: string; name: string }>;
+}
+
+export const memberApi = {
+  list: (branchId: string, params?: MemberListParams) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.isActive) query.set("isActive", params.isActive);
+    const qs = query.toString();
+    return apiFetch<Member[]>(`/branches/${branchId}/members${qs ? `?${qs}` : ""}`);
+  },
+  create: (branchId: string, input: CreateMemberInput) =>
+    apiFetch<Member>(`/branches/${branchId}/members`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, memberId: string, input: UpdateMemberInput) =>
+    apiFetch<Member>(`/branches/${branchId}/members/${memberId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
     }),
 };
