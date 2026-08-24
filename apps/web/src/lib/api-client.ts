@@ -28,6 +28,9 @@ import type {
   JoinStaffQueueInput,
   RescheduleAppointmentItemInput,
   UpdateAppointmentItemStatusInput,
+  CreatePackageInput,
+  PackageType,
+  UpdatePackageInput,
 } from "@lotus-desk/contracts";
 
 /**
@@ -247,6 +250,48 @@ export const serviceApi = {
     input: UpdateServiceVariantInput,
   ) =>
     apiFetch<ServiceVariant>(`/branches/${branchId}/services/${serviceId}/variants/${variantId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู PackageController — คอร์ส/แพ็กเกจ (catalog เท่านั้น ยังไม่ใช่ยอดคงเหลือของลูกค้าคนใด — T5.2) */
+export interface Package {
+  id: string;
+  branchId: string;
+  name: string;
+  type: PackageType;
+  priceSatang: number;
+  sessionCount: number | null;
+  valueSatang: number | null;
+  serviceVariantId: string | null;
+  serviceVariant: (ServiceVariant & { service: { id: string; name: string } }) | null;
+  validDays: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PackageListParams {
+  q?: string;
+  isActive?: "true" | "false" | "all";
+}
+
+export const packageApi = {
+  list: (branchId: string, params?: PackageListParams) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.isActive) query.set("isActive", params.isActive);
+    const qs = query.toString();
+    return apiFetch<Package[]>(`/branches/${branchId}/packages${qs ? `?${qs}` : ""}`);
+  },
+  create: (branchId: string, input: CreatePackageInput) =>
+    apiFetch<Package>(`/branches/${branchId}/packages`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, packageId: string, input: UpdatePackageInput) =>
+    apiFetch<Package>(`/branches/${branchId}/packages/${packageId}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     }),

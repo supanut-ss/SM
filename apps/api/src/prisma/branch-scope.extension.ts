@@ -29,6 +29,7 @@ export const BRANCH_SCOPED_MODELS = new Set([
   "Appointment",
   "AppointmentItem",
   "StaffQueueEntry",
+  "Package",
 ]);
 
 const SCOPED_OPERATIONS = new Set(["findMany", "findFirst", "findUnique", "count"]);

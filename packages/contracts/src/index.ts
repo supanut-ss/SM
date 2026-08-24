@@ -11,3 +11,4 @@ export * from "./shift.js";
 export * from "./member.js";
 export * from "./consent.js";
 export * from "./booking.js";
+export * from "./package.js";

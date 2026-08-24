@@ -53,6 +53,7 @@ model Branch {
   appointments      Appointment[]
   appointmentItems  AppointmentItem[]
   staffQueueEntries StaffQueueEntry[]
+  packages          Package[]
 
   @@map("branches")
 }
@@ -331,6 +332,7 @@ model ServiceVariant {
   updatedAt              DateTime   @updatedAt @db.Timestamptz
 
   appointmentItems AppointmentItem[]
+  packages         Package[]
 
   @@unique([serviceId, durationMin])
   @@index([serviceId])
@@ -577,4 +579,44 @@ model StaffQueueEntry {
   @@unique([staffId, date])
   @@index([branchId, date, position])
   @@map("staff_queue_entries")
+}
+
+/// ประเภทคอร์ส/แพ็กเกจ (T5.1) — เกณฑ์ผ่านของ Task นี้คือ "สร้างครบทั้ง 3 ประเภทได้" ดู docs/decisions.md
+/// ADR-025 สำหรับเหตุผลที่ผูกแต่ละประเภทกับ ServiceVariant เดียว (ยกเว้น VALUE ที่ใช้ข้ามบริการได้)
+enum PackageType {
+  /// จำนวนครั้ง — ผูกกับ ServiceVariant เดียว ตัดครั้งละ 1 ทุกครั้งที่ใช้ (sessionCount ไม่ null)
+  SESSION_COUNT
+  /// มูลค่า — ไม่ผูกกับบริการใดบริการหนึ่ง ใช้ข้ามบริการได้ ตัดยอดตามราคาจริงที่ใช้ (valueSatang ไม่ null)
+  VALUE
+  /// ไม่จำกัดจำนวนครั้งแต่จำกัดระยะเวลา — ผูกกับ ServiceVariant เดียว ใช้ได้ไม่จำกัดจนกว่าจะหมดอายุ
+  UNLIMITED_DURATION
+}
+
+/// คอร์ส/แพ็กเกจ (T5.1) — เป็นแค่ "แคตตาล็อกสินค้า" (เหมือน ServiceVariant เทียบกับ Service) ยังไม่ใช่
+/// สิ่งที่สมาชิกถือครองจริง (นั่นคือ MemberPackage ของ T5.2 ที่จะ snapshot ค่าจากตารางนี้ตอนซื้อ) แก้ไข
+/// ทีหลังได้แค่ name/priceSatang/validDays/isActive — ห้ามแก้ type/sessionCount/valueSatang/
+/// serviceVariantId หลังสร้างแล้ว (เปลี่ยนความหมายพื้นฐานของสินค้าที่อาจขายไปแล้ว) ดู docs/decisions.md ADR-025
+model Package {
+  id               String          @id @default(cuid())
+  branchId         String
+  branch           Branch          @relation(fields: [branchId], references: [id])
+  name             String
+  type             PackageType
+  priceSatang      Int
+  /// เฉพาะ SESSION_COUNT
+  sessionCount     Int?
+  /// เฉพาะ VALUE
+  valueSatang      Int?
+  /// เฉพาะ SESSION_COUNT/UNLIMITED_DURATION — VALUE ต้องเป็น null เสมอ (ใช้ข้ามบริการได้)
+  serviceVariantId String?
+  serviceVariant   ServiceVariant? @relation(fields: [serviceVariantId], references: [id])
+  /// จำนวนวันนับจากซื้อจนหมดอายุ — ทุกประเภทต้องมี (แม้แต่ VALUE ก็หมดอายุได้ตาม docs/DOMAIN.md ข้อ 5)
+  validDays        Int
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now()) @db.Timestamptz
+  updatedAt        DateTime        @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([serviceVariantId])
+  @@map("packages")
 }

@@ -12,6 +12,7 @@ import { ServiceModule } from "./modules/service/service.module";
 import { ShiftModule } from "./modules/shift/shift.module";
 import { MemberModule } from "./modules/member/member.module";
 import { BookingModule } from "./modules/booking/booking.module";
+import { PackageModule } from "./modules/package/package.module";
 import { AuditModule } from "./audit/audit.module";
 
 @Module({
@@ -34,6 +35,7 @@ import { AuditModule } from "./audit/audit.module";
     ShiftModule,
     MemberModule,
     BookingModule,
+    PackageModule,
   ],
   controllers: [AppController],
 })
