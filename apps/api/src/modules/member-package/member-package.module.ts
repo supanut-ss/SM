@@ -1,0 +1,11 @@
+import { Module } from "@nestjs/common";
+import { MemberPackageActionController } from "./member-package-action.controller";
+import { MemberPackageController } from "./member-package.controller";
+import { MemberPackageService } from "./member-package.service";
+
+// ไม่ต้อง import AuthModule/RbacModule — ทั้งคู่เป็น @Global() (ดู ADR-006)
+@Module({
+  controllers: [MemberPackageController, MemberPackageActionController],
+  providers: [MemberPackageService],
+})
+export class MemberPackageModule {}

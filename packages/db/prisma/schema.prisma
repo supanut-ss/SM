@@ -37,23 +37,25 @@ model Branch {
   createdAt                       DateTime @default(now()) @db.Timestamptz
   updatedAt                       DateTime @updatedAt @db.Timestamptz
 
-  auditLogs         AuditLog[]
-  userBranches      UserBranch[]
-  devices           Device[]
-  staffProfiles     StaffProfile[]
-  roomTypes         RoomType[]
-  rooms             Room[]
-  serviceCategories ServiceCategory[]
-  services          Service[]
-  shiftTemplates    ShiftTemplate[]
-  staffShifts       StaffShift[]
-  staffLeaves       StaffLeave[]
-  members           Member[]
-  memberConsents    MemberConsent[]
-  appointments      Appointment[]
-  appointmentItems  AppointmentItem[]
-  staffQueueEntries StaffQueueEntry[]
-  packages          Package[]
+  auditLogs                  AuditLog[]
+  userBranches               UserBranch[]
+  devices                    Device[]
+  staffProfiles              StaffProfile[]
+  roomTypes                  RoomType[]
+  rooms                      Room[]
+  serviceCategories          ServiceCategory[]
+  services                   Service[]
+  shiftTemplates             ShiftTemplate[]
+  staffShifts                StaffShift[]
+  staffLeaves                StaffLeave[]
+  members                    Member[]
+  memberConsents             MemberConsent[]
+  appointments               Appointment[]
+  appointmentItems           AppointmentItem[]
+  staffQueueEntries          StaffQueueEntry[]
+  packages                   Package[]
+  memberPackages             MemberPackage[]
+  memberPackageLedgerEntries MemberPackageLedgerEntry[]
 
   @@map("branches")
 }
@@ -96,9 +98,11 @@ model User {
   createdAt         DateTime  @default(now()) @db.Timestamptz
   updatedAt         DateTime  @updatedAt @db.Timestamptz
 
-  branches      UserBranch[]
-  auditLogs     AuditLog[]
-  refreshTokens RefreshToken[]
+  branches                           UserBranch[]
+  auditLogs                          AuditLog[]
+  refreshTokens                      RefreshToken[]
+  /// อนุมัติ ledger entry ที่ต้องมีผู้จัดการ (ใช้คอร์สหมดอายุ/แช่แข็ง/ปิดหมดอายุ) ดู docs/decisions.md ADR-026
+  approvedMemberPackageLedgerEntries MemberPackageLedgerEntry[]
 
   @@map("users")
 }
@@ -333,6 +337,7 @@ model ServiceVariant {
 
   appointmentItems AppointmentItem[]
   packages         Package[]
+  memberPackages   MemberPackage[]
 
   @@unique([serviceId, durationMin])
   @@index([serviceId])
@@ -433,8 +438,9 @@ model Member {
   createdAt    DateTime @default(now()) @db.Timestamptz
   updatedAt    DateTime @updatedAt @db.Timestamptz
 
-  consents     MemberConsent[]
-  appointments Appointment[]
+  consents       MemberConsent[]
+  appointments   Appointment[]
+  memberPackages MemberPackage[]
 
   @@unique([branchId, code])
   @@index([branchId])
@@ -616,7 +622,99 @@ model Package {
   createdAt        DateTime        @default(now()) @db.Timestamptz
   updatedAt        DateTime        @updatedAt @db.Timestamptz
 
+  memberPackages MemberPackage[]
+
   @@index([branchId])
   @@index([serviceVariantId])
   @@map("packages")
+}
+
+/// สถานะของคอร์สที่สมาชิกถือครอง — ACTIVE ยังใช้งานได้ (แม้หมดอายุแล้วก็ตาม ถ้าผู้จัดการอนุมัติ ดู
+/// docs/DOMAIN.md ข้อ 5), CLOSED คือปิดถาวรแล้ว (ใช้หมด/โอนออก/คืนเงินเต็ม/ปิดหมดอายุ) ไม่รับ ledger
+/// entry ใหม่อีก ยกเว้นที่ endpoint สร้างเองตอนปิด (REFUND/TRANSFER_OUT/EXPIRE)
+enum MemberPackageStatus {
+  ACTIVE
+  CLOSED
+}
+
+/// ประเภทแถว ledger — ทุกแถวคือ INSERT ใหม่เสมอ ห้าม UPDATE ทับ (ดู CLAUDE.md ข้อ 7) ยอดคงเหลือคือผลรวม
+/// ของ delta ทั้งหมดต่อ MemberPackage เท่านั้น ไม่มีฟิลด์ balance สะสมที่ไหนให้ UPDATE ตรงเด็ดขาด
+enum MemberPackageLedgerKind {
+  /// ซื้อครั้งแรก — delta เป็นบวกเสมอ (+sessionCount หรือ +valueSatang, 0 สำหรับ UNLIMITED_DURATION)
+  PURCHASE
+  /// ตัดใช้บริการ — delta เป็นลบเสมอ (VALUE/SESSION_COUNT), 0 สำหรับ UNLIMITED_DURATION (แค่บันทึกไว้)
+  USE
+  /// คืนยอด (เช่น ยกเลิกบิลที่ตัดคอร์สไปแล้ว) — delta เป็นบวกเสมอ อ้างอิง USE เดิมผ่าน relatedEntryId
+  REFUND
+  /// ปิดหมดอายุแบบ manual (ผู้จัดการตัดสินใจปิดยอดคงเหลือทิ้ง) — delta เป็นลบเท่ากับยอดคงเหลือปัจจุบัน
+  EXPIRE
+  /// แช่แข็ง — delta เป็น 0 เสมอ (ไม่กระทบยอดคงเหลือ) freezeDays คือจำนวนวันที่ขยายให้ expiresAt
+  FREEZE
+  /// โอนออกไปสมาชิกอื่น (ทั้งใบเท่านั้น ดู docs/DOMAIN.md ข้อ 6) — delta เป็นลบเท่ากับยอดคงเหลือปัจจุบัน
+  TRANSFER_OUT
+  /// รับโอนเข้ามาจากสมาชิกอื่น (บน MemberPackage ใบใหม่) — delta เป็นบวกเท่ากับยอดที่โอนมา
+  TRANSFER_IN
+}
+
+/// คอร์สที่สมาชิกถือครองจริง (T5.2) — snapshot ค่าจาก Package (catalog) ณ เวลาซื้อ/รับโอน ตรง ๆ ไม่ join
+/// กลับไปอ่าน Package สด เพราะ Package แก้ไข priceSatang/name/validDays ได้ทีหลัง (ดู ADR-025) แต่ต้องไม่
+/// กระทบสิ่งที่สมาชิกซื้อไปแล้วในอดีต — ยอดคงเหลือ "ห้ามอ่านจากฟิลด์นี้" ต้องคำนวณจากผลรวม
+/// MemberPackageLedgerEntry.delta เท่านั้นเสมอ (ดู docs/decisions.md ADR-026, CLAUDE.md ข้อ 7)
+model MemberPackage {
+  id        String  @id @default(cuid())
+  branchId  String
+  branch    Branch  @relation(fields: [branchId], references: [id])
+  memberId  String
+  member    Member  @relation(fields: [memberId], references: [id])
+  /// อ้างอิง catalog เดิมไว้เผื่อรายงาน/ลิงก์กลับ — ไม่ใช่แหล่งความจริงของราคา/เงื่อนไข (snapshot ด้านล่างคือแหล่งความจริง)
+  packageId String
+  package   Package @relation(fields: [packageId], references: [id])
+
+  name             String
+  type             PackageType
+  priceSatang      Int
+  sessionCount     Int?
+  valueSatang      Int?
+  serviceVariantId String?
+  serviceVariant   ServiceVariant? @relation(fields: [serviceVariantId], references: [id])
+
+  purchasedAt DateTime            @db.Timestamptz
+  validDays   Int
+  /// ขยายได้ตอนแช่แข็ง (ไม่ใช่ "ยอดคงเหลือ" ตามความหมาย CLAUDE.md ข้อ 7 — เป็นแค่กำหนดการ ไม่ใช่จำนวนเงิน/ครั้ง)
+  expiresAt   DateTime            @db.Timestamptz
+  status      MemberPackageStatus @default(ACTIVE)
+
+  ledgerEntries MemberPackageLedgerEntry[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([memberId])
+  @@index([packageId])
+  @@map("member_packages")
+}
+
+model MemberPackageLedgerEntry {
+  id               String                  @id @default(cuid())
+  branchId         String
+  branch           Branch                  @relation(fields: [branchId], references: [id])
+  memberPackageId  String
+  memberPackage    MemberPackage           @relation(fields: [memberPackageId], references: [id])
+  kind             MemberPackageLedgerKind
+  delta            Int
+  /// เฉพาะ kind=FREEZE เท่านั้น — จำนวนวันที่แช่แข็งครั้งนี้
+  freezeDays       Int?
+  note             String?
+  /// อ้างอิง id ของแถว ledger อื่น (ไม่บังคับ FK จริง เพราะ TRANSFER_OUT/TRANSFER_IN อยู่คนละ MemberPackage
+  /// กัน) — REFUND ชี้กลับไปที่ USE เดิม, TRANSFER_OUT/TRANSFER_IN ชี้ถึงกันและกัน
+  relatedEntryId   String?
+  approvedByUserId String?
+  approvedByUser   User?                   @relation(fields: [approvedByUserId], references: [id])
+  createdAt        DateTime                @default(now()) @db.Timestamptz
+
+  @@index([memberPackageId])
+  @@index([branchId])
+  @@index([relatedEntryId])
+  @@map("member_package_ledger_entries")
 }

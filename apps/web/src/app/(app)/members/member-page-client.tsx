@@ -8,6 +8,7 @@ import { ApiError, memberApi, type Member } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
 import { MemberConsentSection } from "./member-consent-section";
+import { MemberPackageSection } from "./member-package-section";
 import { MemberForm, type MemberFormValues } from "./member-form";
 import { MemberMergeSection } from "./member-merge-section";
 
@@ -266,6 +267,7 @@ export function MemberPageClient() {
           {editingRecord && (
             <>
               <MemberConsentSection branchId={branch.branchId} memberId={editingRecord.id} />
+              <MemberPackageSection branchId={branch.branchId} memberId={editingRecord.id} />
               <MemberMergeSection
                 branchId={branch.branchId}
                 member={editingRecord}

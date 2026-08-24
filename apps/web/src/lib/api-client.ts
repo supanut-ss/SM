@@ -31,6 +31,14 @@ import type {
   CreatePackageInput,
   PackageType,
   UpdatePackageInput,
+  ExpireMemberPackageInput,
+  FreezeMemberPackageInput,
+  MemberPackageLedgerKind,
+  MemberPackageStatus,
+  PurchaseMemberPackageInput,
+  RefundMemberPackageInput,
+  TransferMemberPackageInput,
+  UseMemberPackageInput,
 } from "@lotus-desk/contracts";
 
 /**
@@ -467,6 +475,83 @@ export const memberConsentApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+};
+
+/** ดู MemberPackageActionController — 1 แถว ledger (append-only เสมอ ดู CLAUDE.md ข้อ 7) */
+export interface MemberPackageLedgerEntry {
+  id: string;
+  branchId: string;
+  memberPackageId: string;
+  kind: MemberPackageLedgerKind;
+  delta: number;
+  freezeDays: number | null;
+  note: string | null;
+  relatedEntryId: string | null;
+  approvedByUserId: string | null;
+  createdAt: string;
+}
+
+/** ดู MemberPackageController/MemberPackageActionController — คอร์สที่สมาชิกถือครองจริง (T5.2) */
+export interface MemberPackage {
+  id: string;
+  branchId: string;
+  memberId: string;
+  packageId: string;
+  name: string;
+  type: PackageType;
+  priceSatang: number;
+  sessionCount: number | null;
+  valueSatang: number | null;
+  serviceVariantId: string | null;
+  serviceVariant: (ServiceVariant & { service: { id: string; name: string } }) | null;
+  purchasedAt: string;
+  validDays: number;
+  expiresAt: string;
+  status: MemberPackageStatus;
+  balance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemberPackageDetail extends MemberPackage {
+  ledgerEntries: MemberPackageLedgerEntry[];
+}
+
+export const memberPackageApi = {
+  list: (branchId: string, memberId: string) =>
+    apiFetch<MemberPackage[]>(`/branches/${branchId}/members/${memberId}/packages`),
+  purchase: (branchId: string, memberId: string, input: PurchaseMemberPackageInput) =>
+    apiFetch<MemberPackage>(`/branches/${branchId}/members/${memberId}/packages`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  get: (branchId: string, memberPackageId: string) =>
+    apiFetch<MemberPackageDetail>(`/branches/${branchId}/member-packages/${memberPackageId}`),
+  use: (branchId: string, memberPackageId: string, input: UseMemberPackageInput) =>
+    apiFetch<MemberPackage & { ledgerEntry: MemberPackageLedgerEntry }>(
+      `/branches/${branchId}/member-packages/${memberPackageId}/use`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  refund: (branchId: string, memberPackageId: string, input: RefundMemberPackageInput) =>
+    apiFetch<MemberPackage & { ledgerEntry: MemberPackageLedgerEntry }>(
+      `/branches/${branchId}/member-packages/${memberPackageId}/refund`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  freeze: (branchId: string, memberPackageId: string, input: FreezeMemberPackageInput) =>
+    apiFetch<MemberPackage & { ledgerEntry: MemberPackageLedgerEntry }>(
+      `/branches/${branchId}/member-packages/${memberPackageId}/freeze`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  transfer: (branchId: string, memberPackageId: string, input: TransferMemberPackageInput) =>
+    apiFetch<{ closed: MemberPackage; transferred: MemberPackage }>(
+      `/branches/${branchId}/member-packages/${memberPackageId}/transfer`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  expire: (branchId: string, memberPackageId: string, input: ExpireMemberPackageInput) =>
+    apiFetch<MemberPackage & { ledgerEntry: MemberPackageLedgerEntry }>(
+      `/branches/${branchId}/member-packages/${memberPackageId}/expire`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
 };
 
 /** ดู AppointmentItemController.list — shape จริงที่ API ตอบกลับ (join staff/room/serviceVariant/appointment) */

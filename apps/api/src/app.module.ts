@@ -13,6 +13,7 @@ import { ShiftModule } from "./modules/shift/shift.module";
 import { MemberModule } from "./modules/member/member.module";
 import { BookingModule } from "./modules/booking/booking.module";
 import { PackageModule } from "./modules/package/package.module";
+import { MemberPackageModule } from "./modules/member-package/member-package.module";
 import { AuditModule } from "./audit/audit.module";
 
 @Module({
@@ -36,6 +37,7 @@ import { AuditModule } from "./audit/audit.module";
     MemberModule,
     BookingModule,
     PackageModule,
+    MemberPackageModule,
   ],
   controllers: [AppController],
 })
