@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PAYMENT_METHODS } from "./payment.js";
 
 // สถานะของ AppointmentItem (T4.3) — ค่า literal ตรงกับ enum AppointmentStatus ใน packages/db/prisma/schema.prisma
 // โดยตั้งใจ (คนละ declaration กัน เหมือนแพทเทิร์น StaffLevel/StaffSkill ดู docs/decisions.md ADR-019)
@@ -49,9 +50,17 @@ export function nextAppointmentStatuses(from: AppointmentStatus): readonly Appoi
   return APPOINTMENT_TRANSITIONS[from];
 }
 
-export const updateAppointmentItemStatusSchema = z.object({
-  status: z.enum(APPOINTMENT_STATUSES, "กรุณาเลือกสถานะที่ถูกต้อง"),
-});
+// เปลี่ยนสถานะนัด (T4.3) — เปลี่ยนเป็น COMPLETED ต้องระบุแหล่งชำระเสมอ (ตัดสินใจตอนจบงาน ไม่ใช่ตอนเริ่มงาน
+// ดู docs/decisions.md ADR-029) เพราะ ServiceJob (T5.5) snapshot paymentMethod ตอนนี้เท่านั้น
+export const updateAppointmentItemStatusSchema = z
+  .object({
+    status: z.enum(APPOINTMENT_STATUSES, "กรุณาเลือกสถานะที่ถูกต้อง"),
+    paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+  })
+  .refine((v) => v.status !== "COMPLETED" || v.paymentMethod !== undefined, {
+    message: "กรุณาเลือกแหล่งชำระก่อนปิดงาน",
+    path: ["paymentMethod"],
+  });
 
 export type UpdateAppointmentItemStatusInput = z.infer<typeof updateAppointmentItemStatusSchema>;
 

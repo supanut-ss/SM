@@ -58,6 +58,7 @@ model Branch {
   memberPackageLedgerEntries MemberPackageLedgerEntry[]
   promotions                 Promotion[]
   coupons                    Coupon[]
+  serviceJobs                ServiceJob[]
 
   @@map("branches")
 }
@@ -227,6 +228,7 @@ model StaffProfile {
   staffLeaves      StaffLeave[]
   appointmentItems AppointmentItem[]
   queueEntries     StaffQueueEntry[]
+  serviceJobs      ServiceJob[]
 
   @@index([branchId])
   @@map("staff_profiles")
@@ -266,6 +268,7 @@ model Room {
   updatedAt  DateTime @updatedAt @db.Timestamptz
 
   appointmentItems AppointmentItem[]
+  serviceJobs      ServiceJob[]
 
   @@unique([branchId, name])
   @@index([branchId])
@@ -340,6 +343,7 @@ model ServiceVariant {
   appointmentItems AppointmentItem[]
   packages         Package[]
   memberPackages   MemberPackage[]
+  serviceJobs      ServiceJob[]
 
   @@unique([serviceId, durationMin])
   @@index([serviceId])
@@ -561,6 +565,9 @@ model AppointmentItem {
   roomCapacityAtBooking Int
   createdAt             DateTime          @default(now()) @db.Timestamptz
   updatedAt             DateTime          @updatedAt @db.Timestamptz
+
+  /// สร้างอัตโนมัติตอนเข้า IN_SERVICE ปิดอัตโนมัติตอนเข้า COMPLETED (ดู docs/decisions.md ADR-029)
+  serviceJob ServiceJob?
 
   @@index([branchId])
   @@index([staffId, startAt])
@@ -802,4 +809,55 @@ model Coupon {
   @@index([branchId])
   @@index([promotionId])
   @@map("coupons")
+}
+
+/// แหล่งชำระ — ตรงกับ PAYMENT_METHODS ใน packages/contracts/src/payment.ts เป๊ะ (ดู docs/DOMAIN.md ข้อ 10)
+enum PaymentMethod {
+  CASH
+  PACKAGE
+  VOUCHER
+  COMPLIMENTARY
+}
+
+/// ใบงาน (T5.5) — 1 ใบต่อ 1 AppointmentItem เท่านั้น (@unique) สร้างอัตโนมัติตอน AppointmentItem เข้า
+/// สถานะ IN_SERVICE (startedAt = ตอนนั้น, snapshot ราคา/ค่ามือ/staffLevel ณ เวลานั้นทันที) ปิดอัตโนมัติตอน
+/// เข้า COMPLETED (completedAt + paymentMethod ที่ผู้เรียกต้องระบุมาตอนนั้น) — แก้ราคา ServiceVariant หรือ
+/// ระดับพนักงานทีหลังต้องไม่กระทบใบงานเก่าแม้แต่บาทเดียว (ดู docs/PLAN.md T5.5 เกณฑ์ผ่าน, ADR-029)
+model ServiceJob {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  appointmentItemId String          @unique
+  appointmentItem   AppointmentItem @relation(fields: [appointmentItemId], references: [id])
+
+  staffId          String
+  staff            StaffProfile   @relation(fields: [staffId], references: [id])
+  roomId           String
+  room             Room           @relation(fields: [roomId], references: [id])
+  serviceVariantId String
+  serviceVariant   ServiceVariant @relation(fields: [serviceVariantId], references: [id])
+
+  /// snapshot จาก AppointmentItem.assignType ตอนเริ่มงาน (ดู docs/DOMAIN.md ข้อ 1-2)
+  assignType AssignType
+
+  /// snapshot ราคา ณ เวลาเริ่มงาน — ห้าม join กลับไปอ่าน ServiceVariant.priceSatang สด
+  priceSatang      Int
+  /// ระดับพนักงาน ณ เวลาเริ่มงาน (พนักงานอาจถูกปรับระดับทีหลัง แต่ใบงานเก่าต้องอ้างระดับตอนนั้น)
+  staffLevelAtJob  StaffLevel
+  /// อัตราค่ามือที่ตรงกับ staffLevelAtJob ณ เวลานั้น (ตัวเดียว ไม่ใช่ snapshot ทั้ง 3 เรต — ดู ADR-029)
+  commissionSatang Int
+
+  startedAt     DateTime       @db.Timestamptz
+  completedAt   DateTime?      @db.Timestamptz
+  /// null จนกว่าจะจบงาน (COMPLETED) — ตัดสินใจตอนจบงานเสมอ ไม่ใช่ตอนเริ่ม (ดู ADR-029)
+  paymentMethod PaymentMethod?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([staffId])
+  @@index([serviceVariantId])
+  @@map("service_jobs")
 }

@@ -194,6 +194,7 @@ export class AppointmentItemController {
         room: true,
         serviceVariant: { include: { service: true } },
         appointment: { include: { member: true } },
+        serviceJob: true,
       },
       orderBy: { startAt: "asc" },
     });
@@ -270,6 +271,7 @@ export class AppointmentItemController {
   ) {
     const existing = await this.prisma.client.appointmentItem.findUnique({
       where: { id: appointmentItemId },
+      include: { serviceVariant: true, staff: true },
     });
     if (!existing || existing.branchId !== branch.branchId) {
       throw new NotFoundException("ไม่พบรายการนัดนี้");
@@ -288,11 +290,77 @@ export class AppointmentItemController {
         data: { status: body.status },
       });
 
+      if (body.status === "IN_SERVICE") {
+        await this.startServiceJob(tx, branch.branchId, existing);
+      }
+      if (body.status === "COMPLETED") {
+        await this.completeServiceJob(tx, appointmentItemId, body.paymentMethod!);
+      }
       if (body.status === "COMPLETED" || body.status === "CANCELLED" || body.status === "NO_SHOW") {
         await this.applyQueueEffect(tx, branch.branchId, existing, body.status);
       }
 
       return updated;
+    });
+  }
+
+  /**
+   * เริ่มงาน (T5.5) — สร้าง ServiceJob อัตโนมัติตอนเข้า IN_SERVICE พร้อม snapshot ราคา/ระดับพนักงาน/ค่ามือ
+   * ณ ตอนนี้ทันที (ไม่ join กลับไปอ่าน ServiceVariant สดทีหลังเด็ดขาด) เลือกอัตราค่ามือ 1 ใน 3 เรตให้ตรงกับ
+   * staff.level ตอนนี้ (ดู docs/DOMAIN.md ข้อ 9-10, docs/decisions.md ADR-029)
+   */
+  private async startServiceJob(
+    tx: Prisma.TransactionClient,
+    branchId: string,
+    item: {
+      id: string;
+      staffId: string;
+      roomId: string;
+      serviceVariantId: string;
+      assignType: "ROTATION" | "CUSTOMER_REQUEST";
+      serviceVariant: {
+        priceSatang: number;
+        commissionJuniorSatang: number;
+        commissionSeniorSatang: number;
+        commissionMasterSatang: number;
+      };
+      staff: { level: "JUNIOR" | "SENIOR" | "MASTER" };
+    },
+  ): Promise<void> {
+    const commissionByLevel = {
+      JUNIOR: item.serviceVariant.commissionJuniorSatang,
+      SENIOR: item.serviceVariant.commissionSeniorSatang,
+      MASTER: item.serviceVariant.commissionMasterSatang,
+    } as const;
+
+    await tx.serviceJob.create({
+      data: {
+        branchId,
+        appointmentItemId: item.id,
+        staffId: item.staffId,
+        roomId: item.roomId,
+        serviceVariantId: item.serviceVariantId,
+        assignType: item.assignType,
+        priceSatang: item.serviceVariant.priceSatang,
+        staffLevelAtJob: item.staff.level,
+        commissionSatang: commissionByLevel[item.staff.level],
+        startedAt: new Date(),
+      },
+    });
+  }
+
+  /** จบงาน (T5.5) — ปิด ServiceJob ที่เปิดค้างไว้ พร้อมแหล่งชำระที่ตัดสินใจตอนนี้เท่านั้น (ดู ADR-029) */
+  private async completeServiceJob(
+    tx: Prisma.TransactionClient,
+    appointmentItemId: string,
+    paymentMethod: "CASH" | "PACKAGE" | "VOUCHER" | "COMPLIMENTARY",
+  ): Promise<void> {
+    // updateMany (ไม่ใช่ update) โดยตั้งใจ — ไม่ throw ถ้าไม่มี ServiceJob อยู่จริง (เช่นนัดเก่าที่ถูกเซ็ต
+    // เป็น IN_SERVICE ไว้ก่อนมี T5.5 หรือข้อมูลที่ import มาโดยไม่ผ่าน endpoint เริ่มงาน) ปิดงานได้ปกติ
+    // แต่จะไม่มีใบงานให้บันทึกราคา/ค่ามือ (ไม่ใช่ error ของผู้ใช้ที่กำลังปิดงานตรงหน้า)
+    await tx.serviceJob.updateMany({
+      where: { appointmentItemId },
+      data: { completedAt: new Date(), paymentMethod },
     });
   }
 

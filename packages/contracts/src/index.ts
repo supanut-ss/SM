@@ -14,3 +14,4 @@ export * from "./booking.js";
 export * from "./package.js";
 export * from "./member-package.js";
 export * from "./promotion.js";
+export * from "./payment.js";

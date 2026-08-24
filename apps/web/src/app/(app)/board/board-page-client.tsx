@@ -18,7 +18,7 @@ import { AppointmentDetailSheet } from "./appointment-detail-sheet";
 import { LaneBoard, type BoardRow } from "./lane-board";
 import { QueueRail } from "./queue-rail";
 import { WalkInSheet } from "./walk-in-sheet";
-import type { AppointmentStatus } from "@lotus-desk/contracts";
+import type { AppointmentStatus, PaymentMethod } from "@lotus-desk/contracts";
 
 type ViewMode = "staff" | "room";
 type Granularity = 15 | 30 | 60;
@@ -116,8 +116,15 @@ export function BoardPageClient() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ item, status }: { item: AppointmentItem; status: AppointmentStatus }) =>
-      appointmentItemApi.updateStatus(branch!.branchId, item.id, { status }),
+    mutationFn: ({
+      item,
+      status,
+      paymentMethod,
+    }: {
+      item: AppointmentItem;
+      status: AppointmentStatus;
+      paymentMethod?: PaymentMethod;
+    }) => appointmentItemApi.updateStatus(branch!.branchId, item.id, { status, paymentMethod }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: itemsKey });
       void queryClient.invalidateQueries({ queryKey: queueKey });
@@ -279,7 +286,9 @@ export function BoardPageClient() {
         onClose={() => setDetailItemId(null)}
         canManage={canManage}
         isPending={statusMutation.isPending}
-        onChangeStatus={(item, status) => statusMutation.mutate({ item, status })}
+        onChangeStatus={(item, status, paymentMethod) =>
+          statusMutation.mutate({ item, status, paymentMethod })
+        }
       />
 
       <WalkInSheet

@@ -179,11 +179,15 @@ describe("Appointment item status transitions (real Postgres via Testcontainers)
   });
 
   it("เปลี่ยนสถานะของนัดที่เสร็จแล้ว (สถานะปลายทาง) ต้องได้ 422 เสมอ", async () => {
-    const item = await createItem("IN_SERVICE");
+    const item = await createItem("CHECKED_IN");
+    await request(app.getHttpServer())
+      .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
+      .set("Cookie", managerCookies)
+      .send({ status: "IN_SERVICE" });
     const completed = await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "COMPLETED" });
+      .send({ status: "COMPLETED", paymentMethod: "CASH" });
     expect(completed.status).toBe(200);
 
     const again = await request(app.getHttpServer())

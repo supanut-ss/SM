@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { PAYMENT_METHODS } from "./payment.js";
+
+export { PAYMENT_METHODS as LINE_PAYMENT_METHODS, PAYMENT_METHOD_LABEL as LINE_PAYMENT_METHOD_LABEL } from "./payment.js";
+export type { PaymentMethod as LinePaymentMethod } from "./payment.js";
 
 /** เงินทุกฟิลด์เก็บเป็น integer สตางค์เสมอ (ดู CLAUDE.md ข้อ 2) ห้ามใช้ float */
 function moneySatang(label: string) {
@@ -23,16 +27,6 @@ export const PROMOTION_TYPE_LABEL: Record<PromotionType, string> = {
   FIXED_PRICE: "ราคาพิเศษ",
   BUY_X_GET_Y: "ซื้อ X แถม Y",
   BONUS_MINUTES: "แถมนาทีบริการ",
-};
-
-export const LINE_PAYMENT_METHODS = ["CASH", "PACKAGE", "VOUCHER", "COMPLIMENTARY"] as const;
-export type LinePaymentMethod = (typeof LINE_PAYMENT_METHODS)[number];
-
-export const LINE_PAYMENT_METHOD_LABEL: Record<LinePaymentMethod, string> = {
-  CASH: "เงินสด/บัตร",
-  PACKAGE: "ตัดคอร์ส",
-  VOUCHER: "วอยเชอร์",
-  COMPLIMENTARY: "อภินันทนาการ",
 };
 
 // เงื่อนไขการใช้โปรโมชั่น — ตรงกับ PromotionConditions ใน packages/core/promotion/types.ts (T5.3) ทุกฟิลด์
@@ -178,7 +172,7 @@ export type UpdateCouponInput = z.infer<typeof updateCouponSchema>;
 const calculatorCartLineSchema = z.object({
   serviceVariantId: z.string().min(1, "กรุณาเลือกบริการ"),
   priceSatang: moneySatang("ราคา"),
-  paymentMethod: z.enum(LINE_PAYMENT_METHODS),
+  paymentMethod: z.enum(PAYMENT_METHODS),
   quantity: z.coerce.number().int("จำนวนต้องเป็นจำนวนเต็ม").min(1).default(1),
 });
 export type CalculatorCartLine = z.infer<typeof calculatorCartLineSchema>;

@@ -94,6 +94,24 @@ describe("updateAppointmentItemStatusSchema", () => {
     const result = updateAppointmentItemStatusSchema.safeParse({});
     expect(result.success).toBe(false);
   });
+
+  it("ปฏิเสธการเปลี่ยนเป็น COMPLETED โดยไม่ระบุแหล่งชำระ (T5.5 — ตัดสินใจตอนจบงาน)", () => {
+    const result = updateAppointmentItemStatusSchema.safeParse({ status: "COMPLETED" });
+    expect(result.success).toBe(false);
+  });
+
+  it("ยอมรับการเปลี่ยนเป็น COMPLETED เมื่อระบุแหล่งชำระมาด้วย", () => {
+    const result = updateAppointmentItemStatusSchema.safeParse({
+      status: "COMPLETED",
+      paymentMethod: "CASH",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("ไม่บังคับแหล่งชำระสำหรับสถานะอื่นที่ไม่ใช่ COMPLETED", () => {
+    const result = updateAppointmentItemStatusSchema.safeParse({ status: "IN_SERVICE" });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("joinStaffQueueSchema", () => {

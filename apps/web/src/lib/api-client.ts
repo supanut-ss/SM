@@ -43,6 +43,7 @@ import type {
   CreateCouponInput,
   CreatePromotionInput,
   LinePaymentMethod,
+  PaymentMethod,
   PromotionType,
   UpdateCouponInput,
   UpdatePromotionInput,
@@ -586,6 +587,29 @@ export interface AppointmentItem {
   roomCapacityAtBooking: number;
   createdAt: string;
   updatedAt: string;
+  /** ดู ServiceJob model (T5.5) — มีค่าเฉพาะ endpoint ที่ include มาให้ (list()) เข้า IN_SERVICE แล้ว
+   * เท่านั้นถึงจะไม่ null — endpoint อื่น (เช่น walk-in) ไม่มี key นี้เลย (ไม่ใช่ null) */
+  serviceJob?: ServiceJob | null;
+}
+
+/** ดู ServiceJob model (T5.5) — snapshot ราคา/ค่ามือ/ระดับพนักงาน ณ เวลาเริ่มงาน ห้ามอ่านค่าปัจจุบันจาก
+ * ServiceVariant สด (แก้ราคาบริการทีหลังต้องไม่กระทบใบงานเก่า) */
+export interface ServiceJob {
+  id: string;
+  branchId: string;
+  appointmentItemId: string;
+  staffId: string;
+  roomId: string;
+  serviceVariantId: string;
+  assignType: AssignType;
+  priceSatang: number;
+  staffLevelAtJob: StaffLevel;
+  commissionSatang: number;
+  startedAt: string;
+  completedAt: string | null;
+  paymentMethod: PaymentMethod | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const appointmentItemApi = {
@@ -740,4 +764,4 @@ export const promotionCalculatorApi = {
     }),
 };
 
-export type { LinePaymentMethod };
+export type { LinePaymentMethod, PaymentMethod };
