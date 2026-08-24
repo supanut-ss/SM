@@ -39,6 +39,13 @@ import type {
   RefundMemberPackageInput,
   TransferMemberPackageInput,
   UseMemberPackageInput,
+  CalculatePromotionsInput,
+  CreateCouponInput,
+  CreatePromotionInput,
+  LinePaymentMethod,
+  PromotionType,
+  UpdateCouponInput,
+  UpdatePromotionInput,
 } from "@lotus-desk/contracts";
 
 /**
@@ -622,3 +629,115 @@ export const staffQueueApi = {
       body: JSON.stringify(input),
     }),
 };
+
+/** ดู PromotionController — โปรโมชั่น (T5.4) ไม่มีฟิลด์ stackable เลย (ดู docs/DOMAIN.md ข้อ 15) */
+export interface Promotion {
+  id: string;
+  branchId: string;
+  name: string;
+  type: PromotionType;
+  priority: number;
+  percentOff: number | null;
+  amountOffSatang: number | null;
+  fixedPriceSatang: number | null;
+  buyQuantity: number | null;
+  getQuantity: number | null;
+  bonusMinutes: number | null;
+  minSpendSatang: number | null;
+  serviceVariantIds: string[];
+  daysOfWeek: number[];
+  startMinuteOfDay: number | null;
+  endMinuteOfDay: number | null;
+  firstTimeCustomerOnly: boolean;
+  birthdayMonthOnly: boolean;
+  memberTiers: string[];
+  quotaTotal: number | null;
+  quotaUsed: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PromotionListParams {
+  q?: string;
+  isActive?: "true" | "false" | "all";
+}
+
+export const promotionApi = {
+  list: (branchId: string, params?: PromotionListParams) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set("q", params.q);
+    if (params?.isActive) query.set("isActive", params.isActive);
+    const qs = query.toString();
+    return apiFetch<Promotion[]>(`/branches/${branchId}/promotions${qs ? `?${qs}` : ""}`);
+  },
+  create: (branchId: string, input: CreatePromotionInput) =>
+    apiFetch<Promotion>(`/branches/${branchId}/promotions`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, promotionId: string, input: UpdatePromotionInput) =>
+    apiFetch<Promotion>(`/branches/${branchId}/promotions/${promotionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู CouponController — ผูกกับโปรโมชั่นหนึ่งใบเสมอ ยังไม่มี logic การแลกใช้จริง */
+export interface Coupon {
+  id: string;
+  branchId: string;
+  promotionId: string;
+  code: string;
+  maxRedemptions: number | null;
+  redeemedCount: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const couponApi = {
+  list: (branchId: string, promotionId: string) =>
+    apiFetch<Coupon[]>(`/branches/${branchId}/promotions/${promotionId}/coupons`),
+  create: (branchId: string, promotionId: string, input: CreateCouponInput) =>
+    apiFetch<Coupon>(`/branches/${branchId}/promotions/${promotionId}/coupons`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, promotionId: string, couponId: string, input: UpdateCouponInput) =>
+    apiFetch<Coupon>(`/branches/${branchId}/promotions/${promotionId}/coupons/${couponId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู PromotionCalculatorController — หน้าทดลองคำนวณ (T5.4) ไม่บันทึกอะไรลง DB */
+export interface PromotionApplication {
+  promotionId: string;
+  promotionName: string;
+  discountSatang: number;
+  bonusMinutes: number;
+  reason: string;
+}
+
+export interface RejectedPromotion {
+  promotionId: string;
+  promotionName: string;
+  reason: string;
+}
+
+export interface CalculatePromotionsResult {
+  applied: PromotionApplication | null;
+  rejected: RejectedPromotion[];
+  couponError: string | null;
+}
+
+export const promotionCalculatorApi = {
+  calculate: (branchId: string, input: CalculatePromotionsInput) =>
+    apiFetch<CalculatePromotionsResult>(`/branches/${branchId}/promotions/calculate`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+};
+
+export type { LinePaymentMethod };

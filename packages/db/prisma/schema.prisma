@@ -56,6 +56,8 @@ model Branch {
   packages                   Package[]
   memberPackages             MemberPackage[]
   memberPackageLedgerEntries MemberPackageLedgerEntry[]
+  promotions                 Promotion[]
+  coupons                    Coupon[]
 
   @@map("branches")
 }
@@ -717,4 +719,87 @@ model MemberPackageLedgerEntry {
   @@index([branchId])
   @@index([relatedEntryId])
   @@map("member_package_ledger_entries")
+}
+
+/// ประเภทโปรโมชั่น (T5.3/T5.4) — ตรงกับ PromotionType ใน packages/core/promotion/types.ts เป๊ะ (ต้องแก้คู่กันเสมอ)
+enum PromotionType {
+  PERCENT_OFF
+  AMOUNT_OFF
+  FIXED_PRICE
+  BUY_X_GET_Y
+  BONUS_MINUTES
+}
+
+/// โปรโมชั่น (T5.4) — catalog ของกติกาที่ evaluatePromotions (T5.3, packages/core/promotion) กินเป็น input
+/// ไม่มีฟิลด์ stackable เลยตาม docs/DOMAIN.md ข้อ 15 (ห้ามซ้อนโปรฯ เด็ดขาด) ดู docs/decisions.md ADR-028
+/// ไม่มีเงื่อนไข branchIds (ต่างจาก engine ที่รองรับ) เพราะ Promotion ผูกกับ branchId เดียวอยู่แล้วโดยตัวมันเอง
+model Promotion {
+  id       String        @id @default(cuid())
+  branchId String
+  branch   Branch        @relation(fields: [branchId], references: [id])
+  name     String
+  type     PromotionType
+  /// เทียบตัดสินเมื่อส่วนลดเท่ากันเป๊ะระหว่างหลายโปรฯ เท่านั้น (ดู docs/DOMAIN.md ข้อ 15)
+  priority Int           @default(0)
+
+  /// เฉพาะ PERCENT_OFF (0-100)
+  percentOff       Int?
+  /// เฉพาะ AMOUNT_OFF
+  amountOffSatang  Int?
+  /// เฉพาะ FIXED_PRICE
+  fixedPriceSatang Int?
+  /// เฉพาะ BUY_X_GET_Y
+  buyQuantity      Int?
+  getQuantity      Int?
+  /// เฉพาะ BONUS_MINUTES
+  bonusMinutes     Int?
+
+  // เงื่อนไข — ทุกฟิลด์ optional/ค่าเริ่มต้น = ไม่จำกัดเงื่อนไขนั้น (ดู packages/core/promotion/types.ts PromotionConditions)
+  minSpendSatang        Int?
+  serviceVariantIds     String[] @default([])
+  daysOfWeek            Int[]    @default([])
+  startMinuteOfDay      Int?
+  endMinuteOfDay        Int?
+  firstTimeCustomerOnly Boolean  @default(false)
+  birthdayMonthOnly     Boolean  @default(false)
+  memberTiers           String[] @default([])
+
+  /// null = ไม่จำกัดโควตา
+  quotaTotal Int?
+  quotaUsed  Int  @default(0)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  coupons Coupon[]
+
+  @@index([branchId])
+  @@map("promotions")
+}
+
+/// คูปอง (T5.4) — รหัสที่ลูกค้าต้องแสดง/กรอกถึงจะใช้โปรฯ ที่ผูกไว้ได้ ("โปรฯ อัตโนมัติ" ไม่มีคูปองผูกเลย
+/// ใช้ได้ทันทีถ้าเข้าเงื่อนไข — ดู docs/decisions.md ADR-028) ยังไม่มี logic การ "แลกใช้" จริงใน T5.4
+/// (รอ T5.6 บิลเรียกใช้จริง) — Task นี้มีแค่ catalog CRUD
+model Coupon {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  promotionId String
+  promotion   Promotion @relation(fields: [promotionId], references: [id])
+
+  code           String
+  /// null = ไม่จำกัดจำนวนครั้งที่แลกได้
+  maxRedemptions Int?
+  redeemedCount  Int    @default(0)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([branchId, code])
+  @@index([branchId])
+  @@index([promotionId])
+  @@map("coupons")
 }

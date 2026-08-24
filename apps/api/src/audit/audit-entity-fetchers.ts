@@ -21,4 +21,6 @@ export const AUDIT_ENTITY_FETCHERS: Record<string, EntityFetcher> = {
   StaffQueueEntry: (id, prisma) => prisma.client.staffQueueEntry.findUnique({ where: { id } }),
   Package: (id, prisma) => prisma.client.package.findUnique({ where: { id } }),
   MemberPackage: (id, prisma) => prisma.client.memberPackage.findUnique({ where: { id } }),
+  Promotion: (id, prisma) => prisma.client.promotion.findUnique({ where: { id } }),
+  Coupon: (id, prisma) => prisma.client.coupon.findUnique({ where: { id } }),
 };

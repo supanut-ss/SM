@@ -14,6 +14,7 @@ import { MemberModule } from "./modules/member/member.module";
 import { BookingModule } from "./modules/booking/booking.module";
 import { PackageModule } from "./modules/package/package.module";
 import { MemberPackageModule } from "./modules/member-package/member-package.module";
+import { PromotionModule } from "./modules/promotion/promotion.module";
 import { AuditModule } from "./audit/audit.module";
 
 @Module({
@@ -38,6 +39,7 @@ import { AuditModule } from "./audit/audit.module";
     BookingModule,
     PackageModule,
     MemberPackageModule,
+    PromotionModule,
   ],
   controllers: [AppController],
 })

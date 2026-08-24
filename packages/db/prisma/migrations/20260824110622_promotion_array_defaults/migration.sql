@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "promotions" ALTER COLUMN "serviceVariantIds" SET DEFAULT ARRAY[]::TEXT[],
+ALTER COLUMN "daysOfWeek" SET DEFAULT ARRAY[]::INTEGER[],
+ALTER COLUMN "memberTiers" SET DEFAULT ARRAY[]::TEXT[];
