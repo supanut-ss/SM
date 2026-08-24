@@ -59,6 +59,9 @@ model Branch {
   promotions                 Promotion[]
   coupons                    Coupon[]
   serviceJobs                ServiceJob[]
+  bills                      Bill[]
+  billLines                  BillLine[]
+  billPayments               BillPayment[]
 
   @@map("branches")
 }
@@ -106,6 +109,8 @@ model User {
   refreshTokens                      RefreshToken[]
   /// อนุมัติ ledger entry ที่ต้องมีผู้จัดการ (ใช้คอร์สหมดอายุ/แช่แข็ง/ปิดหมดอายุ) ดู docs/decisions.md ADR-026
   approvedMemberPackageLedgerEntries MemberPackageLedgerEntry[]
+  /// อนุมัติยกเลิกบิลด้วย PIN (T5.6) ดู docs/decisions.md ADR-030
+  cancelledBills                     Bill[]
 
   @@map("users")
 }
@@ -447,6 +452,7 @@ model Member {
   consents       MemberConsent[]
   appointments   Appointment[]
   memberPackages MemberPackage[]
+  bills          Bill[]
 
   @@unique([branchId, code])
   @@index([branchId])
@@ -694,6 +700,7 @@ model MemberPackage {
   status      MemberPackageStatus @default(ACTIVE)
 
   ledgerEntries MemberPackageLedgerEntry[]
+  billLines     BillLine[]
 
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
@@ -780,6 +787,7 @@ model Promotion {
   updatedAt DateTime @updatedAt @db.Timestamptz
 
   coupons Coupon[]
+  bills   Bill[]
 
   @@index([branchId])
   @@map("promotions")
@@ -852,6 +860,11 @@ model ServiceJob {
   completedAt   DateTime?      @db.Timestamptz
   /// null จนกว่าจะจบงาน (COMPLETED) — ตัดสินใจตอนจบงานเสมอ ไม่ใช่ตอนเริ่ม (ดู ADR-029)
   paymentMethod PaymentMethod?
+  /// ไม่ null แปลว่าใบงานนี้เป็นโมฆะแล้ว (บิลที่ผูกอยู่ถูกยกเลิก ดู docs/decisions.md ADR-030) — T6.2
+  /// (payroll/commission ledger ในอนาคต) ต้องกรอง voidedAt IS NULL เสมอตอนคำนวณค่ามือ ไม่นับใบงานที่เป็นโมฆะ
+  voidedAt      DateTime?      @db.Timestamptz
+
+  billLine BillLine?
 
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
@@ -860,4 +873,102 @@ model ServiceJob {
   @@index([staffId])
   @@index([serviceVariantId])
   @@map("service_jobs")
+}
+
+enum BillStatus {
+  PAID
+  CANCELLED
+}
+
+enum BillLineKind {
+  SERVICE_JOB
+  PRODUCT
+}
+
+/// บิล (T5.6) — รวมใบงาน (ServiceJob) + รายการอิสระ (สินค้า ไม่ผูกคลัง ดู docs/decisions.md ADR-030)
+/// โปรโมชั่นใช้ได้โปรฯ เดียวต่อบิล (ดู docs/DOMAIN.md ข้อ 15) คำนวณอัตโนมัติตอน checkout เสมอ ไม่รับ
+/// promotionId จาก client ตรง ๆ — ยกเลิกบิลต้องมี PIN ผู้จัดการ (docs/DOMAIN.md ข้อ 14, 16)
+model Bill {
+  id       String  @id @default(cuid())
+  branchId String
+  branch   Branch  @relation(fields: [branchId], references: [id])
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id])
+
+  /// เลขบิลอ่านง่าย รันต่อสาขา เช่น "B000123" — ไม่ใช่ primary key
+  billNumber String
+
+  subtotalSatang Int
+  promotionId    String?
+  promotion      Promotion? @relation(fields: [promotionId], references: [id])
+  /// ส่วนลดจากโปรฯ ที่ชนะเท่านั้น (ถ้ามี) — คำนวณจาก evaluatePromotions (T5.3) ฝั่ง server เสมอ
+  discountSatang Int        @default(0)
+  totalSatang    Int
+
+  status            BillStatus @default(PAID)
+  cancelledAt       DateTime?  @db.Timestamptz
+  cancelledReason   String?
+  cancelledByUserId String?
+  cancelledByUser   User?      @relation(fields: [cancelledByUserId], references: [id])
+
+  lines    BillLine[]
+  payments BillPayment[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([branchId, billNumber])
+  @@index([branchId])
+  @@index([memberId])
+  @@map("bills")
+}
+
+/// รายการในบิล — kind=SERVICE_JOB ผูกกับใบงานจริง (1 ใบงานอยู่ได้บิลเดียว @unique) kind=PRODUCT เป็น
+/// รายการอิสระไม่ผูกกับ catalog ใด ๆ (ยังไม่มี Product/Inventory model จริง — ดู docs/decisions.md ADR-030)
+model BillLine {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+  billId   String
+  bill     Bill   @relation(fields: [billId], references: [id])
+
+  kind                       BillLineKind
+  serviceJobId               String?        @unique
+  serviceJob                 ServiceJob?    @relation(fields: [serviceJobId], references: [id])
+  /// snapshot ชื่อรายการ ณ เวลาออกบิล (สำหรับ SERVICE_JOB คือชื่อบริการตอนนั้น, สำหรับ PRODUCT คือชื่อที่พนักงานกรอกเอง)
+  description                String
+  priceSatang                Int
+  quantity                   Int            @default(1)
+  paymentMethod              PaymentMethod
+  /// บังคับมีค่าเมื่อ paymentMethod = PACKAGE เท่านั้น — คอร์สใบไหนของสมาชิกที่ถูกตัด
+  memberPackageId            String?
+  memberPackage              MemberPackage? @relation(fields: [memberPackageId], references: [id])
+  /// อ้างอิงแถว USE ที่ ledger ของ MemberPackage สร้างไว้ตอน checkout — ใช้คืนยอดตอนยกเลิกบิล (ดู ADR-030)
+  memberPackageLedgerEntryId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([billId])
+  @@index([branchId])
+  @@map("bill_lines")
+}
+
+/// ช่องทางที่ใช้ชำระบิลจริง (แยกจาก BillLine.paymentMethod ที่เป็น "แหล่งชำระของแต่ละรายการ") — จ่ายได้
+/// หลายช่องทางในบิลเดียว (ดู docs/PLAN.md T5.6) tenderedSatang มีความหมายเฉพาะ CASH เท่านั้น (คำนวณเงินทอน)
+model BillPayment {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+  billId   String
+  bill     Bill   @relation(fields: [billId], references: [id])
+
+  method         PaymentMethod
+  amountSatang   Int
+  /// เฉพาะ CASH — จำนวนเงินที่ลูกค้ายื่นมาจริง (ไม่บังคับเท่ากับ amountSatang เสมอ ส่วนต่างคือเงินทอน)
+  tenderedSatang Int?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([billId])
+  @@map("bill_payments")
 }

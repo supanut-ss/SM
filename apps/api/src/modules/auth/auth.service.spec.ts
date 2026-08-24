@@ -280,3 +280,97 @@ describe("AuthService.pinLogin", () => {
     );
   });
 });
+
+describe("AuthService.verifyManagerPin / verifyManagerApprovalToken", () => {
+  const BRANCH_ID = "branch-main";
+  const MANAGER_BRANCH: FakeUserBranch = {
+    userId: "user-manager",
+    branchId: BRANCH_ID,
+    roleId: "role-manager",
+    role: { key: "manager" },
+  };
+  const CASHIER_BRANCH: FakeUserBranch = {
+    userId: "user-cashier",
+    branchId: BRANCH_ID,
+    roleId: "role-cashier",
+    role: { key: "cashier" },
+  };
+
+  async function makeManager(pin: string, overrides: Partial<FakeUser> = {}): Promise<FakeUser> {
+    return makeUser("manager@lotusdesk.local", "unused-password-not-tested-here", {
+      id: "user-manager",
+      pinHash: await argon2.hash(pin),
+      ...overrides,
+    });
+  }
+
+  it("issues an approval token when the PIN and role are both correct", async () => {
+    const manager = await makeManager("123456");
+    const { service } = buildService([manager], [], [MANAGER_BRANCH]);
+
+    const result = await service.verifyManagerPin(BRANCH_ID, manager.id, "123456");
+
+    expect(result.approvalToken).toBeTruthy();
+  });
+
+  it("resolves the approver's userId back out of a valid approval token, scoped to the same branch", async () => {
+    const manager = await makeManager("123456");
+    const { service } = buildService([manager], [], [MANAGER_BRANCH]);
+
+    const { approvalToken } = await service.verifyManagerPin(BRANCH_ID, manager.id, "123456");
+    const approverId = service.verifyManagerApprovalToken(BRANCH_ID, approvalToken);
+
+    expect(approverId).toBe(manager.id);
+  });
+
+  it("rejects an approval token when checked against a different branch", async () => {
+    const manager = await makeManager("123456");
+    const { service } = buildService([manager], [], [MANAGER_BRANCH]);
+
+    const { approvalToken } = await service.verifyManagerPin(BRANCH_ID, manager.id, "123456");
+
+    expect(() => service.verifyManagerApprovalToken("branch-other", approvalToken)).toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it("rejects a cashier — only owner/manager roles may approve", async () => {
+    const cashier = await makeManager("123456", { id: "user-cashier", email: "cashier@lotusdesk.local" });
+    const { service } = buildService([cashier], [], [CASHIER_BRANCH]);
+
+    await expect(service.verifyManagerPin(BRANCH_ID, cashier.id, "123456")).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it("rejects a wrong PIN and still counts toward the same lockout as pinLogin", async () => {
+    const manager = await makeManager("123456");
+    const { service, userStore } = buildService([manager], [], [MANAGER_BRANCH]);
+
+    await expect(service.verifyManagerPin(BRANCH_ID, manager.id, "000000")).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(userStore.find((u) => u.id === manager.id)!.pinFailedAttempts).toBe(1);
+  });
+
+  it("rejects a garbage/expired approval token", () => {
+    const { service } = buildService([], [], []);
+    expect(() => service.verifyManagerApprovalToken(BRANCH_ID, "not-a-real-token")).toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it("rejects a normal PIN-login access token used as an approval token", async () => {
+    const manager = await makeManager("123456");
+    const { service } = buildService(
+      [manager],
+      [{ id: "device-1", branchId: BRANCH_ID, isActive: true }],
+      [MANAGER_BRANCH],
+    );
+    const { accessToken } = await service.pinLogin("device-1", manager.id, "123456");
+
+    expect(() => service.verifyManagerApprovalToken(BRANCH_ID, accessToken)).toThrow(
+      UnauthorizedException,
+    );
+  });
+});

@@ -7,5 +7,8 @@ import { MemberPackageService } from "./member-package.service";
 @Module({
   controllers: [MemberPackageController, MemberPackageActionController],
   providers: [MemberPackageService],
+  // export ให้ BillModule (T5.6) เรียกใช้ lock/getBalance/validateRefund ตอนคืนยอดคอร์สที่ตัดไปแล้วตอน
+  // ยกเลิกบิล — ใช้ตรรกะ lock+ledger เดียวกับ T5.2 เป๊ะ ไม่เขียนซ้ำ
+  exports: [MemberPackageService],
 })
 export class MemberPackageModule {}

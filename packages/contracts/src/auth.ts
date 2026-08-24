@@ -14,3 +14,13 @@ export const pinLoginSchema = z.object({
 });
 
 export type PinLoginInput = z.infer<typeof pinLoginSchema>;
+
+// ยืนยัน PIN ผู้จัดการแบบ one-off (T5.6) — คืน approvalToken อายุสั้นมาก ไม่ใช่ login เต็มรูป
+// ใช้แนบไปกับ endpoint ที่ต้องมี PIN ผู้จัดการก่อนทำ (เช่น ยกเลิกบิล) ดู docs/decisions.md ADR-030
+export const verifyManagerPinSchema = z.object({
+  branchId: z.string().min(1, "ต้องระบุสาขา"),
+  userId: z.string().min(1, "ต้องเลือกผู้จัดการที่จะอนุมัติ"),
+  pin: z.string().regex(/^\d{6}$/, "PIN ต้องเป็นตัวเลข 6 หลัก"),
+});
+
+export type VerifyManagerPinInput = z.infer<typeof verifyManagerPinSchema>;

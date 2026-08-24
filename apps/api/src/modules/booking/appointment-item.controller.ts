@@ -182,7 +182,10 @@ export class AppointmentItemController {
     }
   }
 
-  /** รายการนัดของวันที่ระบุ (ค่าเริ่มต้น = วันนี้ตามเวลาไทย) — ใช้วาด Lane Board (T4.5) */
+  /**
+   * รายการนัดของวันที่ระบุ (ค่าเริ่มต้น = วันนี้ตามเวลาไทย) — ใช้วาด Lane Board (T4.5) รวมถึงหน้าบิล (T5.6)
+   * ที่ต้องเช็คว่าใบงานไหน "จบงานแล้วแต่ยังไม่ออกบิล" ได้ (serviceJob.completedAt ไม่ null แต่ billLine null)
+   */
   @Get()
   @RequirePermission("view", "booking")
   async list(@CurrentBranch() branch: BranchContext, @Query("date") dateParam?: string) {
@@ -194,7 +197,7 @@ export class AppointmentItemController {
         room: true,
         serviceVariant: { include: { service: true } },
         appointment: { include: { member: true } },
-        serviceJob: true,
+        serviceJob: { include: { billLine: true } },
       },
       orderBy: { startAt: "asc" },
     });

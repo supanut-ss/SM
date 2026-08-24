@@ -36,6 +36,17 @@ interface PinAccessTokenPayload {
   via: "pin";
 }
 
+/** โทเค็นอนุมัติผู้จัดการ (T5.6) — อายุสั้นมาก ไม่ใช่ session login ใช้แนบไปกับ endpoint ที่ต้องมี PIN
+ * ผู้จัดการยืนยันก่อนทำ (เช่น ยกเลิกบิล) ดู docs/decisions.md ADR-030 */
+export interface ManagerApprovalTokenPayload {
+  sub: string;
+  branchId: string;
+  purpose: "manager-approval";
+}
+
+const MANAGER_APPROVAL_TOKEN_MAX_AGE_MS = 2 * 60 * 1000; // 2 นาที — สั้นพอที่จะไม่ถูกเก็บไว้ใช้ซ้ำทีหลัง
+const APPROVER_ROLE_KEYS = new Set(["owner", "manager"]);
+
 interface RefreshTokenPayload {
   sub: string;
   familyId: string;
@@ -141,34 +152,7 @@ export class AuthService {
       throw new UnauthorizedException("ผู้ใช้นี้ไม่ได้สังกัดสาขาของอุปกรณ์นี้");
     }
 
-    if (user.pinLockedUntil && user.pinLockedUntil.getTime() > Date.now()) {
-      throw new PinLockedException(user.pinLockedUntil);
-    }
-
-    const valid = await argon2.verify(user.pinHash, pin);
-    if (!valid) {
-      const attempts = user.pinFailedAttempts + 1;
-      if (attempts >= PIN_MAX_ATTEMPTS) {
-        const lockedUntil = new Date(Date.now() + PIN_LOCKOUT_MS);
-        await this.prisma.client.user.update({
-          where: { id: userId },
-          data: { pinFailedAttempts: 0, pinLockedUntil: lockedUntil },
-        });
-        throw new PinLockedException(lockedUntil);
-      }
-      await this.prisma.client.user.update({
-        where: { id: userId },
-        data: { pinFailedAttempts: attempts },
-      });
-      throw new UnauthorizedException(
-        `PIN ไม่ถูกต้อง (เหลืออีก ${PIN_MAX_ATTEMPTS - attempts} ครั้งก่อนถูกล็อกชั่วคราว)`,
-      );
-    }
-
-    await this.prisma.client.user.update({
-      where: { id: userId },
-      data: { pinFailedAttempts: 0, pinLockedUntil: null },
-    });
+    await this.verifyPin(user, pin);
 
     const accessToken = this.jwt.sign(
       { sub: userId, branchId: device.branchId, deviceId, via: "pin" } satisfies PinAccessTokenPayload,
@@ -179,6 +163,90 @@ export class AuthService {
     );
 
     return { accessToken };
+  }
+
+  /**
+   * ยืนยัน PIN ผู้จัดการแบบ one-off ไม่ login เต็มรูป (T5.6) — คืนโทเค็นอายุสั้นมาก (2 นาที) ที่ endpoint
+   * ต้องมี PIN ผู้จัดการก่อนทำ (เช่น ยกเลิกบิล ดู docs/DOMAIN.md ข้อ 14, 16) แนบมาด้วยเพื่อพิสูจน์ว่ามี
+   * ผู้จัดการยืนยันตัวตนจริง ณ ตอนนั้น ไม่ใช่แค่รู้ userId ของผู้จัดการเฉย ๆ (ดู docs/decisions.md ADR-026
+   * ข้อ 4 ที่ทิ้งช่องโหว่นี้ไว้ตั้งแต่ T5.2 — ตัวนี้คือกลไกที่ปิดช่องโหว่นั้น) ไม่ผูกกับ device เหมือน
+   * pinLogin เพราะใช้จากเว็บปกติได้ (แคชเชียร์ login ค้างอยู่ ผู้จัดการแค่เดินมากรอก PIN ยืนยัน)
+   */
+  async verifyManagerPin(branchId: string, userId: string, pin: string): Promise<{ approvalToken: string }> {
+    const user = await this.prisma.client.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive || !user.pinHash) {
+      throw new UnauthorizedException("ผู้ใช้นี้ไม่พร้อมใช้งาน PIN");
+    }
+
+    const userBranch = await this.prisma.client.userBranch.findUnique({
+      where: { userId_branchId: { userId, branchId } },
+      include: { role: true },
+    });
+    if (!userBranch || !APPROVER_ROLE_KEYS.has(userBranch.role.key)) {
+      throw new UnauthorizedException("ผู้อนุมัติต้องเป็นผู้จัดการหรือเจ้าของร้านของสาขานี้เท่านั้น");
+    }
+
+    await this.verifyPin(user, pin);
+
+    const approvalToken = this.jwt.sign(
+      { sub: userId, branchId, purpose: "manager-approval" } satisfies ManagerApprovalTokenPayload,
+      {
+        secret: this.config.get("JWT_ACCESS_SECRET", { infer: true }),
+        expiresIn: MANAGER_APPROVAL_TOKEN_MAX_AGE_MS / 1000,
+      },
+    );
+    return { approvalToken };
+  }
+
+  /**
+   * ตรวจโทเค็นอนุมัติผู้จัดการที่ endpoint อื่น (เช่น ยกเลิกบิล) ได้รับมา — คืน userId ของผู้อนุมัติถ้าถูกต้อง
+   * บังคับ branchId ให้ตรงกับสาขาที่ endpoint นั้นกำลังทำงานอยู่ด้วย กัน token จากสาขาอื่นมาใช้ข้ามสาขา
+   */
+  verifyManagerApprovalToken(branchId: string, approvalToken: string): string {
+    let payload: ManagerApprovalTokenPayload;
+    try {
+      payload = this.jwt.verify<ManagerApprovalTokenPayload>(approvalToken, {
+        secret: this.config.get("JWT_ACCESS_SECRET", { infer: true }),
+      });
+    } catch {
+      throw new UnauthorizedException("โทเค็นอนุมัติไม่ถูกต้องหรือหมดอายุแล้ว — ให้ผู้จัดการกรอก PIN ยืนยันใหม่");
+    }
+    if (payload.purpose !== "manager-approval" || payload.branchId !== branchId) {
+      throw new UnauthorizedException("โทเค็นอนุมัติไม่ถูกต้อง");
+    }
+    return payload.sub;
+  }
+
+  /** ตรวจ PIN จริง (ใช้ร่วมกันระหว่าง pinLogin และ verifyManagerPin) — จัดการ lockout/นับครั้งผิดในที่เดียว */
+  private async verifyPin(user: User, pin: string): Promise<void> {
+    if (user.pinLockedUntil && user.pinLockedUntil.getTime() > Date.now()) {
+      throw new PinLockedException(user.pinLockedUntil);
+    }
+
+    const valid = await argon2.verify(user.pinHash!, pin);
+    if (!valid) {
+      const attempts = user.pinFailedAttempts + 1;
+      if (attempts >= PIN_MAX_ATTEMPTS) {
+        const lockedUntil = new Date(Date.now() + PIN_LOCKOUT_MS);
+        await this.prisma.client.user.update({
+          where: { id: user.id },
+          data: { pinFailedAttempts: 0, pinLockedUntil: lockedUntil },
+        });
+        throw new PinLockedException(lockedUntil);
+      }
+      await this.prisma.client.user.update({
+        where: { id: user.id },
+        data: { pinFailedAttempts: attempts },
+      });
+      throw new UnauthorizedException(
+        `PIN ไม่ถูกต้อง (เหลืออีก ${PIN_MAX_ATTEMPTS - attempts} ครั้งก่อนถูกล็อกชั่วคราว)`,
+      );
+    }
+
+    await this.prisma.client.user.update({
+      where: { id: user.id },
+      data: { pinFailedAttempts: 0, pinLockedUntil: null },
+    });
   }
 
   /**

@@ -47,6 +47,11 @@ import type {
   PromotionType,
   UpdateCouponInput,
   UpdatePromotionInput,
+  BillLineKind,
+  BillStatus,
+  CancelBillInput,
+  CheckoutBillInput,
+  VerifyManagerPinInput,
 } from "@lotus-desk/contracts";
 
 /**
@@ -92,6 +97,26 @@ export const authApi = {
     }),
   me: () => apiFetch<MeResponse>("/auth/me"),
   logout: () => apiFetch<{ ok: true }>("/auth/logout", { method: "POST" }),
+  // ยืนยัน PIN ผู้จัดการแบบ one-off (T5.6) — คืน approvalToken อายุสั้นมากไปแนบกับ endpoint ที่ต้องมี
+  // PIN ผู้จัดการก่อน (ตอนนี้มีแค่ billApi.cancel) ดู docs/decisions.md ADR-030
+  verifyManagerPin: (input: VerifyManagerPinInput) =>
+    apiFetch<{ approvalToken: string }>("/auth/verify-manager-pin", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู BranchController.listUsers (T5.6) — ใช้เลือก "ผู้จัดการที่จะอนุมัติ" ตอนกรอก PIN ยกเลิกบิล */
+export interface BranchUser {
+  id: string;
+  name: string;
+  email: string;
+  roleKey: string;
+  roleName: string;
+}
+
+export const userApi = {
+  list: (branchId: string) => apiFetch<BranchUser[]>(`/branches/${branchId}/users`),
 };
 
 /** shape ที่ apps/api ตอบกลับจริง (JSON — Date กลายเป็น string ISO แล้ว) ดู StaffController */
@@ -610,6 +635,8 @@ export interface ServiceJob {
   paymentMethod: PaymentMethod | null;
   createdAt: string;
   updatedAt: string;
+  /** มีค่าเฉพาะตอนที่ AppointmentItemController.list() include ให้ (ดู T5.6) — ไม่ null แปลว่าออกบิลไปแล้ว */
+  billLine?: { id: string; billId: string } | null;
 }
 
 export const appointmentItemApi = {
@@ -759,6 +786,67 @@ export interface CalculatePromotionsResult {
 export const promotionCalculatorApi = {
   calculate: (branchId: string, input: CalculatePromotionsInput) =>
     apiFetch<CalculatePromotionsResult>(`/branches/${branchId}/promotions/calculate`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู BillController — บิล (T5.6) รวมใบงาน (ServiceJob) + รายการสินค้าอิสระ จ่ายได้หลายช่องทาง */
+export interface BillLine {
+  id: string;
+  branchId: string;
+  billId: string;
+  kind: BillLineKind;
+  serviceJobId: string | null;
+  serviceJob:
+    | (ServiceJob & { serviceVariant: { id: string; durationMin: number; service: { id: string; name: string } } })
+    | null;
+  description: string;
+  priceSatang: number;
+  quantity: number;
+  paymentMethod: PaymentMethod;
+  memberPackageId: string | null;
+  memberPackageLedgerEntryId: string | null;
+  createdAt: string;
+}
+
+export interface BillPayment {
+  id: string;
+  branchId: string;
+  billId: string;
+  method: PaymentMethod;
+  amountSatang: number;
+  tenderedSatang: number | null;
+  createdAt: string;
+}
+
+export interface Bill {
+  id: string;
+  branchId: string;
+  memberId: string | null;
+  billNumber: string;
+  subtotalSatang: number;
+  promotionId: string | null;
+  discountSatang: number;
+  totalSatang: number;
+  status: BillStatus;
+  cancelledAt: string | null;
+  cancelledReason: string | null;
+  cancelledByUserId: string | null;
+  lines: BillLine[];
+  payments: BillPayment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const billApi = {
+  list: (branchId: string, memberId?: string) =>
+    apiFetch<Bill[]>(`/branches/${branchId}/bills${memberId ? `?memberId=${memberId}` : ""}`),
+  get: (branchId: string, billId: string) => apiFetch<Bill>(`/branches/${branchId}/bills/${billId}`),
+  checkout: (branchId: string, input: CheckoutBillInput) =>
+    apiFetch<Bill>(`/branches/${branchId}/bills`, { method: "POST", body: JSON.stringify(input) }),
+  cancel: (branchId: string, billId: string, input: CancelBillInput) =>
+    apiFetch<Bill>(`/branches/${branchId}/bills/${billId}/cancel`, {
       method: "POST",
       body: JSON.stringify(input),
     }),

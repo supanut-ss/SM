@@ -11,7 +11,14 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
-import { loginSchema, pinLoginSchema, type LoginInput, type PinLoginInput } from "@lotus-desk/contracts";
+import {
+  loginSchema,
+  pinLoginSchema,
+  verifyManagerPinSchema,
+  type LoginInput,
+  type PinLoginInput,
+  type VerifyManagerPinInput,
+} from "@lotus-desk/contracts";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
 import type { Env } from "../../config/env.schema";
 import { AuthService, type TokenPair } from "./auth.service";
@@ -72,6 +79,20 @@ export class AuthController {
       path: "/",
     });
     return { ok: true };
+  }
+
+  /**
+   * ยืนยัน PIN ผู้จัดการแบบ one-off (T5.6) — ใช้จากเว็บปกติ (แคชเชียร์ login ค้างอยู่แล้ว ผู้จัดการแค่
+   * มากรอก PIN ยืนยัน) ต้อง login อยู่แล้วถึงเรียกได้ (JwtAuthGuard) แต่ผู้ยืนยัน PIN ไม่ต้องเป็นคนเดียวกับ
+   * ที่ login อยู่ — คืน approvalToken อายุสั้นมากไปแนบกับ endpoint อื่นที่ต้องมี PIN ผู้จัดการ
+   */
+  @Post("verify-manager-pin")
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async verifyManagerPin(
+    @Body(new ZodValidationPipe(verifyManagerPinSchema)) body: VerifyManagerPinInput,
+  ) {
+    return this.authService.verifyManagerPin(body.branchId, body.userId, body.pin);
   }
 
   @Post("refresh")
