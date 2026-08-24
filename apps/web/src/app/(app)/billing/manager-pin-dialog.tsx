@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Input, Label, Select, Sheet } from "@lotus-desk/ui";
 import { ApiError, authApi, userApi } from "../../../lib/api-client";
@@ -29,6 +29,11 @@ export function ManagerPinDialog({
   description?: string;
   onApproved: (approvalToken: string) => void;
 }) {
+  // ตัวหน้าไม่ซ้ำกันต่ออินสแตนซ์ (ดู useId ของ React) — หน้านี้มี ManagerPinDialog มากกว่า 1 ตัวพร้อมกันจริง
+  // (BillHistory + CashierShiftPanel) ถ้าใช้ id ตายตัวจะซ้ำกันใน DOM ทำให้ <label htmlFor> จับผิดตัว
+  const instanceId = useId();
+  const approverFieldId = `${instanceId}-approver`;
+  const pinFieldId = `${instanceId}-pin`;
   const [userId, setUserId] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -69,14 +74,14 @@ export function ManagerPinDialog({
     <Sheet open={open} onClose={handleClose} title={title} description={description}>
       <form onSubmit={handleSubmit} className="grid gap-5" noValidate>
         <div className="grid gap-1.5">
-          <Label htmlFor="approver">ผู้จัดการที่จะอนุมัติ</Label>
+          <Label htmlFor={approverFieldId}>ผู้จัดการที่จะอนุมัติ</Label>
           {usersQuery.isLoading && <p className="text-sm text-ink-muted">กำลังโหลด...</p>}
           {usersQuery.isSuccess && approvers.length === 0 && (
             <p className="text-xs text-brass">สาขานี้ยังไม่มีผู้จัดการหรือเจ้าของร้านที่ใช้งานอยู่</p>
           )}
           {approvers.length > 0 && (
             <Select
-              id="approver"
+              id={approverFieldId}
               value={userId}
               onChange={(event) => setUserId(event.target.value)}
               required
@@ -94,9 +99,9 @@ export function ManagerPinDialog({
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="approver-pin">PIN 6 หลัก</Label>
+          <Label htmlFor={pinFieldId}>PIN 6 หลัก</Label>
           <Input
-            id="approver-pin"
+            id={pinFieldId}
             type="password"
             inputMode="numeric"
             autoComplete="off"

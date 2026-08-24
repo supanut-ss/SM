@@ -38,6 +38,7 @@ export const BRANCH_SCOPED_MODELS = new Set([
   "Bill",
   "BillLine",
   "BillPayment",
+  "CashierShift",
 ]);
 
 const SCOPED_OPERATIONS = new Set(["findMany", "findFirst", "findUnique", "count"]);

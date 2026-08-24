@@ -51,6 +51,8 @@ import type {
   BillStatus,
   CancelBillInput,
   CheckoutBillInput,
+  CloseCashierShiftInput,
+  ReopenCashierShiftInput,
   VerifyManagerPinInput,
 } from "@lotus-desk/contracts";
 
@@ -847,6 +849,43 @@ export const billApi = {
     apiFetch<Bill>(`/branches/${branchId}/bills`, { method: "POST", body: JSON.stringify(input) }),
   cancel: (branchId: string, billId: string, input: CancelBillInput) =>
     apiFetch<Bill>(`/branches/${branchId}/bills/${billId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+};
+
+/** ดู CashierShiftController — รอบกะแคชเชียร์ (T5.7) closedAt null แปลว่ายังเปิดอยู่ */
+export interface CashierShift {
+  id: string;
+  branchId: string;
+  openedAt: string;
+  openedByUserId: string;
+  closedAt: string | null;
+  closedByUserId: string | null;
+  countedCashSatang: number | null;
+  systemCashSatang: number | null;
+  varianceSatang: number | null;
+  varianceReason: string | null;
+  reopenedAt: string | null;
+  reopenedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const cashierShiftApi = {
+  list: (branchId: string) => apiFetch<CashierShift[]>(`/branches/${branchId}/cashier-shifts`),
+  // ห่อด้วย { shift } เสมอฝั่ง server (ดู CashierShiftController.current) กัน res.json() พังตอน body ว่าง
+  current: (branchId: string) =>
+    apiFetch<{ shift: CashierShift | null }>(`/branches/${branchId}/cashier-shifts/current`),
+  open: (branchId: string) =>
+    apiFetch<CashierShift>(`/branches/${branchId}/cashier-shifts`, { method: "POST" }),
+  close: (branchId: string, shiftId: string, input: CloseCashierShiftInput) =>
+    apiFetch<CashierShift>(`/branches/${branchId}/cashier-shifts/${shiftId}/close`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  reopen: (branchId: string, shiftId: string, input: ReopenCashierShiftInput) =>
+    apiFetch<CashierShift>(`/branches/${branchId}/cashier-shifts/${shiftId}/reopen`, {
       method: "POST",
       body: JSON.stringify(input),
     }),

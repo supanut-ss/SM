@@ -18,6 +18,7 @@ import { formatSatang } from "../../../lib/format-money";
 import { startOfToday, toDateKey } from "../board/date-format";
 import { useCurrentBranch } from "../current-branch-context";
 import { BillHistory } from "./bill-history";
+import { CashierShiftPanel } from "./cashier-shift-panel";
 import { Receipt } from "./receipt";
 
 interface ProductLineDraft {
@@ -307,6 +308,8 @@ export function BillingPageClient() {
         <h1 className="font-display text-2xl font-semibold text-ink">บิล/แคชเชียร์</h1>
         <p className="mt-1 text-sm text-ink-muted">ออกบิลรวมใบงานที่จบแล้วของวันนี้ + สินค้า ที่สาขา {branch.branchName}</p>
       </div>
+
+      <CashierShiftPanel branchId={branch.branchId} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* ฝั่งซ้าย — ใบงานที่พร้อมออกบิล */}

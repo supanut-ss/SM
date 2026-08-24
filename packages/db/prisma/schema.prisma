@@ -62,6 +62,7 @@ model Branch {
   bills                      Bill[]
   billLines                  BillLine[]
   billPayments               BillPayment[]
+  cashierShifts              CashierShift[]
 
   @@map("branches")
 }
@@ -111,6 +112,10 @@ model User {
   approvedMemberPackageLedgerEntries MemberPackageLedgerEntry[]
   /// อนุมัติยกเลิกบิลด้วย PIN (T5.6) ดู docs/decisions.md ADR-030
   cancelledBills                     Bill[]
+  /// รอบกะแคชเชียร์ (T5.7) ที่เปิด/ปิด/เปิดใหม่ — แยก 3 relation เพราะเป็นคนละ FK ไปยัง User คนเดียวกันได้
+  openedCashierShifts                CashierShift[] @relation("CashierShiftOpenedBy")
+  closedCashierShifts                CashierShift[] @relation("CashierShiftClosedBy")
+  reopenedCashierShifts              CashierShift[] @relation("CashierShiftReopenedBy")
 
   @@map("users")
 }
@@ -971,4 +976,45 @@ model BillPayment {
 
   @@index([billId])
   @@map("bill_payments")
+}
+
+/// รอบกะแคชเชียร์ (T5.7) — "นับเงินในลิ้นชักเทียบยอดระบบ" ตอนปิดรอบ (docs/PLAN.md T5.7) ไม่ผูกกับ Bill
+/// ด้วย foreign key ตรง ๆ (ดู docs/decisions.md ADR-031) — บิลไหน "อยู่ใน" รอบกะไหนหาจากช่วงเวลาแทน
+/// (openedAt..closedAt ครอบ bill.createdAt) เพราะ checkout ไม่บังคับต้องมีรอบกะเปิดอยู่ (ตัดสินใจนี้ในเซสชัน)
+/// เปิด/ปิดทำได้โดยแคชเชียร์เอง (permission billing:manage เดียวกับออกบิล) แต่ "เปิดใหม่" หลังปิดแล้วต้องมี
+/// PIN ผู้จัดการเสมอ (docs/DOMAIN.md ข้อ 16) ใช้กลไก approval token เดียวกับยกเลิกบิล (T5.6, ADR-030)
+model CashierShift {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  openedAt       DateTime @default(now()) @db.Timestamptz
+  openedByUserId String
+  openedByUser   User     @relation("CashierShiftOpenedBy", fields: [openedByUserId], references: [id])
+
+  /// ไม่ null แปลว่าปิดรอบแล้ว — ยกเลิกบิลที่ผูกช่วงเวลานี้ต้องเปิดรอบใหม่ก่อนเสมอ (ดู BillController.cancel)
+  closedAt       DateTime? @db.Timestamptz
+  closedByUserId String?
+  closedByUser   User?     @relation("CashierShiftClosedBy", fields: [closedByUserId], references: [id])
+  /// เงินสดที่แคชเชียร์นับได้จริงในลิ้นชักตอนปิดรอบ
+  countedCashSatang Int?
+  /// ยอดเงินสดตามระบบ ณ ตอนปิด — snapshot ผลรวม BillPayment.amountSatang (method=CASH) ของบิลที่ยังไม่ถูก
+  /// ยกเลิกในช่วง [openedAt, closedAt) เก็บไว้เป็นค่าคงที่ตอนปิด ไม่คำนวณสดใหม่ทุกครั้งที่อ่าน (กันเลขขยับ
+  /// ถ้ามีคนยกเลิกบิลเก่าทีหลังหลังปิดรอบไปแล้ว)
+  systemCashSatang Int?
+  /// countedCashSatang - systemCashSatang (บวก=เงินเกิน, ลบ=เงินขาด) ต้องมี varianceReason เสมอถ้าไม่เท่ากับ 0
+  varianceSatang Int?
+  varianceReason String?
+
+  /// ครั้งล่าสุดที่ถูกเปิดใหม่หลังปิดไปแล้ว (nullable) — ค่าปิดรอบเก่า (closedAt/counted/system/variance
+  /// เดิม) ยังเก็บไว้จนกว่าจะปิดรอบใหม่จริงทับ (ไม่ล้างทิ้งตอนเปิดใหม่ เพื่อเป็นร่องรอยว่าปิดครั้งก่อนเป็นยังไง)
+  reopenedAt       DateTime? @db.Timestamptz
+  reopenedByUserId String?
+  reopenedByUser   User?     @relation("CashierShiftReopenedBy", fields: [reopenedByUserId], references: [id])
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([branchId, openedAt])
+  @@map("cashier_shifts")
 }

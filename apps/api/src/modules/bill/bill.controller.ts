@@ -291,6 +291,23 @@ export class BillController {
       throw new ConflictException("บิลนี้ถูกยกเลิกไปแล้ว");
     }
 
+    // รอบกะที่ "ครอบ" ช่วงเวลาที่บิลนี้ถูกสร้าง (T5.7) — ไม่มี Bill.shiftId ตรง ๆ เพราะ checkout ไม่บังคับ
+    // ต้องมีรอบกะเปิดอยู่ (ดู docs/decisions.md ADR-031) หาจากช่วงเวลาแทน ถ้ารอบกะนั้นปิดไปแล้วต้องให้
+    // ผู้จัดการเปิดใหม่ก่อนถึงจะยกเลิกบิลได้ (docs/DOMAIN.md ข้อ 16)
+    const governingShift = await this.prisma.client.cashierShift.findFirst({
+      where: {
+        branchId: branch.branchId,
+        openedAt: { lte: bill.createdAt },
+        OR: [{ closedAt: null }, { closedAt: { gte: bill.createdAt } }],
+      },
+      orderBy: { openedAt: "desc" },
+    });
+    if (governingShift?.closedAt) {
+      throw new ConflictException(
+        "บิลนี้อยู่ในรอบกะที่ปิดไปแล้ว ต้องให้ผู้จัดการเปิดรอบกะนี้ใหม่ก่อนถึงจะยกเลิกบิลได้",
+      );
+    }
+
     await this.prisma.client.$transaction(async (tx) => {
       for (const line of bill.lines) {
         if (line.memberPackageLedgerEntryId) {
