@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -27,6 +28,7 @@ function formatDate(iso: string | null): string {
 }
 
 export function StaffPageClient() {
+  const router = useRouter();
   const branch = useCurrentBranch();
   const queryClient = useQueryClient();
   const canManage = hasPermission(branch?.permissions ?? [], "manage", "staff");
@@ -97,7 +99,12 @@ export function StaffPageClient() {
           <h1 className="font-display text-2xl font-semibold text-ink">พนักงาน</h1>
           <p className="mt-1 text-sm text-ink-muted">รายชื่อพนักงานให้บริการของสาขา {branch.branchName}</p>
         </div>
-        {canManage && <Button onClick={() => setSheetTarget("create")}>+ เพิ่มพนักงาน</Button>}
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => router.push("/staff/shifts")}>
+            จัดตารางกะ
+          </Button>
+          {canManage && <Button onClick={() => setSheetTarget("create")}>+ เพิ่มพนักงาน</Button>}
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">

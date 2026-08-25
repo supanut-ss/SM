@@ -1,10 +1,20 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
+// pgTrgm ต้องประกาศที่นี่ (ไม่ใช่แค่ CREATE EXTENSION ด้วย raw SQL ใน migration T3.1 เดิม) เพราะพิสูจน์แล้ว
+// จากการรัน `prisma migrate dev` จริงครั้งแรกว่าถ้า Prisma ไม่รู้จัก extension/index นี้ผ่าน schema DSL
+// มันจะสั่ง DROP INDEX ทิ้งทุกครั้งที่ diff schema (คิดว่าเป็น index แปลกปลอมที่ไม่ได้ประกาศไว้) — ดู
+// docs/decisions.md ADR-017
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  // ต้องมี map: เสมอทุกตัว — ไม่งั้น Prisma สร้าง `CREATE EXTENSION "pgTrgm"` (camelCase ตรง ๆ) ซึ่งไม่มี
+  // extension ชื่อนี้จริงใน Postgres (พิสูจน์แล้วจาก error จริงตอนรัน migrate — ดู ADR-017)
+  // btreeGist (T4.2): จำเป็นสำหรับ EXCLUDE USING gist บน AppointmentItem — GiST ปกติเทียบ equality
+  // (staffId/roomId) ไม่ได้ ต้องมี operator class จาก btree_gist มาเสริมก่อน
+  extensions = [pgTrgm(map: "pg_trgm"), btreeGist(map: "btree_gist")]
 }
 
 /// ประเภทการกระทำที่ AuditLog บันทึก — ดู docs/PLAN.md T1.5 (interceptor เต็มรูปยังไม่ทำที่นี่)
@@ -16,20 +26,43 @@ enum AuditAction {
 
 /// สาขาของร้าน — ทุกตารางที่ผูกกับข้อมูลร้านต้องมี branchId อ้างมาที่นี่ (ดู CLAUDE.md ข้อ 5)
 model Branch {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  timezone  String   @default("Asia/Bangkok")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  id                              String   @id @default(cuid())
+  name                            String
+  code                            String   @unique
+  timezone                        String   @default("Asia/Bangkok")
+  isActive                        Boolean  @default(true)
+  /// ค่าตั้งต้น false ตรงกับ docs/DOMAIN.md ข้อ 2 ของร้านนี้ ("เสียตำแหน่ง — นับเป็นงานปกติ") แต่ทำเป็น
+  /// ค่าตั้งค่าต่อสาขาได้ตามที่ docs/PLAN.md T4.4 ระบุไว้ตรง ๆ (เผื่อร้านอื่นในอนาคตต้องการพฤติกรรมต่างกัน)
+  customRequestKeepsQueuePosition Boolean  @default(false)
+  createdAt                       DateTime @default(now()) @db.Timestamptz
+  updatedAt                       DateTime @updatedAt @db.Timestamptz
 
-  auditLogs     AuditLog[]
-  userBranches  UserBranch[]
-  devices       Device[]
-  staffProfiles StaffProfile[]
-  roomTypes     RoomType[]
-  rooms         Room[]
+  auditLogs                  AuditLog[]
+  userBranches               UserBranch[]
+  devices                    Device[]
+  staffProfiles              StaffProfile[]
+  roomTypes                  RoomType[]
+  rooms                      Room[]
+  serviceCategories          ServiceCategory[]
+  services                   Service[]
+  shiftTemplates             ShiftTemplate[]
+  staffShifts                StaffShift[]
+  staffLeaves                StaffLeave[]
+  members                    Member[]
+  memberConsents             MemberConsent[]
+  appointments               Appointment[]
+  appointmentItems           AppointmentItem[]
+  staffQueueEntries          StaffQueueEntry[]
+  packages                   Package[]
+  memberPackages             MemberPackage[]
+  memberPackageLedgerEntries MemberPackageLedgerEntry[]
+  promotions                 Promotion[]
+  coupons                    Coupon[]
+  serviceJobs                ServiceJob[]
+  bills                      Bill[]
+  billLines                  BillLine[]
+  billPayments               BillPayment[]
+  cashierShifts              CashierShift[]
 
   @@map("branches")
 }
@@ -57,24 +90,32 @@ model AuditLog {
 
 /// ผู้ใช้งานระบบ — พนักงานต้อนรับ ผู้จัดการ เจ้าของร้าน (ไม่ใช่ "พนักงานให้บริการ" ที่มีโปรไฟล์แยกใน T2.1)
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id                String    @id @default(cuid())
+  email             String    @unique
   /// เข้ารหัสด้วย argon2 — nullable เพราะพนักงานที่ใช้ PIN login อย่างเดียว (T1.3) อาจไม่มีรหัสผ่าน
-  passwordHash String?
+  passwordHash      String?
   /// เข้ารหัสด้วย argon2 เช่นกัน — สำหรับ PIN login เครื่องหน้าร้าน (T1.3)
-  pinHash      String?
+  pinHash           String?
   /// นับใหม่เป็น 0 ทุกครั้งที่ PIN ถูก หรือเมื่อครบล็อกแล้ว (ดู T1.3)
   pinFailedAttempts Int       @default(0)
   /// ไม่ null แปลว่าโดนล็อกอยู่ — ปลดล็อกอัตโนมัติเมื่อเวลาปัจจุบันผ่านค่านี้ไปแล้ว
   pinLockedUntil    DateTime? @db.Timestamptz
-  name         String
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now()) @db.Timestamptz
-  updatedAt    DateTime @updatedAt @db.Timestamptz
+  name              String
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
 
-  branches      UserBranch[]
-  auditLogs     AuditLog[]
-  refreshTokens RefreshToken[]
+  branches                           UserBranch[]
+  auditLogs                          AuditLog[]
+  refreshTokens                      RefreshToken[]
+  /// อนุมัติ ledger entry ที่ต้องมีผู้จัดการ (ใช้คอร์สหมดอายุ/แช่แข็ง/ปิดหมดอายุ) ดู docs/decisions.md ADR-026
+  approvedMemberPackageLedgerEntries MemberPackageLedgerEntry[]
+  /// อนุมัติยกเลิกบิลด้วย PIN (T5.6) ดู docs/decisions.md ADR-030
+  cancelledBills                     Bill[]
+  /// รอบกะแคชเชียร์ (T5.7) ที่เปิด/ปิด/เปิดใหม่ — แยก 3 relation เพราะเป็นคนละ FK ไปยัง User คนเดียวกันได้
+  openedCashierShifts                CashierShift[] @relation("CashierShiftOpenedBy")
+  closedCashierShifts                CashierShift[] @relation("CashierShiftClosedBy")
+  reopenedCashierShifts              CashierShift[] @relation("CashierShiftReopenedBy")
 
   @@map("users")
 }
@@ -115,9 +156,9 @@ model RefreshToken {
 
 /// บทบาท — seed ไว้ 4 บทบาทตายตัว (เจ้าของ/ผู้จัดการ/แคชเชียร์/พนักงานบริการ) ดู prisma/seed.ts
 model Role {
-  id  String @id @default(cuid())
+  id   String @id @default(cuid())
   /// คีย์ภาษาอังกฤษคงที่ใช้ใน @RequirePermission() — ห้ามเปลี่ยนหลัง seed แล้ว
-  key String @unique
+  key  String @unique
   /// ชื่อไทยสำหรับแสดงผล
   name String
 
@@ -193,6 +234,12 @@ model StaffProfile {
   createdAt DateTime     @default(now()) @db.Timestamptz
   updatedAt DateTime     @updatedAt @db.Timestamptz
 
+  staffShifts      StaffShift[]
+  staffLeaves      StaffLeave[]
+  appointmentItems AppointmentItem[]
+  queueEntries     StaffQueueEntry[]
+  serviceJobs      ServiceJob[]
+
   @@index([branchId])
   @@map("staff_profiles")
 }
@@ -208,7 +255,8 @@ model RoomType {
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
 
-  rooms Room[]
+  rooms           Room[]
+  serviceVariants ServiceVariant[]
 
   @@unique([branchId, name])
   @@index([branchId])
@@ -229,8 +277,744 @@ model Room {
   createdAt  DateTime @default(now()) @db.Timestamptz
   updatedAt  DateTime @updatedAt @db.Timestamptz
 
+  appointmentItems AppointmentItem[]
+  serviceJobs      ServiceJob[]
+
   @@unique([branchId, name])
   @@index([branchId])
   @@index([roomTypeId])
   @@map("rooms")
+}
+
+/// หมวดบริการ — catalog แยกต่อสาขา เหมือน RoomType (ดู ADR-010/ADR-012) ยังไม่มี CRUD UI ของตัวเอง
+/// ใน T2.3 seed ค่าเริ่มต้นให้พอใช้งาน ฟอร์มสร้าง/แก้ไขบริการเลือกจาก dropdown ที่ดึงจาก
+/// GET /branches/:branchId/service-categories (read-only endpoint)
+model ServiceCategory {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  services Service[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@map("service_categories")
+}
+
+/// บริการ — อยู่ในหมวด มีตัวเลือกเวลาหลายแบบ (ServiceVariant) เช่น "นวดไทย" มี 60/90/120 นาที
+/// isActive ที่นี่ปิดทั้งบริการทุกตัวเลือกเวลาพร้อมกัน (ดู ADR-012) — ปิดเฉพาะตัวเลือกเวลาเดียวใช้
+/// ServiceVariant.isActive แทน
+model Service {
+  id          String          @id @default(cuid())
+  branchId    String
+  branch      Branch          @relation(fields: [branchId], references: [id])
+  categoryId  String
+  category    ServiceCategory @relation(fields: [categoryId], references: [id])
+  name        String
+  description String?
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now()) @db.Timestamptz
+  updatedAt   DateTime        @updatedAt @db.Timestamptz
+
+  variants ServiceVariant[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@index([categoryId])
+  @@map("services")
+}
+
+/// ตัวเลือกเวลาของบริการ — คนละราคา คนละค่ามือต่อระดับพนักงาน (ดู docs/DOMAIN.md ข้อ 9/10, ADR-008)
+/// field ที่นี่ตรงกับ signature ของ findAvailableSlots (T4.1, ดู docs/PLAN.md §7.2) โดยตั้งใจ —
+/// buffer/ทักษะที่ต้องใช้/ประเภทห้องที่ต้องใช้ ผูกกับตัวเลือกเวลาแต่ละอัน ไม่ใช่ทั้งบริการ เพราะ
+/// availability engine ต้องอ่านค่าพวกนี้ต่อ variant ตรง ๆ โดยไม่ join ย้อนไปที่ Service
+model ServiceVariant {
+  id                     String     @id @default(cuid())
+  serviceId              String
+  service                Service    @relation(fields: [serviceId], references: [id])
+  durationMin            Int
+  priceSatang            Int
+  commissionJuniorSatang Int
+  commissionSeniorSatang Int
+  commissionMasterSatang Int
+  bufferBeforeMin        Int        @default(0)
+  bufferAfterMin         Int        @default(0)
+  requiredSkill          StaffSkill
+  requiredRoomTypeId     String
+  requiredRoomType       RoomType   @relation(fields: [requiredRoomTypeId], references: [id])
+  isActive               Boolean    @default(true)
+  createdAt              DateTime   @default(now()) @db.Timestamptz
+  updatedAt              DateTime   @updatedAt @db.Timestamptz
+
+  appointmentItems AppointmentItem[]
+  packages         Package[]
+  memberPackages   MemberPackage[]
+  serviceJobs      ServiceJob[]
+
+  @@unique([serviceId, durationMin])
+  @@index([serviceId])
+  @@index([requiredRoomTypeId])
+  @@map("service_variants")
+}
+
+/// แม่แบบกะ — ต่อสาขา (T2.4) เก็บเวลาเป็น "นาทีจากเที่ยงคืน" (0-1439) ไม่ใช่ timestamptz เพราะเป็น
+/// เวลาตามผนังที่วนซ้ำทุกสัปดาห์ ไม่ใช่ event ที่เกิดครั้งเดียว (ต่างจาก AuditLog/createdAt ที่เป็น instant จริง)
+/// ยังไม่รองรับกะข้ามเที่ยงคืน — endMin ต้องมากกว่า startMin เสมอ (บังคับที่ zod schema ใน packages/contracts)
+model ShiftTemplate {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  name      String
+  startMin  Int
+  endMin    Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  staffShifts StaffShift[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@map("shift_templates")
+}
+
+/// การจ่ายกะจริงของพนักงาน 1 คน ต่อ 1 วัน (T2.4) — startMin/endMin เป็นการ snapshot ค่าจาก
+/// ShiftTemplate ตอนสร้างเท่านั้น (ตัดสินใจแล้ว: แก้ template ทีหลังไม่กระทบตารางกะที่จ่ายไปแล้ว
+/// เหมือนหลักการเดียวกับ ADR-008/ServiceVariant ที่ snapshot ราคา ณ เวลาสร้าง) — "กะซ้อนกัน" (เกณฑ์ผ่าน
+/// T2.4) เช็คที่ระดับ service/controller: staffId+date เดียวกัน ห้ามมีสองกะที่ startMin/endMin ทับกัน
+/// พนักงาน 1 คนมีได้หลายกะต่อวัน (เช่น กะแบ่งครึ่งคร่อมพักเที่ยง) ตราบใดที่ไม่ทับกัน
+model StaffShift {
+  id              String        @id @default(cuid())
+  branchId        String
+  branch          Branch        @relation(fields: [branchId], references: [id])
+  staffId         String
+  staff           StaffProfile  @relation(fields: [staffId], references: [id])
+  shiftTemplateId String
+  shiftTemplate   ShiftTemplate @relation(fields: [shiftTemplateId], references: [id])
+  date            DateTime      @db.Date
+  startMin        Int
+  endMin          Int
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([staffId, date])
+  @@map("staff_shifts")
+}
+
+enum LeaveType {
+  SICK
+  PERSONAL
+  VACATION
+}
+
+/// วันลาของพนักงาน 1 คน ต่อ 1 วัน (T2.4) — แยกประเภทลา (ป่วย/กิจ/พักร้อน) ตามที่ตกลงไว้
+/// 1 คนลาได้แค่ประเภทเดียวต่อวัน (@@unique staffId+date) การลาหลายวันติดกันสร้างเป็นหลายแถว
+/// (1 แถว = 1 วัน) ให้ตรงกับ leaves: StaffLeave[] ที่ T4.1 (availability engine) จะอ่านต่อวันตรง ๆ
+model StaffLeave {
+  id        String       @id @default(cuid())
+  branchId  String
+  branch    Branch       @relation(fields: [branchId], references: [id])
+  staffId   String
+  staff     StaffProfile @relation(fields: [staffId], references: [id])
+  date      DateTime     @db.Date
+  type      LeaveType
+  note      String?
+  createdAt DateTime     @default(now()) @db.Timestamptz
+  updatedAt DateTime     @updatedAt @db.Timestamptz
+
+  @@unique([staffId, date])
+  @@index([branchId])
+  @@index([staffId, date])
+  @@map("staff_leaves")
+}
+
+/// สมาชิก (T3.1) — รหัสสมาชิก (code) รันอัตโนมัติต่อสาขา รูปแบบ "M" + เลข 6 หลัก (ดู MemberController)
+/// ข้อมูลสุขภาพ/ความชอบ (เข้ารหัสระดับคอลัมน์) เป็น T3.2 แยกต่างหาก ยังไม่อยู่ในโมเดลนี้
+/// ค้นหาแบบพิมพ์ไม่ครบก็เจอ (name/phone) ใช้ GIN trigram index ที่สร้างด้วย raw SQL ในไฟล์ migration
+/// เดียวกัน (Prisma schema DSL ทำ operator class แบบนี้ไม่ได้ชัวร์พอ ดู docs/decisions.md ADR-014)
+/// สมาชิก — mergedIntoId ไม่ null แปลว่ารายการนี้เป็น "รายการรอง" ที่ถูกรวมเข้ากับสมาชิกอีกคนแล้ว (T3.4)
+/// ไม่ลบทิ้งเด็ดขาด (ต้องคงประวัติ/audit log ไว้) แค่ทำเครื่องหมาย + ปิดใช้งาน (isActive=false) เสมอตอน merge
+model Member {
+  id           String   @id @default(cuid())
+  branchId     String
+  branch       Branch   @relation(fields: [branchId], references: [id])
+  code         String
+  name         String
+  phone        String
+  note         String?
+  isActive     Boolean  @default(true)
+  mergedIntoId String?
+  mergedInto   Member?  @relation("MemberMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom   Member[] @relation("MemberMerge")
+  createdAt    DateTime @default(now()) @db.Timestamptz
+  updatedAt    DateTime @updatedAt @db.Timestamptz
+
+  consents       MemberConsent[]
+  appointments   Appointment[]
+  memberPackages MemberPackage[]
+  bills          Bill[]
+
+  @@unique([branchId, code])
+  @@index([branchId])
+  @@index([branchId, phone])
+  // ค้นหาแบบพิมพ์ไม่ครบก็เจอ (T3.1 เกณฑ์ผ่าน: ค้นหา 10,000 แถว < 100ms) — ประกาศผ่าน schema DSL ตรง ๆ
+  // (ไม่ใช่ raw SQL ใน migration แบบเดิม) ตั้งแต่ ADR-017 กัน `prisma migrate dev` ครั้งต่อไปสั่ง DROP ทิ้ง
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@map("members")
+}
+
+enum ConsentType {
+  HEALTH_DATA
+  MARKETING
+}
+
+enum ConsentStatus {
+  GRANTED
+  WITHDRAWN
+}
+
+/// บันทึกความยินยอม PDPA (T3.3) — append-only เสมอ (ห้าม UPDATE ทับของเดิม) ทุกครั้งที่ให้/ถอนความยินยอม
+/// คือ INSERT แถวใหม่ สถานะปัจจุบันของสมาชิก 1 คนต่อประเภทความยินยอม 1 อย่าง = แถวล่าสุดเรียงตาม createdAt
+/// เหตุผลที่ต้อง append-only: เป็นหลักฐานทางกฎหมาย (ใครยินยอม/ถอนเมื่อไร ผ่านช่องทางไหน ด้วยข้อความเวอร์ชันไหน)
+/// ต้องพิสูจน์ย้อนหลังได้เสมอ ไม่ใช่แค่ true/false ปัจจุบัน — ดู docs/decisions.md ADR-016
+model MemberConsent {
+  id          String        @id @default(cuid())
+  branchId    String
+  branch      Branch        @relation(fields: [branchId], references: [id])
+  memberId    String
+  member      Member        @relation(fields: [memberId], references: [id])
+  type        ConsentType
+  status      ConsentStatus
+  channel     String
+  textVersion String
+  createdAt   DateTime      @default(now()) @db.Timestamptz
+
+  @@index([branchId])
+  @@index([memberId, type, createdAt])
+  @@map("member_consents")
+}
+
+/// นัด 1 ครั้งของลูกค้า — เป็นแค่ตัวรวม (container) ของ AppointmentItem หนึ่งรายการขึ้นไป (T4.2)
+/// ไม่มีสถานะของตัวเอง — สถานะอยู่ที่ AppointmentItem แต่ละรายการ (ดู docs/decisions.md ADR-020) เพราะ
+/// นัดเดียวมีหลายบริการต่อกันได้ (เช่น นวด 60 นาที ต่อด้วยทำหน้า 30 นาที) แต่ละอันต้องเดินสถานะเอง
+/// (บริการแรกอาจ "กำลังบริการ" ขณะบริการที่สองยัง "จองไว้" อยู่)
+model Appointment {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  memberId  String?
+  member    Member?  @relation(fields: [memberId], references: [id])
+  note      String?
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  items AppointmentItem[]
+
+  @@index([branchId])
+  @@index([memberId])
+  @@map("appointments")
+}
+
+/// สถานะของ AppointmentItem แต่ละรายการ — enum ประกาศครบตาม docs/PLAN.md T4.3 ตั้งแต่ตอนนี้เพราะ
+/// EXCLUDE constraint ด้านล่างต้องรู้ค่าที่ "ไม่กันช่อง" แล้ว (CANCELLED/NO_SHOW) — T4.3 จะเพิ่ม logic
+/// การเปลี่ยนสถานะ/สิทธิ์/กติกาการข้ามสถานะจริง ที่นี่แค่ประกาศ type และค่าเริ่มต้นเท่านั้น
+enum AppointmentStatus {
+  BOOKED
+  CONFIRMED
+  CHECKED_IN
+  IN_SERVICE
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+/// วิธีที่นัดนี้ถูกจ่ายให้พนักงานคนนี้ (T4.4) — มีผลต่อ "คิวหมุน": CUSTOMER_REQUEST อาจเสียตำแหน่งคิวหรือไม่
+/// ก็ได้แล้วแต่ Branch.customRequestKeepsQueuePosition (docs/DOMAIN.md ข้อ 2) ส่วน ROTATION เสียตำแหน่งเสมอ
+/// (จบงานแล้วต่อท้ายคิวเป็นปกติ) — ดู docs/decisions.md ADR-022
+enum AssignType {
+  ROTATION
+  CUSTOMER_REQUEST
+}
+
+/// รายการบริการย่อย 1 ชิ้นของนัด = พนักงาน 1 คน + ห้อง 1 ห้อง + ช่วงเวลา 1 ช่วง (T4.2)
+///
+/// กันจองซ้อนด้วย PostgreSQL `EXCLUDE USING gist` ที่เพิ่มด้วย raw SQL ในไฟล์ migration เอง (Prisma schema
+/// DSL ไม่มีทางประกาศ EXCLUDE constraint ได้เลย) แบ่งเป็น 2 constraint:
+///   1. staffId — กันเสมอทุกกรณี (พนักงาน 1 คนมีจริงแค่ตัวเดียว "capacity" เป็น 1 เสมอโดยธรรมชาติ)
+///   2. roomId — กันเฉพาะห้องที่ roomCapacityAtBooking = 1 เท่านั้น (ห้อง capacity > 1 เช่นห้องทำเล็บ
+///      2 ที่นั่ง ต้องกันด้วย transaction+lock ที่ระดับ service ตอนสร้างนัดจริงแทน เพราะ EXCLUDE
+///      constraint ไม่มีทางนับจำนวนแถวที่ทับกันพร้อมกันได้ ทำได้แค่ "ห้ามทับกันเลย" หรือ "ทับได้ไม่จำกัด"
+///      ดู docs/decisions.md ADR-020 สำหรับเหตุผลเต็ม)
+/// ทั้งสอง constraint มี `WHERE status NOT IN ('CANCELLED','NO_SHOW')` กันนัดที่ยกเลิก/ไม่มาแล้วบล็อกช่อง
+/// ถาวร — สถานะจึงต้องอยู่ที่ตารางนี้ (ไม่ใช่ Appointment) เพราะ EXCLUDE constraint อ้างได้แค่คอลัมน์ของ
+/// ตัวเองเท่านั้น อ้ามข้ามไป join ตารางอื่นไม่ได้
+model AppointmentItem {
+  id                    String            @id @default(cuid())
+  branchId              String
+  branch                Branch            @relation(fields: [branchId], references: [id])
+  appointmentId         String
+  appointment           Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  staffId               String
+  staff                 StaffProfile      @relation(fields: [staffId], references: [id])
+  roomId                String
+  room                  Room              @relation(fields: [roomId], references: [id])
+  serviceVariantId      String
+  serviceVariant        ServiceVariant    @relation(fields: [serviceVariantId], references: [id])
+  status                AppointmentStatus @default(BOOKED)
+  /// ดู enum AssignType — กระทบคิวหมุนตอนจบงาน (T4.4)
+  assignType            AssignType        @default(ROTATION)
+  startAt               DateTime          @db.Timestamptz
+  endAt                 DateTime          @db.Timestamptz
+  /// snapshot ของ Room.capacity ตอนสร้างแถวนี้ — ใช้กำหนดขอบเขตของ EXCLUDE constraint ข้างบนเท่านั้น
+  /// (ไม่ใช่ค่าที่ต้อง sync ตามห้องตลอดไป เหมือนหลักการ snapshot ราคา/ค่ามือใน ADR-008)
+  roomCapacityAtBooking Int
+  createdAt             DateTime          @default(now()) @db.Timestamptz
+  updatedAt             DateTime          @updatedAt @db.Timestamptz
+
+  /// สร้างอัตโนมัติตอนเข้า IN_SERVICE ปิดอัตโนมัติตอนเข้า COMPLETED (ดู docs/decisions.md ADR-029)
+  serviceJob ServiceJob?
+
+  @@index([branchId])
+  @@index([staffId, startAt])
+  @@index([roomId, startAt])
+  @@index([appointmentId])
+  @@map("appointment_items")
+}
+
+/// ตำแหน่งในคิวหมุนของพนักงาน 1 คน ต่อ 1 วัน (T4.4) — position ยิ่งน้อยยิ่งอยู่หัวคิว (ตัวถัดไปที่จะได้งาน
+/// คิวหมุน) ตัวเลขไม่ต่อเนื่องจำเป็นเสมอ (renumber ใหม่ทุกครั้งที่คิวเปลี่ยน ดู staff-queue.ts ฝั่ง apps/api)
+/// เริ่มต้นวันใหม่ด้วยการ "เข้าคิว" ผ่าน endpoint POST .../staff-queue/join (เรียงตามเวลาที่กดจริง —
+/// ตรงกับ docs/DOMAIN.md ข้อ 1 "เรียงตามเวลามาถึง" จนกว่า T6.1 จะมี clock-in จริงมาเรียกแทน)
+model StaffQueueEntry {
+  id        String       @id @default(cuid())
+  branchId  String
+  branch    Branch       @relation(fields: [branchId], references: [id])
+  staffId   String
+  staff     StaffProfile @relation(fields: [staffId], references: [id])
+  date      DateTime     @db.Date
+  position  Int
+  createdAt DateTime     @default(now()) @db.Timestamptz
+  updatedAt DateTime     @updatedAt @db.Timestamptz
+
+  @@unique([staffId, date])
+  @@index([branchId, date, position])
+  @@map("staff_queue_entries")
+}
+
+/// ประเภทคอร์ส/แพ็กเกจ (T5.1) — เกณฑ์ผ่านของ Task นี้คือ "สร้างครบทั้ง 3 ประเภทได้" ดู docs/decisions.md
+/// ADR-025 สำหรับเหตุผลที่ผูกแต่ละประเภทกับ ServiceVariant เดียว (ยกเว้น VALUE ที่ใช้ข้ามบริการได้)
+enum PackageType {
+  /// จำนวนครั้ง — ผูกกับ ServiceVariant เดียว ตัดครั้งละ 1 ทุกครั้งที่ใช้ (sessionCount ไม่ null)
+  SESSION_COUNT
+  /// มูลค่า — ไม่ผูกกับบริการใดบริการหนึ่ง ใช้ข้ามบริการได้ ตัดยอดตามราคาจริงที่ใช้ (valueSatang ไม่ null)
+  VALUE
+  /// ไม่จำกัดจำนวนครั้งแต่จำกัดระยะเวลา — ผูกกับ ServiceVariant เดียว ใช้ได้ไม่จำกัดจนกว่าจะหมดอายุ
+  UNLIMITED_DURATION
+}
+
+/// คอร์ส/แพ็กเกจ (T5.1) — เป็นแค่ "แคตตาล็อกสินค้า" (เหมือน ServiceVariant เทียบกับ Service) ยังไม่ใช่
+/// สิ่งที่สมาชิกถือครองจริง (นั่นคือ MemberPackage ของ T5.2 ที่จะ snapshot ค่าจากตารางนี้ตอนซื้อ) แก้ไข
+/// ทีหลังได้แค่ name/priceSatang/validDays/isActive — ห้ามแก้ type/sessionCount/valueSatang/
+/// serviceVariantId หลังสร้างแล้ว (เปลี่ยนความหมายพื้นฐานของสินค้าที่อาจขายไปแล้ว) ดู docs/decisions.md ADR-025
+model Package {
+  id               String          @id @default(cuid())
+  branchId         String
+  branch           Branch          @relation(fields: [branchId], references: [id])
+  name             String
+  type             PackageType
+  priceSatang      Int
+  /// เฉพาะ SESSION_COUNT
+  sessionCount     Int?
+  /// เฉพาะ VALUE
+  valueSatang      Int?
+  /// เฉพาะ SESSION_COUNT/UNLIMITED_DURATION — VALUE ต้องเป็น null เสมอ (ใช้ข้ามบริการได้)
+  serviceVariantId String?
+  serviceVariant   ServiceVariant? @relation(fields: [serviceVariantId], references: [id])
+  /// จำนวนวันนับจากซื้อจนหมดอายุ — ทุกประเภทต้องมี (แม้แต่ VALUE ก็หมดอายุได้ตาม docs/DOMAIN.md ข้อ 5)
+  validDays        Int
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now()) @db.Timestamptz
+  updatedAt        DateTime        @updatedAt @db.Timestamptz
+
+  memberPackages MemberPackage[]
+
+  @@index([branchId])
+  @@index([serviceVariantId])
+  @@map("packages")
+}
+
+/// สถานะของคอร์สที่สมาชิกถือครอง — ACTIVE ยังใช้งานได้ (แม้หมดอายุแล้วก็ตาม ถ้าผู้จัดการอนุมัติ ดู
+/// docs/DOMAIN.md ข้อ 5), CLOSED คือปิดถาวรแล้ว (ใช้หมด/โอนออก/คืนเงินเต็ม/ปิดหมดอายุ) ไม่รับ ledger
+/// entry ใหม่อีก ยกเว้นที่ endpoint สร้างเองตอนปิด (REFUND/TRANSFER_OUT/EXPIRE)
+enum MemberPackageStatus {
+  ACTIVE
+  CLOSED
+}
+
+/// ประเภทแถว ledger — ทุกแถวคือ INSERT ใหม่เสมอ ห้าม UPDATE ทับ (ดู CLAUDE.md ข้อ 7) ยอดคงเหลือคือผลรวม
+/// ของ delta ทั้งหมดต่อ MemberPackage เท่านั้น ไม่มีฟิลด์ balance สะสมที่ไหนให้ UPDATE ตรงเด็ดขาด
+enum MemberPackageLedgerKind {
+  /// ซื้อครั้งแรก — delta เป็นบวกเสมอ (+sessionCount หรือ +valueSatang, 0 สำหรับ UNLIMITED_DURATION)
+  PURCHASE
+  /// ตัดใช้บริการ — delta เป็นลบเสมอ (VALUE/SESSION_COUNT), 0 สำหรับ UNLIMITED_DURATION (แค่บันทึกไว้)
+  USE
+  /// คืนยอด (เช่น ยกเลิกบิลที่ตัดคอร์สไปแล้ว) — delta เป็นบวกเสมอ อ้างอิง USE เดิมผ่าน relatedEntryId
+  REFUND
+  /// ปิดหมดอายุแบบ manual (ผู้จัดการตัดสินใจปิดยอดคงเหลือทิ้ง) — delta เป็นลบเท่ากับยอดคงเหลือปัจจุบัน
+  EXPIRE
+  /// แช่แข็ง — delta เป็น 0 เสมอ (ไม่กระทบยอดคงเหลือ) freezeDays คือจำนวนวันที่ขยายให้ expiresAt
+  FREEZE
+  /// โอนออกไปสมาชิกอื่น (ทั้งใบเท่านั้น ดู docs/DOMAIN.md ข้อ 6) — delta เป็นลบเท่ากับยอดคงเหลือปัจจุบัน
+  TRANSFER_OUT
+  /// รับโอนเข้ามาจากสมาชิกอื่น (บน MemberPackage ใบใหม่) — delta เป็นบวกเท่ากับยอดที่โอนมา
+  TRANSFER_IN
+}
+
+/// คอร์สที่สมาชิกถือครองจริง (T5.2) — snapshot ค่าจาก Package (catalog) ณ เวลาซื้อ/รับโอน ตรง ๆ ไม่ join
+/// กลับไปอ่าน Package สด เพราะ Package แก้ไข priceSatang/name/validDays ได้ทีหลัง (ดู ADR-025) แต่ต้องไม่
+/// กระทบสิ่งที่สมาชิกซื้อไปแล้วในอดีต — ยอดคงเหลือ "ห้ามอ่านจากฟิลด์นี้" ต้องคำนวณจากผลรวม
+/// MemberPackageLedgerEntry.delta เท่านั้นเสมอ (ดู docs/decisions.md ADR-026, CLAUDE.md ข้อ 7)
+model MemberPackage {
+  id        String  @id @default(cuid())
+  branchId  String
+  branch    Branch  @relation(fields: [branchId], references: [id])
+  memberId  String
+  member    Member  @relation(fields: [memberId], references: [id])
+  /// อ้างอิง catalog เดิมไว้เผื่อรายงาน/ลิงก์กลับ — ไม่ใช่แหล่งความจริงของราคา/เงื่อนไข (snapshot ด้านล่างคือแหล่งความจริง)
+  packageId String
+  package   Package @relation(fields: [packageId], references: [id])
+
+  name             String
+  type             PackageType
+  priceSatang      Int
+  sessionCount     Int?
+  valueSatang      Int?
+  serviceVariantId String?
+  serviceVariant   ServiceVariant? @relation(fields: [serviceVariantId], references: [id])
+
+  purchasedAt DateTime            @db.Timestamptz
+  validDays   Int
+  /// ขยายได้ตอนแช่แข็ง (ไม่ใช่ "ยอดคงเหลือ" ตามความหมาย CLAUDE.md ข้อ 7 — เป็นแค่กำหนดการ ไม่ใช่จำนวนเงิน/ครั้ง)
+  expiresAt   DateTime            @db.Timestamptz
+  status      MemberPackageStatus @default(ACTIVE)
+
+  ledgerEntries MemberPackageLedgerEntry[]
+  billLines     BillLine[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([memberId])
+  @@index([packageId])
+  @@map("member_packages")
+}
+
+model MemberPackageLedgerEntry {
+  id               String                  @id @default(cuid())
+  branchId         String
+  branch           Branch                  @relation(fields: [branchId], references: [id])
+  memberPackageId  String
+  memberPackage    MemberPackage           @relation(fields: [memberPackageId], references: [id])
+  kind             MemberPackageLedgerKind
+  delta            Int
+  /// เฉพาะ kind=FREEZE เท่านั้น — จำนวนวันที่แช่แข็งครั้งนี้
+  freezeDays       Int?
+  note             String?
+  /// อ้างอิง id ของแถว ledger อื่น (ไม่บังคับ FK จริง เพราะ TRANSFER_OUT/TRANSFER_IN อยู่คนละ MemberPackage
+  /// กัน) — REFUND ชี้กลับไปที่ USE เดิม, TRANSFER_OUT/TRANSFER_IN ชี้ถึงกันและกัน
+  relatedEntryId   String?
+  approvedByUserId String?
+  approvedByUser   User?                   @relation(fields: [approvedByUserId], references: [id])
+  createdAt        DateTime                @default(now()) @db.Timestamptz
+
+  @@index([memberPackageId])
+  @@index([branchId])
+  @@index([relatedEntryId])
+  @@map("member_package_ledger_entries")
+}
+
+/// ประเภทโปรโมชั่น (T5.3/T5.4) — ตรงกับ PromotionType ใน packages/core/promotion/types.ts เป๊ะ (ต้องแก้คู่กันเสมอ)
+enum PromotionType {
+  PERCENT_OFF
+  AMOUNT_OFF
+  FIXED_PRICE
+  BUY_X_GET_Y
+  BONUS_MINUTES
+}
+
+/// โปรโมชั่น (T5.4) — catalog ของกติกาที่ evaluatePromotions (T5.3, packages/core/promotion) กินเป็น input
+/// ไม่มีฟิลด์ stackable เลยตาม docs/DOMAIN.md ข้อ 15 (ห้ามซ้อนโปรฯ เด็ดขาด) ดู docs/decisions.md ADR-028
+/// ไม่มีเงื่อนไข branchIds (ต่างจาก engine ที่รองรับ) เพราะ Promotion ผูกกับ branchId เดียวอยู่แล้วโดยตัวมันเอง
+model Promotion {
+  id       String        @id @default(cuid())
+  branchId String
+  branch   Branch        @relation(fields: [branchId], references: [id])
+  name     String
+  type     PromotionType
+  /// เทียบตัดสินเมื่อส่วนลดเท่ากันเป๊ะระหว่างหลายโปรฯ เท่านั้น (ดู docs/DOMAIN.md ข้อ 15)
+  priority Int           @default(0)
+
+  /// เฉพาะ PERCENT_OFF (0-100)
+  percentOff       Int?
+  /// เฉพาะ AMOUNT_OFF
+  amountOffSatang  Int?
+  /// เฉพาะ FIXED_PRICE
+  fixedPriceSatang Int?
+  /// เฉพาะ BUY_X_GET_Y
+  buyQuantity      Int?
+  getQuantity      Int?
+  /// เฉพาะ BONUS_MINUTES
+  bonusMinutes     Int?
+
+  // เงื่อนไข — ทุกฟิลด์ optional/ค่าเริ่มต้น = ไม่จำกัดเงื่อนไขนั้น (ดู packages/core/promotion/types.ts PromotionConditions)
+  minSpendSatang        Int?
+  serviceVariantIds     String[] @default([])
+  daysOfWeek            Int[]    @default([])
+  startMinuteOfDay      Int?
+  endMinuteOfDay        Int?
+  firstTimeCustomerOnly Boolean  @default(false)
+  birthdayMonthOnly     Boolean  @default(false)
+  memberTiers           String[] @default([])
+
+  /// null = ไม่จำกัดโควตา
+  quotaTotal Int?
+  quotaUsed  Int  @default(0)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  coupons Coupon[]
+  bills   Bill[]
+
+  @@index([branchId])
+  @@map("promotions")
+}
+
+/// คูปอง (T5.4) — รหัสที่ลูกค้าต้องแสดง/กรอกถึงจะใช้โปรฯ ที่ผูกไว้ได้ ("โปรฯ อัตโนมัติ" ไม่มีคูปองผูกเลย
+/// ใช้ได้ทันทีถ้าเข้าเงื่อนไข — ดู docs/decisions.md ADR-028) ยังไม่มี logic การ "แลกใช้" จริงใน T5.4
+/// (รอ T5.6 บิลเรียกใช้จริง) — Task นี้มีแค่ catalog CRUD
+model Coupon {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  promotionId String
+  promotion   Promotion @relation(fields: [promotionId], references: [id])
+
+  code           String
+  /// null = ไม่จำกัดจำนวนครั้งที่แลกได้
+  maxRedemptions Int?
+  redeemedCount  Int    @default(0)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([branchId, code])
+  @@index([branchId])
+  @@index([promotionId])
+  @@map("coupons")
+}
+
+/// แหล่งชำระ — ตรงกับ PAYMENT_METHODS ใน packages/contracts/src/payment.ts เป๊ะ (ดู docs/DOMAIN.md ข้อ 10)
+enum PaymentMethod {
+  CASH
+  PACKAGE
+  VOUCHER
+  COMPLIMENTARY
+}
+
+/// ใบงาน (T5.5) — 1 ใบต่อ 1 AppointmentItem เท่านั้น (@unique) สร้างอัตโนมัติตอน AppointmentItem เข้า
+/// สถานะ IN_SERVICE (startedAt = ตอนนั้น, snapshot ราคา/ค่ามือ/staffLevel ณ เวลานั้นทันที) ปิดอัตโนมัติตอน
+/// เข้า COMPLETED (completedAt + paymentMethod ที่ผู้เรียกต้องระบุมาตอนนั้น) — แก้ราคา ServiceVariant หรือ
+/// ระดับพนักงานทีหลังต้องไม่กระทบใบงานเก่าแม้แต่บาทเดียว (ดู docs/PLAN.md T5.5 เกณฑ์ผ่าน, ADR-029)
+model ServiceJob {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  appointmentItemId String          @unique
+  appointmentItem   AppointmentItem @relation(fields: [appointmentItemId], references: [id])
+
+  staffId          String
+  staff            StaffProfile   @relation(fields: [staffId], references: [id])
+  roomId           String
+  room             Room           @relation(fields: [roomId], references: [id])
+  serviceVariantId String
+  serviceVariant   ServiceVariant @relation(fields: [serviceVariantId], references: [id])
+
+  /// snapshot จาก AppointmentItem.assignType ตอนเริ่มงาน (ดู docs/DOMAIN.md ข้อ 1-2)
+  assignType AssignType
+
+  /// snapshot ราคา ณ เวลาเริ่มงาน — ห้าม join กลับไปอ่าน ServiceVariant.priceSatang สด
+  priceSatang      Int
+  /// ระดับพนักงาน ณ เวลาเริ่มงาน (พนักงานอาจถูกปรับระดับทีหลัง แต่ใบงานเก่าต้องอ้างระดับตอนนั้น)
+  staffLevelAtJob  StaffLevel
+  /// อัตราค่ามือที่ตรงกับ staffLevelAtJob ณ เวลานั้น (ตัวเดียว ไม่ใช่ snapshot ทั้ง 3 เรต — ดู ADR-029)
+  commissionSatang Int
+
+  startedAt     DateTime       @db.Timestamptz
+  completedAt   DateTime?      @db.Timestamptz
+  /// null จนกว่าจะจบงาน (COMPLETED) — ตัดสินใจตอนจบงานเสมอ ไม่ใช่ตอนเริ่ม (ดู ADR-029)
+  paymentMethod PaymentMethod?
+  /// ไม่ null แปลว่าใบงานนี้เป็นโมฆะแล้ว (บิลที่ผูกอยู่ถูกยกเลิก ดู docs/decisions.md ADR-030) — T6.2
+  /// (payroll/commission ledger ในอนาคต) ต้องกรอง voidedAt IS NULL เสมอตอนคำนวณค่ามือ ไม่นับใบงานที่เป็นโมฆะ
+  voidedAt      DateTime?      @db.Timestamptz
+
+  billLine BillLine?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([staffId])
+  @@index([serviceVariantId])
+  @@map("service_jobs")
+}
+
+enum BillStatus {
+  PAID
+  CANCELLED
+}
+
+enum BillLineKind {
+  SERVICE_JOB
+  PRODUCT
+}
+
+/// บิล (T5.6) — รวมใบงาน (ServiceJob) + รายการอิสระ (สินค้า ไม่ผูกคลัง ดู docs/decisions.md ADR-030)
+/// โปรโมชั่นใช้ได้โปรฯ เดียวต่อบิล (ดู docs/DOMAIN.md ข้อ 15) คำนวณอัตโนมัติตอน checkout เสมอ ไม่รับ
+/// promotionId จาก client ตรง ๆ — ยกเลิกบิลต้องมี PIN ผู้จัดการ (docs/DOMAIN.md ข้อ 14, 16)
+model Bill {
+  id       String  @id @default(cuid())
+  branchId String
+  branch   Branch  @relation(fields: [branchId], references: [id])
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id])
+
+  /// เลขบิลอ่านง่าย รันต่อสาขา เช่น "B000123" — ไม่ใช่ primary key
+  billNumber String
+
+  subtotalSatang Int
+  promotionId    String?
+  promotion      Promotion? @relation(fields: [promotionId], references: [id])
+  /// ส่วนลดจากโปรฯ ที่ชนะเท่านั้น (ถ้ามี) — คำนวณจาก evaluatePromotions (T5.3) ฝั่ง server เสมอ
+  discountSatang Int        @default(0)
+  totalSatang    Int
+
+  status            BillStatus @default(PAID)
+  cancelledAt       DateTime?  @db.Timestamptz
+  cancelledReason   String?
+  cancelledByUserId String?
+  cancelledByUser   User?      @relation(fields: [cancelledByUserId], references: [id])
+
+  lines    BillLine[]
+  payments BillPayment[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([branchId, billNumber])
+  @@index([branchId])
+  @@index([memberId])
+  @@map("bills")
+}
+
+/// รายการในบิล — kind=SERVICE_JOB ผูกกับใบงานจริง (1 ใบงานอยู่ได้บิลเดียว @unique) kind=PRODUCT เป็น
+/// รายการอิสระไม่ผูกกับ catalog ใด ๆ (ยังไม่มี Product/Inventory model จริง — ดู docs/decisions.md ADR-030)
+model BillLine {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+  billId   String
+  bill     Bill   @relation(fields: [billId], references: [id])
+
+  kind                       BillLineKind
+  serviceJobId               String?        @unique
+  serviceJob                 ServiceJob?    @relation(fields: [serviceJobId], references: [id])
+  /// snapshot ชื่อรายการ ณ เวลาออกบิล (สำหรับ SERVICE_JOB คือชื่อบริการตอนนั้น, สำหรับ PRODUCT คือชื่อที่พนักงานกรอกเอง)
+  description                String
+  priceSatang                Int
+  quantity                   Int            @default(1)
+  paymentMethod              PaymentMethod
+  /// บังคับมีค่าเมื่อ paymentMethod = PACKAGE เท่านั้น — คอร์สใบไหนของสมาชิกที่ถูกตัด
+  memberPackageId            String?
+  memberPackage              MemberPackage? @relation(fields: [memberPackageId], references: [id])
+  /// อ้างอิงแถว USE ที่ ledger ของ MemberPackage สร้างไว้ตอน checkout — ใช้คืนยอดตอนยกเลิกบิล (ดู ADR-030)
+  memberPackageLedgerEntryId String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([billId])
+  @@index([branchId])
+  @@map("bill_lines")
+}
+
+/// ช่องทางที่ใช้ชำระบิลจริง (แยกจาก BillLine.paymentMethod ที่เป็น "แหล่งชำระของแต่ละรายการ") — จ่ายได้
+/// หลายช่องทางในบิลเดียว (ดู docs/PLAN.md T5.6) tenderedSatang มีความหมายเฉพาะ CASH เท่านั้น (คำนวณเงินทอน)
+model BillPayment {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+  billId   String
+  bill     Bill   @relation(fields: [billId], references: [id])
+
+  method         PaymentMethod
+  amountSatang   Int
+  /// เฉพาะ CASH — จำนวนเงินที่ลูกค้ายื่นมาจริง (ไม่บังคับเท่ากับ amountSatang เสมอ ส่วนต่างคือเงินทอน)
+  tenderedSatang Int?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([billId])
+  @@map("bill_payments")
+}
+
+/// รอบกะแคชเชียร์ (T5.7) — "นับเงินในลิ้นชักเทียบยอดระบบ" ตอนปิดรอบ (docs/PLAN.md T5.7) ไม่ผูกกับ Bill
+/// ด้วย foreign key ตรง ๆ (ดู docs/decisions.md ADR-031) — บิลไหน "อยู่ใน" รอบกะไหนหาจากช่วงเวลาแทน
+/// (openedAt..closedAt ครอบ bill.createdAt) เพราะ checkout ไม่บังคับต้องมีรอบกะเปิดอยู่ (ตัดสินใจนี้ในเซสชัน)
+/// เปิด/ปิดทำได้โดยแคชเชียร์เอง (permission billing:manage เดียวกับออกบิล) แต่ "เปิดใหม่" หลังปิดแล้วต้องมี
+/// PIN ผู้จัดการเสมอ (docs/DOMAIN.md ข้อ 16) ใช้กลไก approval token เดียวกับยกเลิกบิล (T5.6, ADR-030)
+model CashierShift {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  openedAt       DateTime @default(now()) @db.Timestamptz
+  openedByUserId String
+  openedByUser   User     @relation("CashierShiftOpenedBy", fields: [openedByUserId], references: [id])
+
+  /// ไม่ null แปลว่าปิดรอบแล้ว — ยกเลิกบิลที่ผูกช่วงเวลานี้ต้องเปิดรอบใหม่ก่อนเสมอ (ดู BillController.cancel)
+  closedAt       DateTime? @db.Timestamptz
+  closedByUserId String?
+  closedByUser   User?     @relation("CashierShiftClosedBy", fields: [closedByUserId], references: [id])
+  /// เงินสดที่แคชเชียร์นับได้จริงในลิ้นชักตอนปิดรอบ
+  countedCashSatang Int?
+  /// ยอดเงินสดตามระบบ ณ ตอนปิด — snapshot ผลรวม BillPayment.amountSatang (method=CASH) ของบิลที่ยังไม่ถูก
+  /// ยกเลิกในช่วง [openedAt, closedAt) เก็บไว้เป็นค่าคงที่ตอนปิด ไม่คำนวณสดใหม่ทุกครั้งที่อ่าน (กันเลขขยับ
+  /// ถ้ามีคนยกเลิกบิลเก่าทีหลังหลังปิดรอบไปแล้ว)
+  systemCashSatang Int?
+  /// countedCashSatang - systemCashSatang (บวก=เงินเกิน, ลบ=เงินขาด) ต้องมี varianceReason เสมอถ้าไม่เท่ากับ 0
+  varianceSatang Int?
+  varianceReason String?
+
+  /// ครั้งล่าสุดที่ถูกเปิดใหม่หลังปิดไปแล้ว (nullable) — ค่าปิดรอบเก่า (closedAt/counted/system/variance
+  /// เดิม) ยังเก็บไว้จนกว่าจะปิดรอบใหม่จริงทับ (ไม่ล้างทิ้งตอนเปิดใหม่ เพื่อเป็นร่องรอยว่าปิดครั้งก่อนเป็นยังไง)
+  reopenedAt       DateTime? @db.Timestamptz
+  reopenedByUserId String?
+  reopenedByUser   User?     @relation("CashierShiftReopenedBy", fields: [reopenedByUserId], references: [id])
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([branchId, openedAt])
+  @@map("cashier_shifts")
 }

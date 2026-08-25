@@ -14,6 +14,7 @@
   "dependencies": {
     "@casl/ability": "7.0.1",
     "@lotus-desk/contracts": "workspace:*",
+    "@lotus-desk/core": "workspace:*",
     "@lotus-desk/db": "workspace:*",
     "@nestjs/common": "11.2.1",
     "@nestjs/config": "4.0.4",

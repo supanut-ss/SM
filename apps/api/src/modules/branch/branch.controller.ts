@@ -37,6 +37,29 @@ export class BranchController {
     return this.prisma.forBranch(branch.branchId).device.findMany({ orderBy: { label: "asc" } });
   }
 
+  /**
+   * ผู้ใช้ (บัญชี login) ของสาขานี้ — เพิ่มเพื่อให้หน้าเว็บเลือก "ผู้จัดการที่จะอนุมัติ" ได้ตอนกรอก PIN
+   * ยกเลิกบิล (T5.6, ดู POST /auth/verify-manager-pin) กันสิทธิ์ด้วย staff:view เพราะแคชเชียร์ต้องเรียกได้
+   * เหมือนกัน (ดู ROLE_PERMISSIONS ใน packages/contracts/src/permissions.ts) ไม่ใช่ endpoint จัดการผู้ใช้ —
+   * ยังไม่มี CRUD ผู้ใช้ในระบบตอนนี้ (รอ Task ที่เกี่ยวกับ user management โดยตรง)
+   */
+  @Get(":branchId/users")
+  @RequirePermission("view", "staff")
+  async listUsers(@CurrentBranch() branch: BranchContext) {
+    const userBranches = await this.prisma.forBranch(branch.branchId).userBranch.findMany({
+      where: { user: { isActive: true } },
+      include: { user: true, role: true },
+      orderBy: { user: { name: "asc" } },
+    });
+    return userBranches.map((ub) => ({
+      id: ub.user.id,
+      name: ub.user.name,
+      email: ub.user.email,
+      roleKey: ub.role.key,
+      roleName: ub.role.name,
+    }));
+  }
+
   @Patch(":branchId")
   @RequirePermission("manage", "branch")
   @AuditEntity("Branch") // AuditInterceptor (global) จับคู่ :branchId กับ entity นี้อัตโนมัติ (ดู T1.5)

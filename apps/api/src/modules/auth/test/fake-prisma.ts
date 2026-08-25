@@ -36,6 +36,8 @@ export interface FakeUserBranch {
   userId: string;
   branchId: string;
   roleId: string;
+  /** ไม่บังคับ — ใช้เฉพาะเทสต์ที่ต้องเช็ค role.key (เช่น verifyManagerPin ใน T5.6) */
+  role?: { key: string };
 }
 
 export function createFakePrisma(

@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "pnpm@9.15.9", "--filter", "@lotus-desk/web", "exec", "next", "dev", "--port", "3600"],
       "port": 3600
+    },
+    {
+      "name": "lotus-api",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "pnpm@9.15.9", "--filter", "@lotus-desk/api", "exec", "nest", "start", "--watch"],
+      "port": 3001
     }
   ]
 }

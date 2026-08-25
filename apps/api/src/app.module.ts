@@ -8,6 +8,15 @@ import { RbacModule } from "./modules/rbac/rbac.module";
 import { BranchModule } from "./modules/branch/branch.module";
 import { StaffModule } from "./modules/staff/staff.module";
 import { RoomModule } from "./modules/room/room.module";
+import { ServiceModule } from "./modules/service/service.module";
+import { ShiftModule } from "./modules/shift/shift.module";
+import { MemberModule } from "./modules/member/member.module";
+import { BookingModule } from "./modules/booking/booking.module";
+import { PackageModule } from "./modules/package/package.module";
+import { MemberPackageModule } from "./modules/member-package/member-package.module";
+import { PromotionModule } from "./modules/promotion/promotion.module";
+import { BillModule } from "./modules/bill/bill.module";
+import { CashierShiftModule } from "./modules/cashier-shift/cashier-shift.module";
 import { AuditModule } from "./audit/audit.module";
 
 @Module({
@@ -26,6 +35,15 @@ import { AuditModule } from "./audit/audit.module";
     BranchModule,
     StaffModule,
     RoomModule,
+    ServiceModule,
+    ShiftModule,
+    MemberModule,
+    BookingModule,
+    PackageModule,
+    MemberPackageModule,
+    PromotionModule,
+    BillModule,
+    CashierShiftModule,
   ],
   controllers: [AppController],
 })
