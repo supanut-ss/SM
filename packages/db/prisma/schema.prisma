@@ -63,6 +63,7 @@ model Branch {
   billLines                  BillLine[]
   billPayments               BillPayment[]
   cashierShifts              CashierShift[]
+  attendanceRecords          AttendanceRecord[]
 
   @@map("branches")
 }
@@ -116,6 +117,9 @@ model User {
   openedCashierShifts                CashierShift[] @relation("CashierShiftOpenedBy")
   closedCashierShifts                CashierShift[] @relation("CashierShiftClosedBy")
   reopenedCashierShifts              CashierShift[] @relation("CashierShiftReopenedBy")
+  /// ฝั่งตรงข้ามของ StaffProfile.userId (T6.1) — user คนนี้ผูกกับพนักงานคนไหน (ถ้ามี) ใช้หาว่า PIN
+  /// login แล้วคือพนักงานคนไหนตอนลงเวลาเข้า/ออกงาน
+  staffProfile                       StaffProfile?
 
   @@map("users")
 }
@@ -221,9 +225,14 @@ enum StaffSkill {
 /// โปรไฟล์พนักงานให้บริการ (นวด/เสริมความงาม) — แยกจาก User (บัญชีล็อกอินระบบหลังบ้าน) โดยตั้งใจ
 /// พนักงานให้บริการจำนวนมากไม่มีบัญชี User เลย (ไม่ต้อง login เข้าระบบหลังบ้าน)
 model StaffProfile {
-  id        String       @id @default(cuid())
-  branchId  String
-  branch    Branch       @relation(fields: [branchId], references: [id])
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+  /// ผูกกับบัญชีผู้ใช้ที่ล็อกอินได้ (nullable, 1:1) — ใช้ตอนลงเวลาทำงานด้วย PIN (T6.1) เพื่อหาว่า user ที่
+  /// authenticate แล้ว (ผ่าน JwtAuthGuard) คือพนักงานคนไหน ไม่ผูกทุกคนเพราะบทบาทอื่น (เจ้าของ/ผู้จัดการ/
+  /// แคชเชียร์) ไม่มี StaffProfile — ผูก/แก้ได้ผ่าน StaffController (create/update) เหมือนฟิลด์อื่น
+  userId    String?      @unique
+  user      User?        @relation(fields: [userId], references: [id])
   name      String
   phone     String?
   level     StaffLevel
@@ -234,11 +243,12 @@ model StaffProfile {
   createdAt DateTime     @default(now()) @db.Timestamptz
   updatedAt DateTime     @updatedAt @db.Timestamptz
 
-  staffShifts      StaffShift[]
-  staffLeaves      StaffLeave[]
-  appointmentItems AppointmentItem[]
-  queueEntries     StaffQueueEntry[]
-  serviceJobs      ServiceJob[]
+  staffShifts       StaffShift[]
+  staffLeaves       StaffLeave[]
+  appointmentItems  AppointmentItem[]
+  queueEntries      StaffQueueEntry[]
+  serviceJobs       ServiceJob[]
+  attendanceRecords AttendanceRecord[]
 
   @@index([branchId])
   @@map("staff_profiles")
@@ -401,6 +411,8 @@ model StaffShift {
   createdAt       DateTime      @default(now()) @db.Timestamptz
   updatedAt       DateTime      @updatedAt @db.Timestamptz
 
+  attendanceRecords AttendanceRecord[]
+
   @@index([branchId])
   @@index([staffId, date])
   @@map("staff_shifts")
@@ -431,6 +443,44 @@ model StaffLeave {
   @@index([branchId])
   @@index([staffId, date])
   @@map("staff_leaves")
+}
+
+/// ลงเวลาทำงานของพนักงาน (T6.1) — clockInAt มีเสมอ, clockOutAt null แปลว่ายังไม่ลงเวลาออก (รอบเปิดอยู่)
+/// ลงเวลาเข้าใหม่ระหว่างที่มีรอบเปิดอยู่แล้วต้องถูกปฏิเสธ (ต้องลงเวลาออกก่อนเสมอ) เช็คที่ AttendanceController
+/// จับคู่กับ StaffShift ที่ใกล้เวลาเข้างานที่สุดในวันเดียวกัน (ถ้ามีกะ มากกว่า 1 กะเลือกกะที่ยังไม่ถูกจับคู่
+/// และ startMin ใกล้เวลาที่ลงเข้างานจริงที่สุด — ดู packages/core/attendance) เพื่อคำนวณสาย/OT ไม่มีกะให้จับคู่
+/// (staffShiftId เป็น null) แปลว่าลงเวลานอกตาราง เก็บไว้เพื่อรายงานอย่างเดียว ไม่คำนวณสาย/ขาด/OT
+/// ไม่มีค่าปรับหักเงินจากสาย/ขาด (docs/DOMAIN.md ข้อ 13) ตัวเลขพวกนี้ใช้เพื่อรายงาน/ตักเตือนเท่านั้น
+model AttendanceRecord {
+  id       String       @id @default(cuid())
+  branchId String
+  branch   Branch       @relation(fields: [branchId], references: [id])
+  staffId  String
+  staff    StaffProfile @relation(fields: [staffId], references: [id])
+
+  /// วันทำงานตามปฏิทินกรุงเทพฯ ของ clockInAt (UTC+7 คงที่ ไม่มี DST — ดู packages/core/attendance) ใช้
+  /// จับคู่กับ StaffShift.date และกลุ่มรายงานรายวัน ไม่ใช่วันที่ตาม UTC ดิบของ clockInAt
+  date DateTime @db.Date
+
+  staffShiftId String?
+  staffShift   StaffShift? @relation(fields: [staffShiftId], references: [id])
+
+  clockInAt DateTime @db.Timestamptz
+  /// นาทีที่มาสาย เทียบกับ staffShift.startMin — null ถ้าไม่มีกะให้เทียบ
+  lateMinutes Int?
+
+  clockOutAt DateTime? @db.Timestamptz
+  /// นาทีที่ทำงานเกินกะ (ล่วงเวลา) เทียบกับ staffShift.endMin — null ถ้าไม่มีกะ หรือยังไม่ลงเวลาออก
+  otMinutes Int?
+  /// นาทีที่ออกก่อนกะจบ — null ถ้าไม่มีกะ หรือยังไม่ลงเวลาออก
+  earlyLeaveMinutes Int?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([staffId, date])
+  @@map("attendance_records")
 }
 
 /// สมาชิก (T3.1) — รหัสสมาชิก (code) รันอัตโนมัติต่อสาขา รูปแบบ "M" + เลข 6 หลัก (ดู MemberController)

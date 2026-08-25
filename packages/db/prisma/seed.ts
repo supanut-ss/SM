@@ -58,6 +58,7 @@ async function main() {
   const passwordHash = await argon2.hash(DEV_PASSWORD);
   const pinHash = await argon2.hash(DEV_PIN);
 
+  const userByRoleKey = new Map<string, { id: string }>();
   for (const roleDef of ROLE_DEFINITIONS) {
     const role = roleByKey.get(roleDef.key)!;
     const email = `${roleDef.key}@lotusdesk.local`;
@@ -71,6 +72,7 @@ async function main() {
       update: { roleId: role.id },
       create: { userId: user.id, branchId: branch.id, roleId: role.id },
     });
+    userByRoleKey.set(roleDef.key, user);
   }
 
   const staffSeeds = [
@@ -94,6 +96,17 @@ async function main() {
         },
       }));
     staffByName.set(staffSeed.name, staff);
+  }
+
+  // ผูกบัญชี "พนักงานบริการ" (staff@lotusdesk.local) กับ "นก" ไว้เป็นตัวอย่าง (T6.1) — เดโมและ dev เท่านั้น
+  // ให้ PIN login (DEV_PIN) แล้วลงเวลาเข้า/ออกงานทดสอบได้ทันทีโดยไม่ต้องผูกเองผ่านหน้าจัดการพนักงานก่อน
+  const staffRoleUser = userByRoleKey.get("staff");
+  const staffProfileForDemo = staffByName.get("นก");
+  if (staffRoleUser && staffProfileForDemo) {
+    await prisma.staffProfile.update({
+      where: { id: staffProfileForDemo.id },
+      data: { userId: staffRoleUser.id },
+    });
   }
 
   const roomTypeNames = ["ห้องนวดเดี่ยว", "ห้องนวดคู่", "ห้องสปา", "ห้องทำหน้า"];

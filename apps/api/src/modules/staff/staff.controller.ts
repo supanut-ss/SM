@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   NotFoundException,
@@ -7,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  UnprocessableEntityException,
   UseGuards,
 } from "@nestjs/common";
 import { createStaffSchema, updateStaffSchema, type CreateStaffInput, type UpdateStaffInput } from "@lotus-desk/contracts";
@@ -73,9 +75,16 @@ export class StaffController {
     @CurrentBranch() branch: BranchContext,
     @Body(new ZodValidationPipe(createStaffSchema)) body: CreateStaffInput,
   ) {
-    return this.prisma.client.staffProfile.create({
-      data: { ...body, branchId: branch.branchId },
-    });
+    if (body.userId) {
+      await this.assertUserLinkable(branch.branchId, body.userId);
+    }
+    try {
+      return await this.prisma.client.staffProfile.create({
+        data: { ...body, branchId: branch.branchId },
+      });
+    } catch (err) {
+      throw this.translateUserLinkError(err);
+    }
   }
 
   @Patch(":staffId")
@@ -90,6 +99,31 @@ export class StaffController {
     if (!existing || existing.branchId !== branch.branchId) {
       throw new NotFoundException("ไม่พบพนักงานนี้");
     }
-    return this.prisma.client.staffProfile.update({ where: { id: staffId }, data: body });
+    if (body.userId) {
+      await this.assertUserLinkable(branch.branchId, body.userId);
+    }
+    try {
+      return await this.prisma.client.staffProfile.update({ where: { id: staffId }, data: body });
+    } catch (err) {
+      throw this.translateUserLinkError(err);
+    }
+  }
+
+  /** ผูก StaffProfile กับบัญชีผู้ใช้ (T6.1) — บัญชีต้องมีอยู่จริงและสังกัดสาขาเดียวกันเท่านั้น กันการผูกข้ามสาขา */
+  private async assertUserLinkable(branchId: string, userId: string): Promise<void> {
+    const userBranch = await this.prisma.client.userBranch.findUnique({
+      where: { userId_branchId: { userId, branchId } },
+    });
+    if (!userBranch) {
+      throw new UnprocessableEntityException("บัญชีผู้ใช้นี้ไม่พบ หรือไม่ได้สังกัดสาขานี้");
+    }
+  }
+
+  /** unique constraint บน StaffProfile.userId ชนตอนบัญชีถูกผูกกับพนักงานคนอื่นไปแล้ว — แปลเป็นข้อความอ่านรู้เรื่อง */
+  private translateUserLinkError(err: unknown): unknown {
+    if (err && typeof err === "object" && "code" in err && err.code === "P2002") {
+      return new ConflictException("บัญชีผู้ใช้นี้ถูกผูกกับพนักงานคนอื่นไปแล้ว");
+    }
+    return err;
   }
 }

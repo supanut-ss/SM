@@ -125,6 +125,8 @@ export const userApi = {
 export interface StaffProfile {
   id: string;
   branchId: string;
+  // ผูกกับบัญชีผู้ใช้ที่ล็อกอินได้ (T6.1) — null แปลว่ายังไม่ผูก (ลงเวลาทำงานไม่ได้จนกว่าจะผูก)
+  userId: string | null;
   name: string;
   phone: string | null;
   level: StaffLevel;
@@ -889,6 +891,59 @@ export const cashierShiftApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+};
+
+/** ดู AttendanceController — ลงเวลาทำงาน (T6.1) clockOutAt null แปลว่ายังไม่ลงเวลาออก (รอบเปิดอยู่) */
+export interface AttendanceRecord {
+  id: string;
+  branchId: string;
+  staffId: string;
+  date: string;
+  staffShiftId: string | null;
+  clockInAt: string;
+  lateMinutes: number | null;
+  clockOutAt: string | null;
+  otMinutes: number | null;
+  earlyLeaveMinutes: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttendanceMe {
+  staffId: string | null;
+  staffName: string | null;
+  openRecord: AttendanceRecord | null;
+}
+
+export type AttendanceShiftStatus = "UPCOMING" | "IN_PROGRESS" | "COMPLETED" | "ABSENT";
+
+export interface AttendanceDailySummaryRow {
+  staffShiftId: string;
+  staffId: string;
+  staffName: string;
+  startMin: number;
+  endMin: number;
+  status: AttendanceShiftStatus;
+}
+
+export const attendanceApi = {
+  // "ฉัน" (ผู้ใช้ที่ล็อกอินอยู่ตอนนี้) — UI ใช้ตัดสินใจว่าจะโชว์ปุ่ม "เข้างาน" หรือ "ออกงาน"
+  me: (branchId: string) => apiFetch<AttendanceMe>(`/branches/${branchId}/attendance/me`),
+  clockIn: (branchId: string) =>
+    apiFetch<AttendanceRecord>(`/branches/${branchId}/attendance/clock-in`, { method: "POST" }),
+  clockOut: (branchId: string) =>
+    apiFetch<AttendanceRecord>(`/branches/${branchId}/attendance/clock-out`, { method: "POST" }),
+  list: (branchId: string, params?: { staffId?: string; date?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.staffId) query.set("staffId", params.staffId);
+    if (params?.date) query.set("date", params.date);
+    const qs = query.toString();
+    return apiFetch<AttendanceRecord[]>(`/branches/${branchId}/attendance${qs ? `?${qs}` : ""}`);
+  },
+  summary: (branchId: string, date?: string) =>
+    apiFetch<AttendanceDailySummaryRow[]>(
+      `/branches/${branchId}/attendance/summary${date ? `?date=${date}` : ""}`,
+    ),
 };
 
 export type { LinePaymentMethod, PaymentMethod };

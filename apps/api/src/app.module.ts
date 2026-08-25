@@ -17,6 +17,7 @@ import { MemberPackageModule } from "./modules/member-package/member-package.mod
 import { PromotionModule } from "./modules/promotion/promotion.module";
 import { BillModule } from "./modules/bill/bill.module";
 import { CashierShiftModule } from "./modules/cashier-shift/cashier-shift.module";
+import { AttendanceModule } from "./modules/attendance/attendance.module";
 import { AuditModule } from "./audit/audit.module";
 
 @Module({
@@ -44,6 +45,7 @@ import { AuditModule } from "./audit/audit.module";
     PromotionModule,
     BillModule,
     CashierShiftModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
 })

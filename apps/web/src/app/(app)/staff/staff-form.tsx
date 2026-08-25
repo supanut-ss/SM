@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import {
   createStaffSchema,
   STAFF_LEVELS,
@@ -13,7 +14,7 @@ import {
   type CreateStaffInput,
 } from "@lotus-desk/contracts";
 import { Button, Input, Label, Select, Textarea } from "@lotus-desk/ui";
-import { ApiError } from "../../../lib/api-client";
+import { ApiError, userApi } from "../../../lib/api-client";
 
 export type StaffFormValues = CreateStaffInput;
 
@@ -26,14 +27,17 @@ const EMPTY_VALUES: Partial<CreateStaffFormInput> = {
   phone: "",
   skills: [],
   note: "",
+  userId: "",
 };
 
 export function StaffForm({
+  branchId,
   initialValues,
   submitLabel,
   onSubmit,
   onCancel,
 }: {
+  branchId: string;
   initialValues?: Partial<StaffFormValues>;
   submitLabel: string;
   onSubmit: (values: StaffFormValues) => Promise<void>;
@@ -48,6 +52,12 @@ export function StaffForm({
   } = useForm<CreateStaffFormInput, unknown, StaffFormValues>({
     resolver: zodResolver(createStaffSchema),
     defaultValues: { ...EMPTY_VALUES, ...initialValues },
+  });
+
+  // รายชื่อบัญชีผู้ใช้ของสาขานี้ — ให้เลือกผูกกับพนักงานคนนี้เพื่อลงเวลาทำงานด้วย PIN ได้ (T6.1)
+  const usersQuery = useQuery({
+    queryKey: ["branch-users", branchId],
+    queryFn: () => userApi.list(branchId),
   });
 
   async function submit(values: StaffFormValues) {
@@ -143,6 +153,21 @@ export function StaffForm({
             />
           )}
         />
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="staff-user">บัญชีที่ใช้ลงเวลาทำงาน (ถ้ามี)</Label>
+        <Select id="staff-user" {...register("userId")} defaultValue="">
+          <option value="">-- ไม่ผูกบัญชี --</option>
+          {usersQuery.data?.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name} ({u.email})
+            </option>
+          ))}
+        </Select>
+        <p className="text-xs text-ink-muted">
+          ผูกกับบัญชีที่มี PIN แล้วเพื่อให้พนักงานคนนี้กดลงเวลาเข้า/ออกงานเองได้ที่เครื่องหน้าร้าน
+        </p>
       </div>
 
       <div className="grid gap-1.5">
