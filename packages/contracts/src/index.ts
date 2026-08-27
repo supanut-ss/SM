@@ -18,3 +18,4 @@ export * from "./payment.js";
 export * from "./cashier-shift.js";
 export * from "./bill.js";
 export * from "./attendance.js";
+export * from "./payroll.js";

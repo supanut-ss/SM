@@ -312,6 +312,23 @@ export class BillController {
       );
     }
 
+    // งวดจ่ายค่ามือที่ "ครอบ" ช่วงเวลาที่บิลนี้ถูกสร้าง (T6.4) — หลักการเดียวกับ governingShift ด้านบน
+    // (หาจากช่วงเวลาแทน ไม่มี FK ตรง ๆ) ถ้างวดนั้นปิดไปแล้วต้องให้ผู้จัดการเปิดใหม่ก่อนถึงจะยกเลิกบิลได้
+    // (เกณฑ์ผ่าน T6.4: "ปิดงวดแล้วแก้ใบงานย้อนหลังต้องถูกปฏิเสธ")
+    const governingPayrollPeriod = await this.prisma.client.payrollPeriod.findFirst({
+      where: {
+        branchId: branch.branchId,
+        periodStart: { lte: bill.createdAt },
+        OR: [{ periodEnd: null }, { periodEnd: { gte: bill.createdAt } }],
+      },
+      orderBy: { periodStart: "desc" },
+    });
+    if (governingPayrollPeriod?.closedAt) {
+      throw new ConflictException(
+        "บิลนี้อยู่ในงวดจ่ายค่ามือที่ปิดไปแล้ว ต้องให้ผู้จัดการเปิดงวดนี้ใหม่ก่อนถึงจะยกเลิกบิลได้",
+      );
+    }
+
     await this.prisma.client.$transaction(async (tx) => {
       for (const line of bill.lines) {
         if (line.memberPackageLedgerEntryId) {
