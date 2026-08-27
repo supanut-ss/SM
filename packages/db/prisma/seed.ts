@@ -79,20 +79,27 @@ async function main() {
     { name: "ปุ๊ก", level: "JUNIOR" as const, skills: ["NAIL"] as const },
   ];
   const staffByName = new Map<string, { id: string }>();
-  for (const staffSeed of staffSeeds) {
+  for (const [index, staffSeed] of staffSeeds.entries()) {
+    // PIN ลงเวลาเข้า-ออกงาน (T6.1) — ค่า placeholder สำหรับ dev เท่านั้น ห้ามใช้ค่านี้ใน production
+    // (แพทเทิร์นเดียวกับ DEV_PASSWORD/DEV_PIN และค่ามือ placeholder ด้านบน) เลขชัดเจนว่าไม่ใช่ของจริง
+    const staffPinHash = await argon2.hash(`10000${index}`);
     const existing = await prisma.staffProfile.findFirst({
       where: { branchId: branch.id, name: staffSeed.name },
     });
-    const staff =
-      existing ??
-      (await prisma.staffProfile.create({
-        data: {
-          branchId: branch.id,
-          name: staffSeed.name,
-          level: staffSeed.level,
-          skills: [...staffSeed.skills],
-        },
-      }));
+    const staff = existing
+      ? await prisma.staffProfile.update({
+          where: { id: existing.id },
+          data: { pinHash: staffPinHash },
+        })
+      : await prisma.staffProfile.create({
+          data: {
+            branchId: branch.id,
+            name: staffSeed.name,
+            level: staffSeed.level,
+            skills: [...staffSeed.skills],
+            pinHash: staffPinHash,
+          },
+        });
     staffByName.set(staffSeed.name, staff);
   }
 

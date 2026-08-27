@@ -37,32 +37,37 @@ model Branch {
   createdAt                       DateTime @default(now()) @db.Timestamptz
   updatedAt                       DateTime @updatedAt @db.Timestamptz
 
-  auditLogs                  AuditLog[]
-  userBranches               UserBranch[]
-  devices                    Device[]
-  staffProfiles              StaffProfile[]
-  roomTypes                  RoomType[]
-  rooms                      Room[]
-  serviceCategories          ServiceCategory[]
-  services                   Service[]
-  shiftTemplates             ShiftTemplate[]
-  staffShifts                StaffShift[]
-  staffLeaves                StaffLeave[]
-  members                    Member[]
-  memberConsents             MemberConsent[]
-  appointments               Appointment[]
-  appointmentItems           AppointmentItem[]
-  staffQueueEntries          StaffQueueEntry[]
-  packages                   Package[]
-  memberPackages             MemberPackage[]
-  memberPackageLedgerEntries MemberPackageLedgerEntry[]
-  promotions                 Promotion[]
-  coupons                    Coupon[]
-  serviceJobs                ServiceJob[]
-  bills                      Bill[]
-  billLines                  BillLine[]
-  billPayments               BillPayment[]
-  cashierShifts              CashierShift[]
+  auditLogs                   AuditLog[]
+  userBranches                UserBranch[]
+  devices                     Device[]
+  staffProfiles               StaffProfile[]
+  roomTypes                   RoomType[]
+  rooms                       Room[]
+  serviceCategories           ServiceCategory[]
+  services                    Service[]
+  shiftTemplates              ShiftTemplate[]
+  staffShifts                 StaffShift[]
+  staffLeaves                 StaffLeave[]
+  members                     Member[]
+  memberConsents              MemberConsent[]
+  appointments                Appointment[]
+  appointmentItems            AppointmentItem[]
+  staffQueueEntries           StaffQueueEntry[]
+  packages                    Package[]
+  memberPackages              MemberPackage[]
+  memberPackageLedgerEntries  MemberPackageLedgerEntry[]
+  promotions                  Promotion[]
+  coupons                     Coupon[]
+  serviceJobs                 ServiceJob[]
+  bills                       Bill[]
+  billLines                   BillLine[]
+  billPayments                BillPayment[]
+  cashierShifts               CashierShift[]
+  timeClockEntries            TimeClockEntry[]
+  billTips                    BillTip[]
+  tipAllocations              TipAllocation[]
+  payrollPeriods              PayrollPeriod[]
+  payrollPeriodStaffSummaries PayrollPeriodStaffSummary[]
 
   @@map("branches")
 }
@@ -113,9 +118,15 @@ model User {
   /// อนุมัติยกเลิกบิลด้วย PIN (T5.6) ดู docs/decisions.md ADR-030
   cancelledBills                     Bill[]
   /// รอบกะแคชเชียร์ (T5.7) ที่เปิด/ปิด/เปิดใหม่ — แยก 3 relation เพราะเป็นคนละ FK ไปยัง User คนเดียวกันได้
-  openedCashierShifts                CashierShift[] @relation("CashierShiftOpenedBy")
-  closedCashierShifts                CashierShift[] @relation("CashierShiftClosedBy")
-  reopenedCashierShifts              CashierShift[] @relation("CashierShiftReopenedBy")
+  openedCashierShifts                CashierShift[]             @relation("CashierShiftOpenedBy")
+  closedCashierShifts                CashierShift[]             @relation("CashierShiftClosedBy")
+  reopenedCashierShifts              CashierShift[]             @relation("CashierShiftReopenedBy")
+  /// บันทึกทิปที่หน้าบิล (T6.3)
+  recordedBillTips                   BillTip[]
+  /// งวดจ่ายค่ามือ (T6.4) ที่เปิด/ปิด/เปิดใหม่ — แยก 3 relation เหตุผลเดียวกับ CashierShift ด้านบน
+  openedPayrollPeriods               PayrollPeriod[]            @relation("PayrollPeriodOpenedBy")
+  closedPayrollPeriods               PayrollPeriod[]            @relation("PayrollPeriodClosedBy")
+  reopenedPayrollPeriods             PayrollPeriod[]            @relation("PayrollPeriodReopenedBy")
 
   @@map("users")
 }
@@ -221,24 +232,34 @@ enum StaffSkill {
 /// โปรไฟล์พนักงานให้บริการ (นวด/เสริมความงาม) — แยกจาก User (บัญชีล็อกอินระบบหลังบ้าน) โดยตั้งใจ
 /// พนักงานให้บริการจำนวนมากไม่มีบัญชี User เลย (ไม่ต้อง login เข้าระบบหลังบ้าน)
 model StaffProfile {
-  id        String       @id @default(cuid())
-  branchId  String
-  branch    Branch       @relation(fields: [branchId], references: [id])
-  name      String
-  phone     String?
-  level     StaffLevel
-  skills    StaffSkill[]
-  startDate DateTime?    @db.Timestamptz
-  note      String?
-  isActive  Boolean      @default(true)
-  createdAt DateTime     @default(now()) @db.Timestamptz
-  updatedAt DateTime     @updatedAt @db.Timestamptz
+  id                String       @id @default(cuid())
+  branchId          String
+  branch            Branch       @relation(fields: [branchId], references: [id])
+  name              String
+  phone             String?
+  level             StaffLevel
+  skills            StaffSkill[]
+  startDate         DateTime?    @db.Timestamptz
+  note              String?
+  isActive          Boolean      @default(true)
+  /// PIN 6 หลักสำหรับลงเวลาเข้า-ออกงานที่เครื่องหน้าร้าน (T6.1) — เข้ารหัสด้วย argon2 เหมือน User.pinHash
+  /// (T1.3) แต่เป็นคนละระบบกันโดยตั้งใจ: พนักงานให้บริการส่วนใหญ่ไม่มีบัญชี User เลย (ดู comment บนสุดของ
+  /// โมเดลนี้) จึงแยก PIN เฉพาะสำหรับลงเวลาไว้ที่นี่ ไม่ผูกกับสิทธิ์ RBAC ใด ๆ ทั้งสิ้น — lockout ใช้ค่า
+  /// คงที่ร่วมกับ PIN_MAX_ATTEMPTS/PIN_LOCKOUT_MS ของ auth module (ดู attendance.service.ts)
+  pinHash           String?
+  pinFailedAttempts Int          @default(0)
+  pinLockedUntil    DateTime?    @db.Timestamptz
+  createdAt         DateTime     @default(now()) @db.Timestamptz
+  updatedAt         DateTime     @updatedAt @db.Timestamptz
 
-  staffShifts      StaffShift[]
-  staffLeaves      StaffLeave[]
-  appointmentItems AppointmentItem[]
-  queueEntries     StaffQueueEntry[]
-  serviceJobs      ServiceJob[]
+  staffShifts                 StaffShift[]
+  staffLeaves                 StaffLeave[]
+  appointmentItems            AppointmentItem[]
+  queueEntries                StaffQueueEntry[]
+  serviceJobs                 ServiceJob[]
+  timeClockEntries            TimeClockEntry[]
+  tipAllocations              TipAllocation[]
+  payrollPeriodStaffSummaries PayrollPeriodStaffSummary[]
 
   @@index([branchId])
   @@map("staff_profiles")
@@ -401,9 +422,34 @@ model StaffShift {
   createdAt       DateTime      @default(now()) @db.Timestamptz
   updatedAt       DateTime      @updatedAt @db.Timestamptz
 
+  timeClockEntries TimeClockEntry[]
+
   @@index([branchId])
   @@index([staffId, date])
   @@map("staff_shifts")
+}
+
+/// รายการลงเวลาเข้า-ออกงานของพนักงานให้บริการ (T6.1) — บันทึกทุกเหตุการณ์เป็นแถวใหม่ ไม่ overwrite ทับ
+/// (คนละกลไกจาก AuditLog แต่หลักการเดียวกัน) ยืนยันตัวตนด้วย StaffProfile.pinHash ที่เครื่องหน้าร้าน
+/// staffShiftId เป็น nullable — ระบบพยายามจับคู่กะที่ตรงกับวันนั้นให้อัตโนมัติตอนลงเวลาเข้า ถ้าไม่มีกะที่
+/// ตรงกันก็ยังลงเวลาได้ปกติ แค่คำนวณสาย/ขาด/OT ไม่ได้ (ดู packages/core/attendance, สถานะ "NO_SHIFT")
+/// clockOutAt = null แปลว่ายังไม่ออกงาน (มีได้แค่ 1 แถวแบบนี้ต่อพนักงานพร้อมกัน บังคับที่ระดับ service)
+model TimeClockEntry {
+  id           String       @id @default(cuid())
+  branchId     String
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  staffId      String
+  staff        StaffProfile @relation(fields: [staffId], references: [id])
+  staffShiftId String?
+  staffShift   StaffShift?  @relation(fields: [staffShiftId], references: [id])
+  clockInAt    DateTime     @db.Timestamptz
+  clockOutAt   DateTime?    @db.Timestamptz
+  createdAt    DateTime     @default(now()) @db.Timestamptz
+  updatedAt    DateTime     @updatedAt @db.Timestamptz
+
+  @@index([branchId])
+  @@index([staffId, clockInAt])
+  @@map("time_clock_entries")
 }
 
 enum LeaveType {
@@ -918,6 +964,7 @@ model Bill {
 
   lines    BillLine[]
   payments BillPayment[]
+  tip      BillTip?
 
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
@@ -978,6 +1025,51 @@ model BillPayment {
   @@map("bill_payments")
 }
 
+/// ทิปที่บันทึกต่อบิล (T6.3) — เข้ากองกลางพนักงานทุกคนเสมอ ไม่ใช่ของพนักงานคนใดคนหนึ่งโดยเฉพาะ
+/// (docs/DOMAIN.md ข้อ 12) จึงไม่ผูกกับ ServiceJob/staffId ตรง ๆ ที่นี่ — คำนวณแบ่งทันทีตอนบันทึกทิป
+/// เป็นแถวใน TipAllocation (ดู docs/decisions.md ADR-032): ค่าเริ่มต้นชั่วคราวคือแบ่งเท่ากันทุกคนที่มี
+/// TimeClockEntry คลุมวันปฏิทินไทยเดียวกับบิลนี้ที่สาขาเดียวกัน — รอผู้ใช้ยืนยันเกณฑ์แบ่งทิปจริงจาก
+/// docs/DOMAIN.md ข้อ 12 (ยังไม่ตอบ) แล้วมาปรับ
+model BillTip {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+  billId   String @unique
+  bill     Bill   @relation(fields: [billId], references: [id])
+
+  cashSatang     Int @default(0)
+  transferSatang Int @default(0)
+
+  createdByUserId String
+  createdByUser   User   @relation(fields: [createdByUserId], references: [id])
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  allocations TipAllocation[]
+
+  @@index([branchId])
+  @@map("bill_tips")
+}
+
+/// ผลการแบ่งทิปของ BillTip 1 รายการ ต่อพนักงาน 1 คน (T6.3) — คำนวณทันทีตอนบันทึกทิป ไม่ใช่ตอนปิดงวด
+/// (ดู BillTip ด้านบน) T6.4 อ่านผลรวมจากตารางนี้ตรง ๆ ตอนสรุปงวดจ่าย ไม่คำนวณแบ่งซ้ำ
+model TipAllocation {
+  id        String       @id @default(cuid())
+  branchId  String
+  branch    Branch       @relation(fields: [branchId], references: [id])
+  billTipId String
+  billTip   BillTip      @relation(fields: [billTipId], references: [id])
+  staffId   String
+  staff     StaffProfile @relation(fields: [staffId], references: [id])
+  tipSatang Int
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([branchId])
+  @@index([staffId])
+  @@map("tip_allocations")
+}
+
 /// รอบกะแคชเชียร์ (T5.7) — "นับเงินในลิ้นชักเทียบยอดระบบ" ตอนปิดรอบ (docs/PLAN.md T5.7) ไม่ผูกกับ Bill
 /// ด้วย foreign key ตรง ๆ (ดู docs/decisions.md ADR-031) — บิลไหน "อยู่ใน" รอบกะไหนหาจากช่วงเวลาแทน
 /// (openedAt..closedAt ครอบ bill.createdAt) เพราะ checkout ไม่บังคับต้องมีรอบกะเปิดอยู่ (ตัดสินใจนี้ในเซสชัน)
@@ -993,18 +1085,18 @@ model CashierShift {
   openedByUser   User     @relation("CashierShiftOpenedBy", fields: [openedByUserId], references: [id])
 
   /// ไม่ null แปลว่าปิดรอบแล้ว — ยกเลิกบิลที่ผูกช่วงเวลานี้ต้องเปิดรอบใหม่ก่อนเสมอ (ดู BillController.cancel)
-  closedAt       DateTime? @db.Timestamptz
-  closedByUserId String?
-  closedByUser   User?     @relation("CashierShiftClosedBy", fields: [closedByUserId], references: [id])
+  closedAt          DateTime? @db.Timestamptz
+  closedByUserId    String?
+  closedByUser      User?     @relation("CashierShiftClosedBy", fields: [closedByUserId], references: [id])
   /// เงินสดที่แคชเชียร์นับได้จริงในลิ้นชักตอนปิดรอบ
   countedCashSatang Int?
   /// ยอดเงินสดตามระบบ ณ ตอนปิด — snapshot ผลรวม BillPayment.amountSatang (method=CASH) ของบิลที่ยังไม่ถูก
   /// ยกเลิกในช่วง [openedAt, closedAt) เก็บไว้เป็นค่าคงที่ตอนปิด ไม่คำนวณสดใหม่ทุกครั้งที่อ่าน (กันเลขขยับ
   /// ถ้ามีคนยกเลิกบิลเก่าทีหลังหลังปิดรอบไปแล้ว)
-  systemCashSatang Int?
+  systemCashSatang  Int?
   /// countedCashSatang - systemCashSatang (บวก=เงินเกิน, ลบ=เงินขาด) ต้องมี varianceReason เสมอถ้าไม่เท่ากับ 0
-  varianceSatang Int?
-  varianceReason String?
+  varianceSatang    Int?
+  varianceReason    String?
 
   /// ครั้งล่าสุดที่ถูกเปิดใหม่หลังปิดไปแล้ว (nullable) — ค่าปิดรอบเก่า (closedAt/counted/system/variance
   /// เดิม) ยังเก็บไว้จนกว่าจะปิดรอบใหม่จริงทับ (ไม่ล้างทิ้งตอนเปิดใหม่ เพื่อเป็นร่องรอยว่าปิดครั้งก่อนเป็นยังไง)
@@ -1017,4 +1109,64 @@ model CashierShift {
 
   @@index([branchId, openedAt])
   @@map("cashier_shifts")
+}
+
+/// งวดจ่ายค่ามือ (T6.4) — เปิด/ปิด/เปิดใหม่ด้วยกลไกเดียวกับ CashierShift ด้านบน (T5.7): เปิดไม่ต้องมี PIN,
+/// เปิดใหม่หลังปิดแล้วต้องมี PIN ผู้จัดการเสมอ (ใช้ approval token ร่วมกับยกเลิกบิล/เปิดรอบกะใหม่) ปิดงวด
+/// แล้วคำนวณสรุปค่ามือ+ทิปต่อพนักงานเป็น snapshot ลง PayrollPeriodStaffSummary ทันที ไม่คำนวณสดใหม่ทุกครั้ง
+/// ที่อ่าน (หลักการเดียวกับ CashierShift.systemCashSatang) — ปิดงวดแล้วยกเลิกบิลที่มีใบงานอยู่ในช่วงเวลานี้
+/// ต้องถูกปฏิเสธจนกว่าจะเปิดงวดนี้ใหม่ (ดู BillController.cancel, docs/decisions.md ADR-033)
+model PayrollPeriod {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  periodStart DateTime @default(now()) @db.Timestamptz
+
+  openedByUserId String
+  openedByUser   User   @relation("PayrollPeriodOpenedBy", fields: [openedByUserId], references: [id])
+
+  /// ไม่ null แปลว่าปิดงวดแล้ว — เท่ากับ closedAt เสมอตอนปิด (ไม่รับค่าจาก client)
+  periodEnd      DateTime? @db.Timestamptz
+  closedAt       DateTime? @db.Timestamptz
+  closedByUserId String?
+  closedByUser   User?     @relation("PayrollPeriodClosedBy", fields: [closedByUserId], references: [id])
+
+  /// ครั้งล่าสุดที่ถูกเปิดใหม่หลังปิดไปแล้ว — ค่าปิดงวดเก่า (closedAt/periodEnd/summaries เดิม) ยังเก็บไว้
+  /// จนกว่าจะปิดงวดใหม่จริงทับ (หลักการเดียวกับ CashierShift.reopenedAt)
+  reopenedAt       DateTime? @db.Timestamptz
+  reopenedByUserId String?
+  reopenedByUser   User?     @relation("PayrollPeriodReopenedBy", fields: [reopenedByUserId], references: [id])
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  summaries PayrollPeriodStaffSummary[]
+
+  @@index([branchId, periodStart])
+  @@map("payroll_periods")
+}
+
+/// สรุปค่ามือ+ทิปของพนักงาน 1 คน ต่องวดจ่าย 1 งวด (T6.4) — สร้างครั้งเดียวตอนปิดงวด เป็น snapshot ถาวร
+/// ห้ามคำนวณสดใหม่ทีหลังแม้ ServiceJob/TipAllocation จะถูกอ่านเพิ่มทีหลังก็ตาม (เกณฑ์ผ่าน T6.4)
+model PayrollPeriodStaffSummary {
+  id              String        @id @default(cuid())
+  branchId        String
+  branch          Branch        @relation(fields: [branchId], references: [id])
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+  staffId         String
+  staff           StaffProfile  @relation(fields: [staffId], references: [id])
+
+  jobCount         Int
+  commissionSatang Int
+  tipSatang        Int
+  deductionSatang  Int @default(0)
+  totalSatang      Int
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@unique([payrollPeriodId, staffId])
+  @@index([branchId])
+  @@map("payroll_period_staff_summaries")
 }
