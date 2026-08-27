@@ -12,6 +12,31 @@ import { bangkokDayRange, toBangkokDateOnly } from "./bangkok-time";
  * ทุกสาขาใน computeAndUpsertForAllBranches ที่ต้องอ่าน Branch ตรง ๆ — Branch เองไม่ใช่ "ข้อมูลในสาขา"
  * ดู comment บน BRANCH_SCOPED_MODELS) ดูรายละเอียด spec การคำนวณแต่ละตัวเลขที่ docs/PLAN.md T7.1
  */
+/** ผลลัพธ์การคำนวณของ DailySummaryService.computeForBranchAndDate — ตัวเลขล้วน ๆ ยังไม่ได้เขียนลง DB
+ * (T7.2 ใช้ตรง ๆ สำหรับรายงาน "วันนี้" ที่ยังไม่ปิดวัน จึงยังไม่มีแถว DailySummary ให้อ่าน) */
+export interface DailySummaryComputation {
+  recognizedRevenueSatang: number;
+  cashInSatang: number;
+  cashInPackageSatang: number;
+  paymentCashSatang: number;
+  paymentPackageSatang: number;
+  paymentVoucherSatang: number;
+  paymentComplimentarySatang: number;
+  courseSoldCount: number;
+  courseSoldValueSatang: number;
+  courseUsedCount: number;
+  newCustomerCount: number;
+  returningCustomerCount: number;
+  noShowCount: number;
+  staffSummaries: Array<{
+    staffId: string;
+    scheduledMinutes: number;
+    workedMinutes: number;
+    jobCount: number;
+    commissionSatang: number;
+  }>;
+}
+
 @Injectable()
 export class DailySummaryService {
   private readonly logger = new Logger(DailySummaryService.name);
@@ -27,6 +52,78 @@ export class DailySummaryService {
   }
 
   async computeAndUpsertForBranchAndDate(branchId: string, date: Date): Promise<void> {
+    const dateOnly = toBangkokDateOnly(date);
+    const computation = await this.computeForBranchAndDate(branchId, date);
+
+    await this.prisma.client.$transaction(async (tx) => {
+      await tx.dailySummary.upsert({
+        where: { branchId_date: { branchId, date: dateOnly } },
+        create: {
+          branchId,
+          date: dateOnly,
+          recognizedRevenueSatang: computation.recognizedRevenueSatang,
+          cashInSatang: computation.cashInSatang,
+          cashInPackageSatang: computation.cashInPackageSatang,
+          paymentCashSatang: computation.paymentCashSatang,
+          paymentPackageSatang: computation.paymentPackageSatang,
+          paymentVoucherSatang: computation.paymentVoucherSatang,
+          paymentComplimentarySatang: computation.paymentComplimentarySatang,
+          courseSoldCount: computation.courseSoldCount,
+          courseSoldValueSatang: computation.courseSoldValueSatang,
+          courseUsedCount: computation.courseUsedCount,
+          newCustomerCount: computation.newCustomerCount,
+          returningCustomerCount: computation.returningCustomerCount,
+          noShowCount: computation.noShowCount,
+        },
+        update: {
+          recognizedRevenueSatang: computation.recognizedRevenueSatang,
+          cashInSatang: computation.cashInSatang,
+          cashInPackageSatang: computation.cashInPackageSatang,
+          paymentCashSatang: computation.paymentCashSatang,
+          paymentPackageSatang: computation.paymentPackageSatang,
+          paymentVoucherSatang: computation.paymentVoucherSatang,
+          paymentComplimentarySatang: computation.paymentComplimentarySatang,
+          courseSoldCount: computation.courseSoldCount,
+          courseSoldValueSatang: computation.courseSoldValueSatang,
+          courseUsedCount: computation.courseUsedCount,
+          newCustomerCount: computation.newCustomerCount,
+          returningCustomerCount: computation.returningCustomerCount,
+          noShowCount: computation.noShowCount,
+        },
+      });
+
+      for (const staffSummary of computation.staffSummaries) {
+        await tx.dailyStaffSummary.upsert({
+          where: { branchId_date_staffId: { branchId, date: dateOnly, staffId: staffSummary.staffId } },
+          create: {
+            branchId,
+            date: dateOnly,
+            staffId: staffSummary.staffId,
+            scheduledMinutes: staffSummary.scheduledMinutes,
+            workedMinutes: staffSummary.workedMinutes,
+            jobCount: staffSummary.jobCount,
+            commissionSatang: staffSummary.commissionSatang,
+          },
+          update: {
+            scheduledMinutes: staffSummary.scheduledMinutes,
+            workedMinutes: staffSummary.workedMinutes,
+            jobCount: staffSummary.jobCount,
+            commissionSatang: staffSummary.commissionSatang,
+          },
+        });
+      }
+    });
+
+    this.logger.debug(
+      `สรุปสาขา ${branchId} วันที่ ${dateOnly.toISOString().slice(0, 10)}: ` +
+        `รายได้ ${computation.recognizedRevenueSatang} สตางค์, พนักงาน ${computation.staffSummaries.length} คน`,
+    );
+  }
+
+  /** คำนวณล้วน ๆ (ไม่เขียนลง DB) — ใช้ทั้งจาก computeAndUpsertForBranchAndDate (เขียนทับ DailySummary/
+   * DailyStaffSummary) และจาก ReportsController./today (T7.2, live ของวันปัจจุบันที่ยังไม่ปิดวัน จึงยังไม่มี
+   * แถวให้อ่าน) — แยกออกมาให้ทั้งสองทางเรียกตรรกะเดียวกันเป๊ะ ไม่มี logic ซ้ำ */
+  async computeForBranchAndDate(branchId: string, date: Date): Promise<DailySummaryComputation> {
     const dateOnly = toBangkokDateOnly(date);
     const { start, end } = bangkokDayRange(date);
     const db = this.prisma.forBranch(branchId);
@@ -147,61 +244,30 @@ export class DailySummaryService {
 
     const staffIds = new Set<string>([...scheduledByStaff.keys(), ...workedByStaff.keys()]);
 
-    await this.prisma.client.$transaction(async (tx) => {
-      await tx.dailySummary.upsert({
-        where: { branchId_date: { branchId, date: dateOnly } },
-        create: {
-          branchId,
-          date: dateOnly,
-          recognizedRevenueSatang,
-          cashInSatang,
-          cashInPackageSatang,
-          paymentCashSatang,
-          paymentPackageSatang,
-          paymentVoucherSatang,
-          paymentComplimentarySatang,
-          courseSoldCount,
-          courseSoldValueSatang,
-          courseUsedCount,
-          newCustomerCount,
-          returningCustomerCount,
-          noShowCount,
-        },
-        update: {
-          recognizedRevenueSatang,
-          cashInSatang,
-          cashInPackageSatang,
-          paymentCashSatang,
-          paymentPackageSatang,
-          paymentVoucherSatang,
-          paymentComplimentarySatang,
-          courseSoldCount,
-          courseSoldValueSatang,
-          courseUsedCount,
-          newCustomerCount,
-          returningCustomerCount,
-          noShowCount,
-        },
-      });
-
-      for (const staffId of staffIds) {
-        const scheduledMinutes = scheduledByStaff.get(staffId) ?? 0;
-        const workedMinutes = workedByStaff.get(staffId) ?? 0;
-        const commission = commissionByStaff.get(staffId);
-        const jobCount = commission?.jobCount ?? 0;
-        const commissionSatang = commission?.totalCommissionSatang ?? 0;
-
-        await tx.dailyStaffSummary.upsert({
-          where: { branchId_date_staffId: { branchId, date: dateOnly, staffId } },
-          create: { branchId, date: dateOnly, staffId, scheduledMinutes, workedMinutes, jobCount, commissionSatang },
-          update: { scheduledMinutes, workedMinutes, jobCount, commissionSatang },
-        });
-      }
+    const staffSummaries = [...staffIds].map((staffId) => {
+      const scheduledMinutes = scheduledByStaff.get(staffId) ?? 0;
+      const workedMinutes = workedByStaff.get(staffId) ?? 0;
+      const commission = commissionByStaff.get(staffId);
+      const jobCount = commission?.jobCount ?? 0;
+      const commissionSatang = commission?.totalCommissionSatang ?? 0;
+      return { staffId, scheduledMinutes, workedMinutes, jobCount, commissionSatang };
     });
 
-    this.logger.debug(
-      `สรุปสาขา ${branchId} วันที่ ${dateOnly.toISOString().slice(0, 10)}: ` +
-        `รายได้ ${recognizedRevenueSatang} สตางค์, พนักงาน ${staffIds.size} คน`,
-    );
+    return {
+      recognizedRevenueSatang,
+      cashInSatang,
+      cashInPackageSatang,
+      paymentCashSatang,
+      paymentPackageSatang,
+      paymentVoucherSatang,
+      paymentComplimentarySatang,
+      courseSoldCount,
+      courseSoldValueSatang,
+      courseUsedCount,
+      newCustomerCount,
+      returningCustomerCount,
+      noShowCount,
+      staffSummaries,
+    };
   }
 }

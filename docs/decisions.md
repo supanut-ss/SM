@@ -1466,3 +1466,34 @@ Task ที่เกี่ยวข้อง: T7.1 (M7 — เริ่ม miles
 ผลกระทบ: T7.2 (รายงาน API) อ่านจาก `DailySummary`/`DailyStaffSummary` เป็นหลัก + query สดเฉพาะ "คอร์สคงเหลือ/
 ใกล้หมดอายุ" — ไม่มี metric "ส่วนลดตามผู้อนุมัติ" ในรายงานเลยจนกว่าจะมีคนตัดสินใจย้อนกลับไปทำ manager-PIN gate
 ที่ checkout จริงตามที่ docs/DOMAIN.md ตั้งใจไว้ (นอกขอบเขต M7)
+
+---
+
+## ADR-037: API รายงาน (T7.2) — แยก compute จาก compute-and-persist เพื่อรองรับ "วันนี้" สด, groupBy ไม่อยู่ใน branch-scope extension ต้องใส่ branchId มือเอง
+
+วันที่: 2026-08-27
+Task ที่เกี่ยวข้อง: T7.2 (M7)
+
+บริบท: T7.1 เขียน `DailySummaryService.computeAndUpsertForBranchAndDate` เป็นเมธอดเดียวทั้งคำนวณและเขียน DB
+แต่ "KPI วันนี้" (ต้องใช้ตอน T7.3 แดชบอร์ด) ไม่มีแถว `DailySummary` ให้อ่านจนกว่า cron ตี 2 ของพรุ่งนี้จะรัน —
+ต้องคำนวณสดโดยไม่เขียนทับ (วันนี้ยังไม่ "ปิด")
+
+ตัดสินใจ:
+1. **แยก `computeForBranchAndDate` (คำนวณอย่างเดียว คืนค่า `DailySummaryComputation`) ออกจาก
+   `computeAndUpsertForBranchAndDate` (เรียกตัวแรกแล้วค่อย upsert)** — `GET /reports/today` เรียกตัวแรกตรง ๆ
+   ไม่ผ่าน upsert เลย ส่วน cron/backfill ยังใช้ตัวที่ผ่าน upsert เหมือนเดิม พฤติกรรมเดิมไม่เปลี่ยน (ยืนยันด้วย
+   e2e เดิมของ T7.1 ที่ยังผ่านหลัง refactor)
+2. **พบว่า `prisma.forBranch(branchId)` (branch-scope extension, T1.4) กรอง branchId อัตโนมัติเฉพาะ
+   `findMany`/`findFirst`/`findUnique`/`count` เท่านั้น — ไม่ครอบ `groupBy`** (ดู `SCOPED_OPERATIONS` ใน
+   `branch-scope.extension.ts`) รายงาน "ลูกค้าที่หายไป" ต้องใช้ `bill.groupBy` เป็น query แรก (ไม่ได้กรองผ่าน
+   id list ที่ scoped มาก่อนเหมือนรายงานคอร์ส) — ถ้าใช้ `prisma.forBranch(...).bill.groupBy(...)` ตรง ๆ ตามที่
+   ร่างไว้แต่แรก จะรั่วข้อมูลสมาชิกจากสาขาอื่นทันที (ละเมิด CLAUDE.md ข้อ 5) แก้โดยใส่ `branchId:
+   branch.branchId` เข้า `where` ของ `groupBy` เองตรง ๆ + เขียน e2e test เจาะจงเช็คการรั่วข้ามสาขาไว้กันกลับมา
+   พังอีก — **ข้อควรระวังสำหรับอนาคต**: Task ไหนใช้ `groupBy`/`aggregate` เป็น query แรก (ไม่ใช่ query ที่สอง
+   ที่กรองด้วย id list ที่ scoped มาก่อนแล้ว) ต้องใส่ `branchId` ใน `where` เองเสมอ ห้ามพึ่ง `forBranch()` เฉย ๆ
+3. **รายงานคอร์สคงเหลือ/ใกล้หมดอายุ/ลูกค้าหายไป เป็น live query ทั้งหมด ไม่อ่านจาก `DailySummary`** ตรงตาม
+   ADR-036 ข้อ 2 — balance คำนวณด้วยแพทเทิร์นเดียวกับ `MemberPackageController.list` (T5.2): `groupBy` ผลรวม
+   `MemberPackageLedgerEntry.delta` ต่อ `memberPackageId`
+
+เหตุผล: การแยก compute/persist ทำให้ "วันนี้" กับ "ย้อนหลัง" ใช้ตรรกะคำนวณตัวเดียวกันเป๊ะ ไม่เสี่ยงเลขไม่ตรงกัน
+ระหว่างสองทาง — การพบช่องโหว่ `groupBy` ตั้งแต่ตอนพัฒนา (ไม่ใช่ตอน production) ป้องกันข้อมูลรั่วข้ามสาขาจริง
