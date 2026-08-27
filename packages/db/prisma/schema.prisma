@@ -68,6 +68,8 @@ model Branch {
   tipAllocations              TipAllocation[]
   payrollPeriods              PayrollPeriod[]
   payrollPeriodStaffSummaries PayrollPeriodStaffSummary[]
+  dailySummaries              DailySummary[]
+  dailyStaffSummaries         DailyStaffSummary[]
 
   @@map("branches")
 }
@@ -260,6 +262,7 @@ model StaffProfile {
   timeClockEntries            TimeClockEntry[]
   tipAllocations              TipAllocation[]
   payrollPeriodStaffSummaries PayrollPeriodStaffSummary[]
+  dailyStaffSummaries         DailyStaffSummary[]
 
   @@index([branchId])
   @@map("staff_profiles")
@@ -1169,4 +1172,80 @@ model PayrollPeriodStaffSummary {
   @@unique([payrollPeriodId, staffId])
   @@index([branchId])
   @@map("payroll_period_staff_summaries")
+}
+
+/// สรุปรายวันต่อสาขา (T7.1) — คำนวณโดย cron ตี 2 ทุกวัน (BullMQ) หรือคำสั่ง backfill ย้อนหลัง เขียนทับ
+/// (upsert) ด้วย @@unique([branchId, date]) เสมอ — รันซ้ำกี่ครั้งก็ได้ผลเท่าเดิม (idempotent ตามเกณฑ์ผ่าน
+/// T7.1) ใช้เป็นแหล่งข้อมูลของรายงานย้อนหลัง (T7.2) แทนการ query สดจากตารางดิบ เพื่อให้ตอบได้ < 500ms
+/// แม้ย้อนหลัง 1 ปี — date เป็นวันปฏิทินไทย (Asia/Bangkok) เก็บแบบ @db.Date เหมือน StaffShift.date
+model DailySummary {
+  id       String   @id @default(cuid())
+  branchId String
+  branch   Branch   @relation(fields: [branchId], references: [id])
+  date     DateTime @db.Date
+
+  /// รายได้รับรู้ (accrual) = SUM(Bill.totalSatang) ของบิลที่ไม่ถูกยกเลิกในวันนั้น นับรวมทั้งบิลที่จ่าย
+  /// เงินสดและบิลที่ตัดคอร์ส (PACKAGE) เพราะรับรู้รายได้ตอนส่งมอบบริการ ไม่ใช่ตอนรับเงิน
+  recognizedRevenueSatang Int
+
+  /// เงินเข้าจริงวันนั้น = paymentCashSatang (ด้านล่าง) + cashInPackageSatang (ซื้อคอร์สใหม่) — คนละ
+  /// จำนวนกับ recognizedRevenueSatang เสมอเมื่อมีบิลที่ตัดคอร์ส (เงินเข้าไปแล้วตอนซื้อคอร์ส ไม่ใช่ตอนตัดใช้)
+  cashInSatang        Int
+  /// ส่วนของ cashInSatang ที่มาจากการซื้อคอร์ส/แพ็กเกจใหม่วันนั้น (MemberPackage.purchasedAt) — แยกให้
+  /// เห็นชัดจากเงินสดที่รับจากบิลปกติ ไม่มีการแยกช่องทางย่อยเพราะ MemberPackage ไม่บันทึก payment channel
+  /// (ดู docs/decisions.md ADR ของ Task นี้)
+  cashInPackageSatang Int
+
+  /// แยกช่องทางชำระของ BillPayment (บิลที่ไม่ถูกยกเลิกเท่านั้น) — คอลัมน์แยกต่อ method คงที่ 4 ค่า
+  /// (แพทเทิร์นเดียวกับ ServiceVariant.commissionJuniorSatang/SeniorSatang/MasterSatang, ADR-008)
+  paymentCashSatang          Int
+  paymentPackageSatang       Int
+  paymentVoucherSatang       Int
+  paymentComplimentarySatang Int
+
+  courseSoldCount       Int
+  courseSoldValueSatang Int
+  /// จำนวนครั้งที่ตัดใช้คอร์ส (MemberPackageLedgerEntry kind=USE) วันนั้น
+  courseUsedCount       Int
+
+  /// สมาชิกที่มีบิลวันนั้นและเป็นบิลแรกในชีวิต (ไม่เคยมีบิลก่อนหน้าวันนี้เลย) = ใหม่ ที่เหลือ = เก่า
+  newCustomerCount       Int
+  returningCustomerCount Int
+
+  /// AppointmentItem.status = NO_SHOW ที่ startAt ตกวันนั้น (Bangkok calendar day)
+  noShowCount Int
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([branchId, date])
+  @@index([branchId, date])
+  @@map("daily_summaries")
+}
+
+/// สรุปรายวันต่อพนักงาน 1 คน (T7.1) — คำนวณพร้อมกับ DailySummary ในรอบเดียวกัน เก็บแยกตารางเพราะเป็นคนละ
+/// grain (ต่อพนักงาน ไม่ใช่ต่อสาขา) ใช้ตอบรายงาน utilization + ค่ามือย้อนหลังโดยไม่ต้อง join ServiceJob/
+/// StaffShift สดทุกครั้ง (ServiceJob ไม่มี index บน staffId+วันที่ จะช้าถ้า scan ตรงย้อนหลัง 1 ปี)
+model DailyStaffSummary {
+  id       String       @id @default(cuid())
+  branchId String
+  branch   Branch       @relation(fields: [branchId], references: [id])
+  date     DateTime     @db.Date
+  staffId  String
+  staff    StaffProfile @relation(fields: [staffId], references: [id])
+
+  /// นาทีตามกะที่ตั้งไว้ (SUM ของ StaffShift.endMin-startMin ทุกกะของพนักงานคนนั้นวันนั้น)
+  scheduledMinutes Int
+  /// นาทีที่ทำงานจริง (SUM ของ ServiceJob.completedAt-startedAt ที่จบแล้วและยังไม่ถูกยกเลิก voidedAt IS NULL)
+  workedMinutes    Int
+  jobCount         Int
+  /// รวมยอดจาก calculateStaffCommission (packages/core/commission, T6.2) เรียกซ้ำตัวเดียวกับ T6.4
+  commissionSatang Int
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([branchId, date, staffId])
+  @@index([branchId, date])
+  @@map("daily_staff_summaries")
 }

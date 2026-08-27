@@ -19,6 +19,7 @@ import { BillModule } from "./modules/bill/bill.module";
 import { CashierShiftModule } from "./modules/cashier-shift/cashier-shift.module";
 import { AttendanceModule } from "./modules/attendance/attendance.module";
 import { PayrollModule } from "./modules/payroll/payroll.module";
+import { ReportsModule } from "./modules/reports/reports.module";
 import { AuditModule } from "./audit/audit.module";
 
 @Module({
@@ -48,6 +49,7 @@ import { AuditModule } from "./audit/audit.module";
     CashierShiftModule,
     AttendanceModule,
     PayrollModule,
+    ReportsModule,
   ],
   controllers: [AppController],
 })

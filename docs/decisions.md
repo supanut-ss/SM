@@ -1397,3 +1397,72 @@ Task ที่เกี่ยวข้อง: T6.4 (M6 — Task สุดท้�
 - ค่าหัก (`deductionSatang`) เป็น 0 เสมอในโค้ดตอนนี้ เพราะยังไม่มี requirement เรื่องการหักเงินใน docs/PLAN.md
   M6 เลย — field มีไว้เผื่ออนาคตเท่านั้น
 - Docker Desktop ไม่พร้อมใช้งานตอนเริ่มเซสชันนี้ (ค้างที่ขั้นตอน first-run ที่ต้องมีคนคลิกยืนยันเอง) แต่กลับมาใช้ได้ก่อนจบเซสชัน — รันครบทุกอย่างแล้ว: migration `20260827112700_m6_attendance_tips_payroll` สร้าง+apply จริง (ไม่ใช่แค่ diff), `db:seed` ผ่าน (staff ได้ PIN placeholder ครบ), `pnpm --filter @lotus-desk/api test:e2e` ผ่านทั้ง 188 เทสต์ (23 ไฟล์ รวม T6.1/T6.3/T6.4 ของใหม่), `pnpm verify` ผ่านทั้ง monorepo (23/23 task)
+
+---
+
+## ADR-036: สรุปรายวัน (T7.1) — BullMQ ต่อตรงไม่ใช้ wrapper, สูตรคำนวณ "เงินเข้า vs รายได้รับรู้", ข้าม "ส่วนลดตามผู้อนุมัติ", pre-aggregate ต่อพนักงานแยกตาราง, backfill ต้องเลี่ยง Nest DI เพราะ tsx ไม่รองรับ emitDecoratorMetadata
+
+วันที่: 2026-08-27
+Task ที่เกี่ยวข้อง: T7.1 (M7 — เริ่ม milestone รายงาน)
+
+บริบท: ผู้ใช้สั่งให้ทำ M7 ทั้ง 4 Task ในเซสชันเดียว ก่อนเริ่มเขียนโค้ดพบ 2 ช่องว่างจริงในระบบที่กระทบขอบเขต
+รายงานโดยตรง จึงหยุดถามผู้ใช้ก่อน (ไม่ใช่แค่ "ตัวเลขที่ยังไม่มี" แบบ M6 แต่เป็น "ฟีเจอร์ที่ไม่เคยทำ" ในโค้ด
+ที่ปิด milestone ไปแล้ว):
+
+1. **"ส่วนลดแยกตามผู้อนุมัติ"** — docs/DOMAIN.md ข้อ 14 เขียนไว้ว่าทุกส่วนลดต้องผ่าน PIN ผู้จัดการอนุมัติ
+   แต่โค้ด checkout จริง (T5.6, `BillController.checkout`) ไม่เคยมี gate นี้เลย: `evaluatePromotions`
+   auto-apply โปรฯ ที่ชนะทันทีฝั่ง server ไม่มีช่อง `approvedByUserId`/approval token ใด ๆ บน `Bill` ทั้งสิ้น
+   — ผู้ใช้ตัดสินใจ: **ข้าม metric นี้ไปก่อน ห้ามแก้ checkout flow ของ T5.6 ในรอบ M7**
+2. **"เงินเข้า" ฝั่งคอร์ส** — การซื้อคอร์ส/แพ็กเกจ (`MemberPackage`, T5.1/T5.2) ไม่เคยบันทึก payment channel
+   เลยตั้งแต่ต้น (`purchaseMemberPackageSchema` รับแค่ `packageId` ไม่มี `paymentMethod`/`Bill`/`BillPayment`
+   ผูกอยู่เลย) มีแค่ `priceSatang` + `purchasedAt` — ผู้ใช้ตัดสินใจ: **รายงานยอดรวมอย่างเดียว ไม่แยกช่องทาง
+   ห้ามแก้ endpoint ซื้อคอร์สของ T5.1/T5.2 ในรอบ M7**
+
+ตัดสินใจสถาปัตยกรรม:
+
+1. **สูตร "เงินเข้า vs รายได้รับรู้"** (ต่อวัน ต่อสาขา):
+   - `recognizedRevenueSatang` = SUM(`Bill.totalSatang`) ของบิลที่ไม่ถูกยกเลิกวันนั้น — นับรวมทั้งบิลที่จ่าย
+     เงินสดและบิลที่ตัดคอร์ส (PACKAGE) เพราะรับรู้รายได้ตอนส่งมอบบริการ ไม่ใช่ตอนรับเงิน (docs/DOMAIN.md
+     กำหนดหลักการ deferred revenue ไว้แล้ว)
+   - `cashInSatang` = `paymentCashSatang` (ผลรวม `BillPayment.amountSatang` method=CASH ของบิลไม่ยกเลิก) +
+     `cashInPackageSatang` (ผลรวม `MemberPackage.priceSatang` ที่ `purchasedAt` วันนั้น ทั้งก้อน ไม่แยกช่องทาง
+     ตามข้อ 2 ด้านบน) — บิลที่ตัดคอร์ส (`BillPayment.method=PACKAGE`) ไม่ใช่เงินเข้าใหม่ (ตัดยอดที่จ่ายไปแล้ว
+     ตอนซื้อคอร์ส) จึงไม่นับซ้ำใน `cashInSatang` แม้จะนับใน `recognizedRevenueSatang` แล้วก็ตาม — ตัวเลขสอง
+     ตัวนี้ตั้งใจให้ต่างกันเมื่อมีบิลตัดคอร์สเยอะ เพื่อสะท้อน deferred revenue จริง
+   - แยกช่องทางชำระ (`paymentCashSatang`/`paymentPackageSatang`/`paymentVoucherSatang`/
+     `paymentComplimentarySatang`) ใช้ column แยกต่อค่า enum คงที่ 4 ค่า (แพทเทิร์นเดียวกับ ADR-008) ไม่ใช้
+     JSON เพราะ `PaymentMethod` ไม่มีทางเพิ่มค่าใหม่บ่อย
+2. **"คอร์สคงเหลือ"/"คอร์สใกล้หมดอายุ 30 วัน" ไม่ pre-aggregate** — เป็น snapshot ของสถานะปัจจุบัน
+   (`MemberPackage` ที่ `status=ACTIVE`) ไม่ใช่ค่าย้อนหลังรายวัน T7.2 query สดได้ตรง ๆ ไม่ต้องพึ่ง
+   `DailySummary`
+3. **utilization พนักงาน + ค่ามือ ต้อง pre-aggregate แยกตาราง (`DailyStaffSummary`)** ไม่ query สดตอน T7.2
+   เพราะเกณฑ์ผ่าน T7.2 คือ "รายงานย้อนหลัง 1 ปีตอบใน < 500ms" และ `ServiceJob` ไม่มี index บน
+   (staffId, date) — คำนวณพร้อมกับ `DailySummary` ในรอบเดียวกัน เรียก `calculateStaffCommission`
+   (packages/core, T6.2) ซ้ำ ไม่เขียนตรรกะค่ามือใหม่
+4. **ลูกค้าใหม่/เก่า คำนวณตอนรัน job เท่านั้น** (เช็คว่า memberId ที่มีบิลวันนั้นเคยมีบิลก่อนหน้าไหม) ไม่ query
+   สดตอน T7.2 เพราะสแกนประวัติบิลทั้งหมดของสมาชิกทุกครั้งจะช้าเมื่อข้อมูลสะสมมาก
+5. **BullMQ ต่อ `Queue`/`Worker` ตรง ๆ เป็น provider ธรรมดา ไม่ใช้ `@nestjs/bullmq`** (wrapper package) — ลด
+   dependency ที่ไม่จำเป็น ใช้ `REDIS_URL` จาก `ConfigService` (มีอยู่แล้วตั้งแต่ T0.2 ยังไม่เคยมีโค้ดต่อจริง)
+   repeatable job ลงทะเบียนด้วย `queue.upsertJobScheduler(jobSchedulerId, ...)` (bullmq 6.x ย้ายมาจาก
+   `queue.add({repeat})` เดิม) คีย์คงที่ทำให้ boot ซ้ำกี่ครั้งก็ไม่สร้าง job ซ้ำ — cron ตี 2 (`tz: "Asia/Bangkok"`
+   ให้ BullMQ จัดการ timezone เอง ไม่ต้องคำนวณ UTC+7 มือ) สรุป "เมื่อวาน" เสมอ (วันที่เพิ่งจบเต็มวัน ไม่ใช่
+   วันที่เพิ่งเริ่มมา 2 ชม.)
+6. **Idempotency**: ทุกแถวเขียนด้วย `upsert` คีย์ตาม `@@unique` คำนวณใหม่จากข้อมูลต้นทางทั้งหมดทุกครั้ง (ไม่มี
+   `increment`/สะสมค่าเดิมเลย) — รันซ้ำกี่ครั้งได้ผลเท่าเดิมเสมอ ทดสอบจริงด้วยการเรียก 3 ครั้งติดกันใน e2e
+
+7. **⚠️ พบข้อจำกัดของ `tsx` (esbuild) ที่กระทบสคริปต์ backfill โดยตรง — `tsx` ไม่รองรับ
+   `emitDecoratorMetadata` เลย** (ข้อจำกัดที่ทีม esbuild ประกาศไว้เอง ไม่ใช่ตั้งค่า tsconfig ผิด) ทำให้
+   `Reflect.getMetadata("design:paramtypes", ...)` คืน `undefined` เสมอเมื่อรันผ่าน `tsx` — NestJS DI ที่พึ่ง
+   การ inject อัตโนมัติจาก constructor type (ไม่มี `@Inject()` ชัดเจน) จะ inject `undefined` เงียบ ๆ ไม่ throw
+   ชัดเจนตอนนั้น พังทีหลังตอนใช้งานจริงแทน (พิสูจน์ได้ว่าไม่ใช่แค่ Task นี้ — ทดสอบแล้วว่าเกิดกับทุกคลาสที่มี
+   `@Injectable()` ในระบบ ไม่ใช่บั๊กเฉพาะโค้ดใหม่) — **แก้โดยไม่ให้สคริปต์ backfill bootstrap ทั้งแอปผ่าน
+   `NestFactory.createApplicationContext(AppModule)` เลย** เพราะดึง RBAC/Auth/Audit ที่ไม่เกี่ยวข้องมาด้วยเปล่า
+   ๆ — `PrismaService` (ไม่มี constructor param) และ `DailySummaryService` (รับแค่ `PrismaService` ตัวเดียว)
+   บังเอิญไม่มี dependency ซับซ้อนพอที่จะ `new` ตรง ๆ ได้โดยไม่ต้องพึ่ง Nest DI/reflection เลย — เร็วกว่าด้วย
+   (ไม่ bootstrap โมดูลอื่นที่ไม่เกี่ยวข้อง) **ข้อควรระวังสำหรับอนาคต**: ถ้า Task ต่อไปต้องเขียนสคริปต์ CLI ที่
+   ต้องพึ่ง provider ที่มี dependency graph ซับซ้อนกว่านี้ (เช่นต้องใช้ `AuthService`/`ConfigService` เอง) วิธีนี้
+   จะใช้ไม่ได้อีก ต้องกลับมาแก้ที่ tooling จริง (เช่น compile ด้วย `tsc` แล้วรันด้วย `node` แทน `tsx`)
+
+ผลกระทบ: T7.2 (รายงาน API) อ่านจาก `DailySummary`/`DailyStaffSummary` เป็นหลัก + query สดเฉพาะ "คอร์สคงเหลือ/
+ใกล้หมดอายุ" — ไม่มี metric "ส่วนลดตามผู้อนุมัติ" ในรายงานเลยจนกว่าจะมีคนตัดสินใจย้อนกลับไปทำ manager-PIN gate
+ที่ checkout จริงตามที่ docs/DOMAIN.md ตั้งใจไว้ (นอกขอบเขต M7)

@@ -44,6 +44,8 @@ export const BRANCH_SCOPED_MODELS = new Set([
   "TipAllocation",
   "PayrollPeriod",
   "PayrollPeriodStaffSummary",
+  "DailySummary",
+  "DailyStaffSummary",
 ]);
 
 const SCOPED_OPERATIONS = new Set(["findMany", "findFirst", "findUnique", "count"]);
