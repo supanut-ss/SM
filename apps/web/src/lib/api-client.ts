@@ -891,4 +891,55 @@ export const cashierShiftApi = {
     }),
 };
 
+/** ดู ReportsController.today (T7.2/T7.3) — คำนวณสดเสมอ ไม่มี cache ฝั่ง client ที่ตั้งใจให้ stale นาน */
+export interface DailyStaffSummaryToday {
+  staffId: string;
+  scheduledMinutes: number;
+  workedMinutes: number;
+  jobCount: number;
+  commissionSatang: number;
+}
+
+export interface TodayReport {
+  date: string;
+  recognizedRevenueSatang: number;
+  cashInSatang: number;
+  cashInPackageSatang: number;
+  paymentCashSatang: number;
+  paymentPackageSatang: number;
+  paymentVoucherSatang: number;
+  paymentComplimentarySatang: number;
+  courseSoldCount: number;
+  courseSoldValueSatang: number;
+  courseUsedCount: number;
+  newCustomerCount: number;
+  returningCustomerCount: number;
+  noShowCount: number;
+  staffSummaries: DailyStaffSummaryToday[];
+}
+
+/** ดู ReportsController.coursesExpiring — MemberPackage (join member ด้วย) + balance ต่อยอด (T7.3 แดชบอร์ด) */
+export interface ExpiringCoursePackage extends MemberPackage {
+  member: { name: string; code: string };
+}
+
+/** ดู ReportsController.dormantCustomers — สมาชิกที่บิลล่าสุดเก่ากว่า N วัน (T7.3 แดชบอร์ด) */
+export interface DormantCustomer {
+  member: { id: string; name: string; phone: string; code: string };
+  lastVisitAt: string;
+  daysSinceLastVisit: number;
+}
+
+export const reportsApi = {
+  today: (branchId: string) => apiFetch<TodayReport>(`/branches/${branchId}/reports/today`),
+  coursesExpiring: (branchId: string, withinDays?: number) =>
+    apiFetch<ExpiringCoursePackage[]>(
+      `/branches/${branchId}/reports/courses/expiring${withinDays ? `?withinDays=${withinDays}` : ""}`,
+    ),
+  dormantCustomers: (branchId: string, daysSinceLastVisit?: number) =>
+    apiFetch<DormantCustomer[]>(
+      `/branches/${branchId}/reports/customers/dormant${daysSinceLastVisit ? `?daysSinceLastVisit=${daysSinceLastVisit}` : ""}`,
+    ),
+};
+
 export type { LinePaymentMethod, PaymentMethod };
