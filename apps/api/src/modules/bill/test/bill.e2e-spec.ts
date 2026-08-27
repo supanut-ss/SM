@@ -17,6 +17,7 @@ describe("Bills (real Postgres via Testcontainers)", () => {
   let branchAId: string;
   let branchBId: string;
   let cashierCookies: string[];
+  let cashierUserId: string;
   let managerUserId: string;
   let staffId: string;
   let roomId: string;
@@ -101,6 +102,7 @@ describe("Bills (real Postgres via Testcontainers)", () => {
       },
     });
     await prisma.userBranch.create({ data: { userId: cashierUser.id, branchId: branchAId, roleId: cashierRole.id } });
+    cashierUserId = cashierUser.id;
 
     const roomType = await prisma.roomType.create({ data: { branchId: branchAId, name: "ห้องนวดไทย" } });
     const room = await prisma.room.create({ data: { branchId: branchAId, roomTypeId: roomType.id, name: "ห้อง 1" } });
@@ -275,12 +277,13 @@ describe("Bills (real Postgres via Testcontainers)", () => {
     });
     expect(balanceAfterCheckout._sum.delta).toBe(4);
 
-    // ยกเลิกบิลต้องมี PIN ผู้จัดการ
+    // บิลนี้ตัดคอร์สสมาชิก จึงยกเลิกเองไม่ได้แม้จะยังใหม่อยู่ — ต้องมี PIN ผู้จัดการเสมอ
     const withoutApproval = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/bills/${billId}/cancel`)
       .set("Cookie", cashierCookies)
       .send({ reason: "ลูกค้าจองผิดคน" });
-    expect(withoutApproval.status).toBe(400);
+    expect(withoutApproval.status).toBe(401);
+    expect(withoutApproval.body.message).toContain("ตัดคอร์ส");
 
     const approvalToken = await getApprovalToken();
     const cancelled = await request(app.getHttpServer())
@@ -353,6 +356,87 @@ describe("Bills (real Postgres via Testcontainers)", () => {
       .set("Cookie", cashierCookies)
       .send({ approvalToken: secondToken, reason: "ครั้งที่สอง" });
     expect(again.status).toBe(409);
+  });
+
+  describe("cashier self-cancel without a manager PIN (relaxed policy)", () => {
+    async function checkoutCashOnlyBill(): Promise<string> {
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills`)
+        .set("Cookie", cashierCookies)
+        .send({
+          productLines: [{ description: "ครีมบำรุงผิว (เทสยกเลิกเอง)", priceSatang: 15000, paymentMethod: "CASH" }],
+          payments: [{ method: "CASH", amountSatang: 15000 }],
+        });
+      expect(res.status).toBe(201);
+      return res.body.id as string;
+    }
+
+    it("lets the cashier cancel their own recent, package-free bill without an approvalToken", async () => {
+      const billId = await checkoutCashOnlyBill();
+
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ reason: "กดผิดรายการ รีบแก้ทันที" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe("CANCELLED");
+      expect(res.body.cancelledByUserId).toBe(cashierUserId);
+      expect(res.body.cancelledByUserId).not.toBe(managerUserId);
+    });
+
+    it("rejects a self-cancel without a token once the bill is older than the 10-minute window, then succeeds with a manager approvalToken", async () => {
+      const billId = await checkoutCashOnlyBill();
+      const db = await import("@lotus-desk/db");
+      const staleCreatedAt = new Date(Date.now() - 11 * 60 * 1000);
+      await db.prisma.bill.update({ where: { id: billId }, data: { createdAt: staleCreatedAt } });
+
+      const withoutApproval = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ reason: "ลืมยกเลิกตอนแรก" });
+      expect(withoutApproval.status).toBe(401);
+      expect(withoutApproval.body.message).toContain("10 นาที");
+
+      const approvalToken = await getApprovalToken();
+      const withApproval = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ approvalToken, reason: "ผู้จัดการอนุมัติยกเลิกบิลเก่า" });
+      expect(withApproval.status).toBe(201);
+      expect(withApproval.body.status).toBe("CANCELLED");
+      expect(withApproval.body.cancelledByUserId).toBe(managerUserId);
+    });
+
+    it("rejects a self-cancel without a token when the bill touched a package, even though it's recent, then succeeds with a manager approvalToken", async () => {
+      const { serviceJobId, memberPackageId } = await createCompletedPackageJob();
+      const checkout = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills`)
+        .set("Cookie", cashierCookies)
+        .send({
+          memberId: memberAId,
+          serviceJobLines: [{ serviceJobId, memberPackageId }],
+          payments: [{ method: "PACKAGE", amountSatang: 30000 }],
+        });
+      expect(checkout.status).toBe(201);
+      const billId = checkout.body.id as string;
+
+      const withoutApproval = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ reason: "กดผิดรายการ" });
+      expect(withoutApproval.status).toBe(401);
+      expect(withoutApproval.body.message).toContain("ตัดคอร์ส");
+
+      const approvalToken = await getApprovalToken();
+      const withApproval = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ approvalToken, reason: "ผู้จัดการอนุมัติยกเลิกบิลที่ตัดคอร์ส" });
+      expect(withApproval.status).toBe(201);
+      expect(withApproval.body.status).toBe("CANCELLED");
+      expect(withApproval.body.cancelledByUserId).toBe(managerUserId);
+    });
   });
 
   it("checks out a bill with a CASH product line and computes change from tenderedSatang", async () => {

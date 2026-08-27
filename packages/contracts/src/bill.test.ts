@@ -84,13 +84,18 @@ describe("checkoutBillSchema", () => {
 });
 
 describe("cancelBillSchema", () => {
-  it("accepts a valid cancellation", () => {
+  it("accepts a valid cancellation with an approvalToken", () => {
     const result = cancelBillSchema.safeParse({ approvalToken: "token123", reason: "ลูกค้าจองผิดคน" });
     expect(result.success).toBe(true);
   });
 
-  it("rejects a missing approvalToken", () => {
-    const result = cancelBillSchema.safeParse({ reason: "x" });
+  it("accepts a valid cancellation without an approvalToken (self-cancel eligibility is checked in the controller)", () => {
+    const result = cancelBillSchema.safeParse({ reason: "ลูกค้าจองผิดคน" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty-string approvalToken", () => {
+    const result = cancelBillSchema.safeParse({ approvalToken: "", reason: "x" });
     expect(result.success).toBe(false);
   });
 

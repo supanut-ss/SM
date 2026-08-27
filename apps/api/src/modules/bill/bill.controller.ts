@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Query,
+  UnauthorizedException,
   UnprocessableEntityException,
   UseGuards,
 } from "@nestjs/common";
@@ -277,8 +278,14 @@ export class BillController {
   }
 
   /**
-   * ยกเลิกบิล (T5.6) — ต้องมี PIN ผู้จัดการเสมอ (docs/DOMAIN.md ข้อ 14) คืนยอดคอร์สที่ตัดไปแล้ว + คืนโควตา
+   * ยกเลิกบิล (T5.6) — ปกติต้องมี PIN ผู้จัดการ (docs/DOMAIN.md ข้อ 14) คืนยอดคอร์สที่ตัดไปแล้ว + คืนโควตา
    * โปรฯ + ทำใบงานที่ผูกอยู่เป็นโมฆะ (voidedAt) ครบทุกรายการในทรานแซกชันเดียว (เกณฑ์ผ่าน T5.6)
+   *
+   * ข้อยกเว้น (นโยบายเจ้าของร้าน, ตัดสินใจแล้ว): แคชเชียร์ยกเลิกบิลเองได้โดยไม่ต้องมี PIN ผู้จัดการ ถ้าเข้า
+   * เงื่อนไขทั้งสองข้อพร้อมกัน — (1) บิลออกมาไม่เกิน 10 นาที คือรีบแก้ความผิดพลาดที่เพิ่งเกิด ไม่ใช่เปิดบิล
+   * เก่าย้อนหลัง และ (2) บิลนี้ไม่มีรายการไหนตัดคอร์สสมาชิกเลย เพราะการคืนยอดคอร์สมีผลกระทบมากกว่า ต้องผ่าน
+   * ผู้จัดการเสมอไม่มีข้อยกเว้น ถ้าแนบ approvalToken มาด้วย ผู้จัดการ override/อนุมัติได้เสมอไม่ว่าจะเข้าเงื่อนไข
+   * ยกเว้นหรือไม่ (เส้นทางเดิม ไม่เปลี่ยนพฤติกรรม)
    */
   @Post(":billId/cancel")
   @RequirePermission("manage", "billing")
@@ -287,12 +294,31 @@ export class BillController {
     @CurrentBranch() branch: BranchContext,
     @Param("billId") billId: string,
     @Body(new ZodValidationPipe(cancelBillSchema)) body: CancelBillInput,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const approverId = this.authService.verifyManagerApprovalToken(branch.branchId, body.approvalToken);
-
     const bill = await this.findOwned(branch.branchId, billId);
     if (bill.status === "CANCELLED") {
       throw new ConflictException("บิลนี้ถูกยกเลิกไปแล้ว");
+    }
+
+    const SELF_CANCEL_WINDOW_MS = 10 * 60 * 1000; // ยกเลิกบิลเองได้ถ้าอยู่ในกำหนดนี้และไม่ตัดคอร์ส (นโยบายเจ้าของร้าน)
+    const touchesPackage = bill.lines.some((line) => line.memberPackageLedgerEntryId !== null);
+    const withinSelfCancelWindow = Date.now() - bill.createdAt.getTime() <= SELF_CANCEL_WINDOW_MS;
+    const selfCancelEligible = withinSelfCancelWindow && !touchesPackage;
+
+    let approverId: string;
+    if (body.approvalToken) {
+      approverId = this.authService.verifyManagerApprovalToken(branch.branchId, body.approvalToken);
+    } else if (selfCancelEligible) {
+      approverId = user.sub;
+    } else if (touchesPackage) {
+      throw new UnauthorizedException(
+        "บิลนี้มีรายการตัดคอร์สสมาชิก ยกเลิกเองไม่ได้ ต้องให้ผู้จัดการกรอก PIN อนุมัติก่อนเสมอ",
+      );
+    } else {
+      throw new UnauthorizedException(
+        "บิลนี้ออกมาเกิน 10 นาทีแล้ว ยกเลิกเองไม่ได้ ต้องให้ผู้จัดการกรอก PIN อนุมัติก่อน",
+      );
     }
 
     // รอบกะที่ "ครอบ" ช่วงเวลาที่บิลนี้ถูกสร้าง (T5.7) — ไม่มี Bill.shiftId ตรง ๆ เพราะ checkout ไม่บังคับ

@@ -68,11 +68,13 @@ export const checkoutBillSchema = z
 
 export type CheckoutBillInput = z.infer<typeof checkoutBillSchema>;
 
-// ยกเลิกบิล (T5.6) — ต้องมี PIN ผู้จัดการเสมอ (ดู docs/DOMAIN.md ข้อ 14) แนบมาเป็น approvalToken
+// ยกเลิกบิล (T5.6) — ปกติต้องมี PIN ผู้จัดการ (ดู docs/DOMAIN.md ข้อ 14) แนบมาเป็น approvalToken
 // (จาก POST /auth/verify-manager-pin ดู docs/decisions.md ADR-030) ไม่รับ approvedByUserId เปล่า ๆ อีก
-// ต่อไปเหมือนที่ T5.2 (ADR-026) เคยทำไว้ชั่วคราว
+// ต่อไปเหมือนที่ T5.2 (ADR-026) เคยทำไว้ชั่วคราว — approvalToken จึงเป็น optional ที่นี่: แคชเชียร์ยกเลิกบิล
+// ได้เองโดยไม่ต้องมี PIN เฉพาะกรณีแคบ ๆ (บิลเพิ่งออกไม่เกิน 10 นาที และไม่ได้ตัดคอร์สสมาชิก) ตรวจสิทธิ์จริง
+// ที่ BillController.cancel() เพราะต้องอ่านข้อมูลบิลก่อนถึงจะรู้ว่าเข้าเงื่อนไขยกเว้นหรือไม่
 export const cancelBillSchema = z.object({
-  approvalToken: z.string().min(1, "ต้องมีการอนุมัติจากผู้จัดการก่อนยกเลิกบิล"),
+  approvalToken: z.string().min(1).optional(),
   reason: z.string().trim().min(1, "กรุณาระบุเหตุผลการยกเลิกบิล").max(500),
 });
 
