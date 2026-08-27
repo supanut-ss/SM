@@ -930,6 +930,56 @@ export interface DormantCustomer {
   daysSinceLastVisit: number;
 }
 
+/** ดู ReportsController.dailySummary (T7.2) — 1 แถวต่อวัน อ่านจาก DailySummary ที่ cron ตี 2 pre-aggregate ไว้
+ * (T7.1) ทุกฟิลด์เงินเป็นสตางค์ (CLAUDE.md ข้อ 2) date เป็น ISO string ("YYYY-MM-DDT00:00:00.000Z") */
+export interface DailySummaryRow {
+  id: string;
+  branchId: string;
+  date: string;
+  recognizedRevenueSatang: number;
+  cashInSatang: number;
+  cashInPackageSatang: number;
+  paymentCashSatang: number;
+  paymentPackageSatang: number;
+  paymentVoucherSatang: number;
+  paymentComplimentarySatang: number;
+  courseSoldCount: number;
+  courseSoldValueSatang: number;
+  courseUsedCount: number;
+  newCustomerCount: number;
+  returningCustomerCount: number;
+  noShowCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** ผลรวมของ DailySummaryRow ทุกฟิลด์เงิน/จำนวนในช่วงที่เลือก (คำนวณฝั่ง ReportsController.sumDailySummaries) */
+export type DailySummaryTotals = Omit<DailySummaryRow, "id" | "branchId" | "date" | "createdAt" | "updatedAt">;
+
+export interface DailySummaryReport {
+  days: DailySummaryRow[];
+  totals: DailySummaryTotals;
+}
+
+/** ดู ReportsController.staffUtilization (T7.2) — 1 แถวต่อวันต่อพนักงาน join staff.name/level มาด้วยเสมอ */
+export interface DailyStaffSummaryRow {
+  id: string;
+  branchId: string;
+  date: string;
+  staffId: string;
+  staff: { name: string; level: StaffLevel };
+  scheduledMinutes: number;
+  workedMinutes: number;
+  jobCount: number;
+  commissionSatang: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffUtilizationReport {
+  days: DailyStaffSummaryRow[];
+}
+
 export const reportsApi = {
   today: (branchId: string) => apiFetch<TodayReport>(`/branches/${branchId}/reports/today`),
   coursesExpiring: (branchId: string, withinDays?: number) =>
@@ -939,6 +989,13 @@ export const reportsApi = {
   dormantCustomers: (branchId: string, daysSinceLastVisit?: number) =>
     apiFetch<DormantCustomer[]>(
       `/branches/${branchId}/reports/customers/dormant${daysSinceLastVisit ? `?daysSinceLastVisit=${daysSinceLastVisit}` : ""}`,
+    ),
+  // ดู T7.4 — หน้ารายงาน: กราฟยอดขาย/ช่องทางชำระ + ตารางค่ามือ อ่านช่วงวันที่จาก URL query เสมอ
+  dailySummary: (branchId: string, from: string, to: string) =>
+    apiFetch<DailySummaryReport>(`/branches/${branchId}/reports/daily-summary?from=${from}&to=${to}`),
+  staffUtilization: (branchId: string, from: string, to: string, staffId?: string) =>
+    apiFetch<StaffUtilizationReport>(
+      `/branches/${branchId}/reports/staff-utilization?from=${from}&to=${to}${staffId ? `&staffId=${staffId}` : ""}`,
     ),
 };
 

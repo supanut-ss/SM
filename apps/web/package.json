@@ -20,7 +20,8 @@
     "next": "15.5.23",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-hook-form": "7"
+    "react-hook-form": "7",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@lotus-desk/config": "workspace:*",
