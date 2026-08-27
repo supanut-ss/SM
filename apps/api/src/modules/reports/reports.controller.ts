@@ -62,6 +62,7 @@ function sumDailySummaries(days: DailySummary[]) {
     paymentPackageSatang: 0,
     paymentVoucherSatang: 0,
     paymentComplimentarySatang: 0,
+    paymentTransferSatang: 0,
     courseSoldCount: 0,
     courseSoldValueSatang: 0,
     courseUsedCount: 0,
@@ -77,6 +78,7 @@ function sumDailySummaries(days: DailySummary[]) {
     totals.paymentPackageSatang += day.paymentPackageSatang;
     totals.paymentVoucherSatang += day.paymentVoucherSatang;
     totals.paymentComplimentarySatang += day.paymentComplimentarySatang;
+    totals.paymentTransferSatang += day.paymentTransferSatang;
     totals.courseSoldCount += day.courseSoldCount;
     totals.courseSoldValueSatang += day.courseSoldValueSatang;
     totals.courseUsedCount += day.courseUsedCount;

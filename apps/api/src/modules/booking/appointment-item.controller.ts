@@ -356,7 +356,7 @@ export class AppointmentItemController {
   private async completeServiceJob(
     tx: Prisma.TransactionClient,
     appointmentItemId: string,
-    paymentMethod: "CASH" | "PACKAGE" | "VOUCHER" | "COMPLIMENTARY",
+    paymentMethod: "CASH" | "PACKAGE" | "VOUCHER" | "COMPLIMENTARY" | "TRANSFER",
   ): Promise<void> {
     // updateMany (ไม่ใช่ update) โดยตั้งใจ — ไม่ throw ถ้าไม่มี ServiceJob อยู่จริง (เช่นนัดเก่าที่ถูกเซ็ต
     // เป็น IN_SERVICE ไว้ก่อนมี T5.5 หรือข้อมูลที่ import มาโดยไม่ผ่าน endpoint เริ่มงาน) ปิดงานได้ปกติ

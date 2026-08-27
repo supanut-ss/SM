@@ -879,6 +879,7 @@ enum PaymentMethod {
   PACKAGE
   VOUCHER
   COMPLIMENTARY
+  TRANSFER
 }
 
 /// ใบงาน (T5.5) — 1 ใบต่อ 1 AppointmentItem เท่านั้น (@unique) สร้างอัตโนมัติตอน AppointmentItem เข้า
@@ -1196,12 +1197,13 @@ model DailySummary {
   /// (ดู docs/decisions.md ADR ของ Task นี้)
   cashInPackageSatang Int
 
-  /// แยกช่องทางชำระของ BillPayment (บิลที่ไม่ถูกยกเลิกเท่านั้น) — คอลัมน์แยกต่อ method คงที่ 4 ค่า
+  /// แยกช่องทางชำระของ BillPayment (บิลที่ไม่ถูกยกเลิกเท่านั้น) — คอลัมน์แยกต่อ method คงที่ 5 ค่า
   /// (แพทเทิร์นเดียวกับ ServiceVariant.commissionJuniorSatang/SeniorSatang/MasterSatang, ADR-008)
   paymentCashSatang          Int
   paymentPackageSatang       Int
   paymentVoucherSatang       Int
   paymentComplimentarySatang Int
+  paymentTransferSatang      Int @default(0)
 
   courseSoldCount       Int
   courseSoldValueSatang Int

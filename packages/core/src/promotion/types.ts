@@ -8,8 +8,11 @@ export type PromotionType =
   | "BUY_X_GET_Y"
   | "BONUS_MINUTES";
 
-/** ช่องทางชำระของแต่ละรายการในตะกร้า — ตรงกับ docs/DOMAIN.md ข้อ 10 (แหล่งชำระของ ServiceJob ใน T5.5) */
-export type LinePaymentMethod = "CASH" | "PACKAGE" | "VOUCHER" | "COMPLIMENTARY";
+/** ช่องทางชำระของแต่ละรายการในตะกร้า — ตรงกับ enum PaymentMethod ใน packages/db/prisma/schema.prisma /
+ * packages/contracts/src/payment.ts เป๊ะ (คัดลอกมาเองในนี้ ไม่ import ข้ามมา เพราะ packages/core ห้ามมี
+ * dependency ใด ๆ เลยตาม ADR-019) — TRANSFER ปฏิบัติเหมือน CASH/VOUCHER/COMPLIMENTARY ทุกกรณีในไฟล์นี้
+ * (isPromotable ด้านล่างกันแค่ PACKAGE เท่านั้น ไม่ต้องเพิ่ม branch ใหม่) */
+export type LinePaymentMethod = "CASH" | "PACKAGE" | "VOUCHER" | "COMPLIMENTARY" | "TRANSFER";
 
 /**
  * เงื่อนไขการใช้โปรโมชั่น — ทุกฟิลด์เป็น optional และ "ไม่ระบุ = ไม่จำกัดเงื่อนไขนั้น" ฟิลด์ tier/เดือนเกิด

@@ -909,6 +909,7 @@ export interface TodayReport {
   paymentPackageSatang: number;
   paymentVoucherSatang: number;
   paymentComplimentarySatang: number;
+  paymentTransferSatang: number;
   courseSoldCount: number;
   courseSoldValueSatang: number;
   courseUsedCount: number;
@@ -943,6 +944,7 @@ export interface DailySummaryRow {
   paymentPackageSatang: number;
   paymentVoucherSatang: number;
   paymentComplimentarySatang: number;
+  paymentTransferSatang: number;
   courseSoldCount: number;
   courseSoldValueSatang: number;
   courseUsedCount: number;

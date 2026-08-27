@@ -22,6 +22,7 @@ export interface DailySummaryComputation {
   paymentPackageSatang: number;
   paymentVoucherSatang: number;
   paymentComplimentarySatang: number;
+  paymentTransferSatang: number;
   courseSoldCount: number;
   courseSoldValueSatang: number;
   courseUsedCount: number;
@@ -68,6 +69,7 @@ export class DailySummaryService {
           paymentPackageSatang: computation.paymentPackageSatang,
           paymentVoucherSatang: computation.paymentVoucherSatang,
           paymentComplimentarySatang: computation.paymentComplimentarySatang,
+          paymentTransferSatang: computation.paymentTransferSatang,
           courseSoldCount: computation.courseSoldCount,
           courseSoldValueSatang: computation.courseSoldValueSatang,
           courseUsedCount: computation.courseUsedCount,
@@ -83,6 +85,7 @@ export class DailySummaryService {
           paymentPackageSatang: computation.paymentPackageSatang,
           paymentVoucherSatang: computation.paymentVoucherSatang,
           paymentComplimentarySatang: computation.paymentComplimentarySatang,
+          paymentTransferSatang: computation.paymentTransferSatang,
           courseSoldCount: computation.courseSoldCount,
           courseSoldValueSatang: computation.courseSoldValueSatang,
           courseUsedCount: computation.courseUsedCount,
@@ -141,6 +144,7 @@ export class DailySummaryService {
     let paymentPackageSatang = 0;
     let paymentVoucherSatang = 0;
     let paymentComplimentarySatang = 0;
+    let paymentTransferSatang = 0;
     for (const bill of activeBills) {
       for (const payment of bill.payments) {
         switch (payment.method) {
@@ -155,6 +159,9 @@ export class DailySummaryService {
             break;
           case "COMPLIMENTARY":
             paymentComplimentarySatang += payment.amountSatang;
+            break;
+          case "TRANSFER":
+            paymentTransferSatang += payment.amountSatang;
             break;
         }
       }
@@ -261,6 +268,7 @@ export class DailySummaryService {
       paymentPackageSatang,
       paymentVoucherSatang,
       paymentComplimentarySatang,
+      paymentTransferSatang,
       courseSoldCount,
       courseSoldValueSatang,
       courseUsedCount,

@@ -179,6 +179,7 @@ describe("Reports (real Postgres via Testcontainers)", () => {
         paymentPackageSatang: 0,
         paymentVoucherSatang: 0,
         paymentComplimentarySatang: 0,
+        paymentTransferSatang: 0,
         courseSoldCount: 0,
         courseSoldValueSatang: 0,
         courseUsedCount: 0,
@@ -193,7 +194,7 @@ describe("Reports (real Postgres via Testcontainers)", () => {
         data: { branchId: branchAId, date: day2, recognizedRevenueSatang: 20_000, ...baseSummaryFields, paymentCashSatang: 20_000, cashInSatang: 20_000, newCustomerCount: 1 },
       });
       await db.prisma.dailySummary.create({
-        data: { branchId: branchAId, date: day3, recognizedRevenueSatang: 5_000, ...baseSummaryFields, paymentVoucherSatang: 5_000 },
+        data: { branchId: branchAId, date: day3, recognizedRevenueSatang: 5_000, ...baseSummaryFields, paymentVoucherSatang: 5_000, paymentTransferSatang: 7_000 },
       });
 
       const res = await request(app.getHttpServer())
@@ -205,6 +206,7 @@ describe("Reports (real Postgres via Testcontainers)", () => {
       expect(res.body.totals.recognizedRevenueSatang).toBe(35_000);
       expect(res.body.totals.paymentCashSatang).toBe(30_000);
       expect(res.body.totals.paymentVoucherSatang).toBe(5_000);
+      expect(res.body.totals.paymentTransferSatang).toBe(7_000);
       expect(res.body.totals.newCustomerCount).toBe(1);
 
       const empty = await request(app.getHttpServer())
@@ -221,6 +223,7 @@ describe("Reports (real Postgres via Testcontainers)", () => {
         paymentPackageSatang: 0,
         paymentVoucherSatang: 0,
         paymentComplimentarySatang: 0,
+        paymentTransferSatang: 0,
         courseSoldCount: 0,
         courseSoldValueSatang: 0,
         courseUsedCount: 0,
@@ -258,6 +261,7 @@ describe("Reports (real Postgres via Testcontainers)", () => {
           paymentPackageSatang: 0,
           paymentVoucherSatang: 0,
           paymentComplimentarySatang: 0,
+          paymentTransferSatang: 0,
           courseSoldCount: 0,
           courseSoldValueSatang: 0,
           courseUsedCount: 0,

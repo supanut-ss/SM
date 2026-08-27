@@ -8,12 +8,16 @@ import { ApiError, type DailySummaryReport } from "../../../lib/api-client";
 
 // สีต่อช่องทางชำระ — ใช้ token ธรรมดา (ไม่ใช่ -solid) เพราะ -solid มีแค่ celadon/rose และตั้งใจไว้เฉพาะ
 // พื้นทึบที่วางตัวอักษรขาวทับ (เช่น badge) เท่านั้น ดูคอมเมนต์ใน packages/ui/src/tokens.css — สำหรับจุดกราฟ/
-// แท่ง/ชิ้นพาย เราต้องการโทนที่ปรับความสว่างตามธีมเหมือนกับตัวอักษร/เส้นขอบ จึงใช้ตัวแปรธรรมดาทั้ง 4 สี
+// แท่ง/ชิ้นพาย เราต้องการโทนที่ปรับความสว่างตามธีมเหมือนกับตัวอักษร/เส้นขอบ จึงใช้ตัวแปรธรรมดา
+// docs/DESIGN.md §3 มีแค่ 4 สีหลักตั้งชื่อไว้ (celadon/indigo/brass/rose) + สีกลาง ink-faint/ink-muted — ไม่มีสีที่ 5
+// ให้ตั้งชื่อใหม่ ดังนั้น COMPLIMENTARY (รายการที่ไม่ใช่รายได้จริง ความสำคัญน้อยสุด) ใช้สีกลาง ink-faint แทน
+// เปิดช่องให้ TRANSFER (รายได้จริง) ได้ใช้ rose ที่ COMPLIMENTARY เคยครองแทน — ห้ามเติมสี hex ใหม่เด็ดขาด (CLAUDE.md)
 const PAYMENT_METHOD_COLOR: Record<PaymentMethod, string> = {
   CASH: "var(--celadon)",
   PACKAGE: "var(--indigo)",
   VOUCHER: "var(--brass)",
-  COMPLIMENTARY: "var(--rose)",
+  COMPLIMENTARY: "var(--ink-faint)",
+  TRANSFER: "var(--rose)",
 };
 
 const PAYMENT_METHOD_TOTAL_FIELD: Record<PaymentMethod, keyof DailySummaryReport["totals"]> = {
@@ -21,6 +25,7 @@ const PAYMENT_METHOD_TOTAL_FIELD: Record<PaymentMethod, keyof DailySummaryReport
   PACKAGE: "paymentPackageSatang",
   VOUCHER: "paymentVoucherSatang",
   COMPLIMENTARY: "paymentComplimentarySatang",
+  TRANSFER: "paymentTransferSatang",
 };
 
 /** T7.4 ส่วนที่ 2 — สัดส่วนช่องทางชำระ รวมทั้งช่วงที่เลือก (จาก totals ที่ ReportsController คำนวณให้แล้ว) */

@@ -1561,3 +1561,56 @@ state ล้วนเหมือนหน้าสมาชิกเดิม
 
 ทดสอบจริง: seed ข้อมูลบิลจำลอง 10 วันชั่วคราว + รัน backfill script เพื่อยืนยันว่ากราฟ/ตารางแสดงผลถูกต้องกับ
 ข้อมูลจริง (ไม่ใช่แค่ empty state) ก่อนลบข้อมูลทดสอบทิ้งจาก dev DB
+
+---
+
+## ADR-040: เพิ่มช่องทางชำระ TRANSFER (โอน/พร้อมเพย์) — ไม่นับเป็นเงินสดในลิ้นชัก, งวดจ่าย/schema ที่ copy enum ไว้เองต้องแก้คู่กัน
+
+วันที่: 2026-08-27
+Task ที่เกี่ยวข้อง: ไม่มีใน docs/PLAN.md (M7 ปิดแล้ว) — งานเสริมที่เจ้าของร้านยืนยันเพิ่มทีหลังหลังพบช่องว่างจริง
+ตอนวิเคราะห์ระบบที่ส่งมอบแล้ว (ร้านสปาไทยรับโอน/พร้อมเพย์เป็นปกติ แต่ enum `PaymentMethod` เดิมมีแค่
+CASH/PACKAGE/VOUCHER/COMPLIMENTARY ไม่มีทางบันทึกได้เลย)
+
+บริบท: เจ้าของร้านยืนยันให้เพิ่ม `TRANSFER` เป็นแค่ tag ช่องทางชำระธรรมดา **ไม่มีเลขอ้างอิง/รูปสลิป** (ปฏิเสธ
+ไปแล้วชัดเจน — เก็บง่ายเหมือน CASH) และย้ำว่าเงินโอนไม่ใช่เงินสดจริงในลิ้นชัก ห้ามปนกับ
+`CashierShift.systemCashSatang`/`countedCashSatang` (ตามนิยาม "เงินในลิ้นชัก" ของ ADR-031) ต้องแยกเป็นช่องทาง
+ที่ติดตามได้เองในรายงานเท่านั้น
+
+ตัดสินใจ:
+1. **เพิ่ม `TRANSFER` เข้า `PaymentMethod` enum ตรง ๆ** (schema.prisma + packages/contracts/src/payment.ts) —
+   ปฏิบัติเหมือน CASH ทุกจุดยกเว้นไม่เข้า cashier-shift reconciliation และไม่มี `tenderedSatang` (ช่องนั้น
+   มีความหมายเฉพาะ CASH เท่านั้นตาม comment เดิมบน `BillPayment.tenderedSatang`)
+2. **`CashierShiftController.close()` ไม่แตะเลย** — ยังกรอง `method: "CASH"` เท่านั้นเหมือนเดิม 100% ตามที่
+   ระบุไว้ชัดเจนในโจทย์ ป้องกันไม่ให้เงินโอนไปปนกับการนับเงินสดจริง
+3. **`DailySummary` เพิ่มคอลัมน์ `paymentTransferSatang` แยกต่างหาก** (ตามแพทเทิร์นเดิมของ
+   paymentCashSatang/paymentPackageSatang/paymentVoucherSatang/paymentComplimentarySatang) — **ไม่รวมเข้า
+   `cashInSatang`** (นิยามเดิม = paymentCashSatang + cashInPackageSatang เป็น proxy "เงินสดในลิ้นชัก + ซื้อคอร์ส
+   ใหม่" เท่านั้น) เงินโอนเป็นคนละช่องทางกับเงินสด ไม่ควรปนกันในตัวเลขนั้น
+4. **ต้องแก้ 2 จุดที่ไม่ได้อยู่ในสโคปเดิมของโจทย์ แต่จำเป็นเพื่อให้ typecheck ผ่าน** เพราะเป็นจุดที่ enum
+   `PaymentMethod` ถูก copy/ประกาศซ้ำเองแยกต่างหาก (ไม่ได้ import จาก packages/contracts):
+   - `packages/core/src/promotion/types.ts` — `LinePaymentMethod` ประกาศ union เองตาม ADR-019 (core ห้ามมี
+     dependency ใด ๆ แม้แต่ @lotus-desk/contracts) เดิมมีแค่ 4 ค่า ไม่มี TRANSFER เพิ่ม `"TRANSFER"` เข้าไป
+     ให้ตรงกัน — `isPromotable()` กันแค่ PACKAGE เท่านั้น จึงไม่ต้องเพิ่ม branch logic ใหม่ (TRANSFER ใช้โปรฯ
+     ได้เหมือน CASH/VOUCHER/COMPLIMENTARY ทุกกรณี)
+   - `apps/api/src/modules/booking/appointment-item.controller.ts` — `completeServiceJob()` มี parameter
+     type เป็น union ตัวอักษรเขียนมือ (`"CASH" | "PACKAGE" | "VOUCHER" | "COMPLIMENTARY"`) ไม่ได้อ้างจาก
+     type กลางที่ไหน เพิ่ม `"TRANSFER"` เข้า union นี้ตรง ๆ
+5. **กราฟสัดส่วนช่องทางชำระ (T7.4, `payment-breakdown-section.tsx`) สลับสีแทนที่จะเติมสีใหม่** — docs/DESIGN.md
+   §3 มีสีตั้งชื่อไว้แค่ 4 สี (celadon/indigo/brass/rose) ไม่มีสีที่ 5 ให้ใช้ ย้าย COMPLIMENTARY (รายการที่ไม่ใช่
+   รายได้จริง ความสำคัญน้อยสุดในกราฟนี้) ไปใช้สีกลาง `--ink-faint` แทน แล้วให้ TRANSFER (รายได้จริง) ได้ใช้
+   `--rose` ที่ COMPLIMENTARY เคยครอง — ไม่มีการเติม hex ใหม่เข้า tokens.css เลย
+
+เหตุผล: ข้อ 4 คือความเสี่ยงที่พบจริงตอนรัน `pnpm --filter @lotus-desk/api typecheck` (ไม่ได้ระบุไว้ในโจทย์ตั้งต้น)
+— enum ที่ใช้ร่วมกันข้าม package แต่บาง package ห้าม import ข้ามเขต (ADR-019) จะมีจุด "ประกาศซ้ำเอง" กระจายอยู่
+ต้องไล่หาให้ครบทุกจุดเวลาต่อ enum value ใหม่ ไม่ใช่แก้แค่ที่ schema.prisma/contracts แล้วจบ บันทึกไว้กันงานใน
+อนาคตที่จะต่อ enum นี้อีก (เช่นถ้าจะเพิ่มช่องทางชำระอื่นอีก) ให้รู้ต้อง grep หา literal union ประเภทนี้ด้วย ไม่ใช่
+แค่ไล่ตาม type ที่ TS ชี้ error ให้เท่านั้น (สองจุดนี้ TS ชี้ error ให้จริง แต่ต้องเข้าใจก่อนว่าทำไมถึงต้องแก้
+ไม่ใช่แค่ widen type มั่ว ๆ ให้ compile ผ่าน)
+
+ผลกระทบ: ถ้าจะเพิ่มช่องทางชำระใหม่อีกในอนาคต ต้องแก้ครบ 3 จุดเสมอ: (1) `PaymentMethod` enum ใน
+schema.prisma + migration, (2) `PAYMENT_METHODS`/`PAYMENT_METHOD_LABEL` ใน packages/contracts,
+(3) `LinePaymentMethod` ใน packages/core/src/promotion/types.ts — และไล่ grep หา literal union เขียนมืออื่น ๆ
+ที่อาจหลงเหลืออยู่ (เจอ 1 จุดใน appointment-item.controller.ts รอบนี้ ไม่รับประกันว่าไม่มีจุดอื่นอีกที่ยังไม่ถูก
+เรียกใช้จนกว่า TS จะชี้ error ให้เห็น) — `apps/web/src/app/(app)/reports/csv-export.ts` (T7.4) เพิ่มคอลัมน์
+`paymentTransferSatang` เข้า CSV export เรียบร้อยแล้ว (เพิ่มโดยหัวหน้าทีมหลังตรวจงาน — จุดเล็กพอที่จะแก้ตรง ๆ
+ไม่ต้องแยก Task ใหม่)

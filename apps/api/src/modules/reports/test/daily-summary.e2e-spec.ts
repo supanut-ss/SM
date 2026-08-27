@@ -205,6 +205,34 @@ describe("DailySummaryService (real Postgres via Testcontainers)", () => {
     expect(summary.cashInPackageSatang).toBe(0);
   });
 
+  it("tracks a TRANSFER payment in paymentTransferSatang and leaves cashInSatang unaffected (transfer is not drawer cash)", async () => {
+    const db = await import("@lotus-desk/db");
+    const day = bangkokDateArg(2026, 1, 21);
+    const dayInstant = bangkokInstant(2026, 1, 21);
+
+    await db.prisma.bill.create({
+      data: {
+        branchId,
+        billNumber: "BTRANSFER01",
+        subtotalSatang: 45_000,
+        totalSatang: 45_000,
+        status: "PAID",
+        createdAt: dayInstant,
+        payments: { create: [{ branchId, method: "TRANSFER", amountSatang: 45_000 }] },
+      },
+    });
+
+    await dailySummaryService.computeAndUpsertForBranchAndDate(branchId, day);
+
+    const summary = await db.prisma.dailySummary.findUniqueOrThrow({
+      where: { branchId_date: { branchId, date: day } },
+    });
+    expect(summary.paymentTransferSatang).toBe(45_000);
+    expect(summary.recognizedRevenueSatang).toBe(45_000);
+    expect(summary.paymentCashSatang).toBe(0);
+    expect(summary.cashInSatang).toBe(0);
+  });
+
   it("counts a package purchase into courseSold*/cashInPackageSatang, combines with bill cash into cashInSatang, and counts a ledger USE into courseUsedCount", async () => {
     const db = await import("@lotus-desk/db");
     const day = bangkokDateArg(2026, 1, 11);

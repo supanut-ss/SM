@@ -8,7 +8,12 @@ describe("PAYMENT_METHODS", () => {
     }
   });
 
-  it("matches docs/DOMAIN.md ข้อ 10 exactly (เงินสด/คอร์ส/วอยเชอร์/อภินันทนาการ)", () => {
-    expect(PAYMENT_METHODS).toEqual(["CASH", "PACKAGE", "VOUCHER", "COMPLIMENTARY"]);
+  it("matches docs/DOMAIN.md ข้อ 10 exactly (เงินสด/คอร์ส/วอยเชอร์/อภินันทนาการ/โอน)", () => {
+    expect(PAYMENT_METHODS).toEqual(["CASH", "PACKAGE", "VOUCHER", "COMPLIMENTARY", "TRANSFER"]);
+  });
+
+  it("includes TRANSFER for bank transfer/PromptPay payments", () => {
+    expect(PAYMENT_METHODS).toContain("TRANSFER");
+    expect(PAYMENT_METHOD_LABEL.TRANSFER).toBe("โอน/พร้อมเพย์");
   });
 });
