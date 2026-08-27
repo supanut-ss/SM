@@ -27,4 +27,6 @@ export const AUDIT_ENTITY_FETCHERS: Record<string, EntityFetcher> = {
   CashierShift: (id, prisma) => prisma.client.cashierShift.findUnique({ where: { id } }),
   StaffProfile: (id, prisma) => prisma.client.staffProfile.findUnique({ where: { id } }),
   TimeClockEntry: (id, prisma) => prisma.client.timeClockEntry.findUnique({ where: { id } }),
+  BillTip: (id, prisma) =>
+    prisma.client.billTip.findUnique({ where: { id }, include: { allocations: true } }),
 };

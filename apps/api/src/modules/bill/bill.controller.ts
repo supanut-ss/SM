@@ -13,16 +13,19 @@ import {
 import {
   checkoutBillSchema,
   cancelBillSchema,
+  recordBillTipSchema,
   type CheckoutBillInput,
   type CancelBillInput,
+  type RecordBillTipInput,
 } from "@lotus-desk/contracts";
-import { evaluatePromotions, validateRefund, validateUse } from "@lotus-desk/core";
+import { evaluatePromotions, splitTipsEqually, validateRefund, validateUse } from "@lotus-desk/core";
 import { Prisma } from "@lotus-desk/db";
 import { AuditEntity } from "../../audit/audit-entity.decorator";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuthService } from "../auth/auth.service";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { CurrentUser } from "../auth/current-user.decorator";
+import { JwtAuthGuard, type AuthenticatedUser } from "../auth/jwt-auth.guard";
 import { bangkokDayOfWeek, bangkokMinuteOfDay, bangkokMonth } from "../promotion/bangkok-time";
 import { resolveUsablePromotions, toPromotionRule } from "../promotion/promotion-rules";
 import { CurrentBranch } from "../rbac/current-branch.decorator";
@@ -30,6 +33,7 @@ import { PermissionGuard } from "../rbac/permission.guard";
 import { RequirePermission } from "../rbac/require-permission.decorator";
 import { MemberPackageService } from "../member-package/member-package.service";
 import type { BranchContext } from "../rbac/permission.guard";
+import { bangkokDayRange, toBangkokDateOnly } from "./bangkok-time";
 
 const BILL_INCLUDE = {
   lines: { include: { serviceJob: { include: { serviceVariant: { include: { service: true } } } } } },
@@ -364,6 +368,77 @@ export class BillController {
     });
 
     return this.findOwned(branch.branchId, billId);
+  }
+
+  /**
+   * บันทึกทิป (T6.3) — เข้ากองกลางพนักงานทุกคนเสมอ ไม่ใช่ของพนักงานคนใดคนหนึ่ง (docs/DOMAIN.md ข้อ 12)
+   * เกณฑ์แบ่ง (ชั่วคราว, ดู docs/decisions.md ADR-032): หารเท่า ๆ กันให้พนักงานทุกคนที่มี TimeClockEntry
+   * คลุมวันปฏิทินไทยเดียวกับตอนที่บิลนี้ checkout (Bill.createdAt) ที่สาขาเดียวกัน — คำนวณแบ่งทันทีตอน
+   * บันทึกทิป ไม่รอถึงตอนปิดงวดจ่าย (T6.4 อ่านผลรวมจาก TipAllocation ตรง ๆ)
+   */
+  @Post(":billId/tips")
+  @RequirePermission("manage", "billing")
+  @AuditEntity("BillTip")
+  async recordTip(
+    @CurrentBranch() branch: BranchContext,
+    @Param("billId") billId: string,
+    @Body(new ZodValidationPipe(recordBillTipSchema)) body: RecordBillTipInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const bill = await this.findOwned(branch.branchId, billId);
+    if (bill.status === "CANCELLED") {
+      throw new ConflictException("บิลนี้ถูกยกเลิกไปแล้ว บันทึกทิปไม่ได้");
+    }
+
+    const existingTip = await this.prisma.client.billTip.findUnique({ where: { billId } });
+    if (existingTip) {
+      throw new ConflictException("บิลนี้บันทึกทิปไปแล้ว");
+    }
+
+    const billDay = toBangkokDateOnly(bill.createdAt);
+    const { start, end } = bangkokDayRange(billDay);
+    const clockedInStaff = await this.prisma.forBranch(branch.branchId).timeClockEntry.findMany({
+      where: { clockInAt: { gte: start, lt: end } },
+      select: { staffId: true },
+    });
+    const staffIds = [...new Set(clockedInStaff.map((e) => e.staffId))].sort();
+    if (staffIds.length === 0) {
+      throw new UnprocessableEntityException(
+        "ไม่มีพนักงานลงเวลาทำงานในวันที่บิลนี้เกิดขึ้น ไม่สามารถแบ่งทิปได้",
+      );
+    }
+
+    const totalTipSatang = body.cashSatang + body.transferSatang;
+    const allocationPlan = splitTipsEqually({ totalTipSatang, staffIds });
+
+    const { billTip, allocations } = await this.prisma.client.$transaction(async (tx) => {
+      const createdTip = await tx.billTip.create({
+        data: {
+          branchId: branch.branchId,
+          billId: bill.id,
+          cashSatang: body.cashSatang,
+          transferSatang: body.transferSatang,
+          createdByUserId: user.sub,
+        },
+      });
+
+      const createdAllocations = [];
+      for (const plan of allocationPlan) {
+        const allocation = await tx.tipAllocation.create({
+          data: {
+            branchId: branch.branchId,
+            billTipId: createdTip.id,
+            staffId: plan.staffId,
+            tipSatang: plan.tipSatang,
+          },
+        });
+        createdAllocations.push(allocation);
+      }
+
+      return { billTip: createdTip, allocations: createdAllocations };
+    });
+
+    return { id: billTip.id, tip: billTip, allocations };
   }
 
   private async findOwned(branchId: string, billId: string) {

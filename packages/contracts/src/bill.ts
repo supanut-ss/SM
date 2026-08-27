@@ -77,3 +77,17 @@ export const cancelBillSchema = z.object({
 });
 
 export type CancelBillInput = z.infer<typeof cancelBillSchema>;
+
+// บันทึกทิป (T6.3) — เข้ากองกลางพนักงานทุกคนเสมอ (docs/DOMAIN.md ข้อ 12) แบ่งเงินสด/โอนแยกช่องแต่รวมกัน
+// ก่อนหารเท่า ๆ กัน (ดู docs/decisions.md ADR-032) ยอดรวมต้องมากกว่า 0 อย่างน้อยช่องใดช่องหนึ่ง
+export const recordBillTipSchema = z
+  .object({
+    cashSatang: moneySatang("ยอดทิปเงินสด"),
+    transferSatang: moneySatang("ยอดทิปโอน"),
+  })
+  .refine((v) => v.cashSatang + v.transferSatang > 0, {
+    message: "ยอดทิปรวมต้องมากกว่า 0",
+    path: ["cashSatang"],
+  });
+
+export type RecordBillTipInput = z.infer<typeof recordBillTipSchema>;
