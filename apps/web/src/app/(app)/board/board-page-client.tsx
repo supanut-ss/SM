@@ -136,6 +136,18 @@ export function BoardPageClient() {
     onError: (err) => setError(err instanceof ApiError ? err.message : "เปลี่ยนสถานะไม่สำเร็จ"),
   });
 
+  // เข้าคิวหมุน (T4.4) — API มีอยู่แล้วแต่ไม่เคยมีปุ่มในหน้าเว็บเลย พนักงานที่ยังไม่มีนัดวันนั้นเลยไม่มีทาง
+  // เข้าคิวได้ (ระบบเดิมเข้าคิวให้อัตโนมัติแค่ตอนนัด "แรก" ของวันจบ/ยกเลิก ไม่ใช่ตอนเริ่มวัน) ดู
+  // docs/decisions.md ADR-049
+  const joinQueueMutation = useMutation({
+    mutationFn: (staffId: string) => staffQueueApi.join(branch!.branchId, { staffId, date }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queueKey });
+      setError(null);
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "เข้าคิวไม่สำเร็จ กรุณาลองใหม่"),
+  });
+
   function handleReschedule(item: AppointmentItem, changes: { rowId: string; startAt: Date; endAt: Date }) {
     const staffId = viewMode === "staff" ? changes.rowId : item.staffId;
     const roomId = viewMode === "room" ? changes.rowId : item.roomId;
@@ -152,6 +164,9 @@ export function BoardPageClient() {
   const rowKeyOf = (item: AppointmentItem) => (viewMode === "staff" ? item.staffId : item.roomId);
 
   const detailItem = (itemsQuery.data ?? []).find((i) => i.id === detailItemId) ?? null;
+
+  const queuedStaffIds = new Set((queueQuery.data ?? []).map((e) => e.staffId));
+  const staffNotInQueue = (staffQuery.data ?? []).filter((s) => !queuedStaffIds.has(s.id));
 
   if (!branch) {
     return (
@@ -263,6 +278,9 @@ export function BoardPageClient() {
               const firstItem = (itemsQuery.data ?? []).find((i) => i.staffId === staffId);
               if (firstItem) setSelectedItemId(firstItem.id);
             }}
+            notInQueue={canManage ? staffNotInQueue : []}
+            onJoinQueue={(staffId) => joinQueueMutation.mutate(staffId)}
+            isJoining={joinQueueMutation.isPending}
           />
           <LaneBoard
             dateKey={dateKey}
