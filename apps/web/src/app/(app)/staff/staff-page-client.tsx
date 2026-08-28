@@ -79,6 +79,7 @@ export function StaffPageClient() {
       skills: editingRecord.skills,
       startDate: editingRecord.startDate ? new Date(editingRecord.startDate) : undefined,
       note: editingRecord.note ?? "",
+      userId: editingRecord.userId ?? "",
     };
   }, [editingRecord]);
 
@@ -265,6 +266,7 @@ export function StaffPageClient() {
       >
         <StaffForm
           key={editingRecord?.id ?? "create"}
+          branchId={branch.branchId}
           initialValues={sheetInitialValues}
           submitLabel={editingRecord ? "บันทึกการแก้ไข" : "เพิ่มพนักงาน"}
           onCancel={() => setSheetTarget(null)}
