@@ -5,7 +5,6 @@ import {
   BoardIcon,
   ClockIcon,
   DashboardIcon,
-  InventoryIcon,
   MemberIcon,
   PackageIcon,
   PayrollIcon,
@@ -13,7 +12,6 @@ import {
   ReportIcon,
   RoomIcon,
   ServiceIcon,
-  SettingsIcon,
   StaffIcon,
 } from "./nav-icons";
 
@@ -43,9 +41,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/packages", label: "คอร์ส/แพ็กเกจ", group: "ข้อมูลร้าน", icon: PackageIcon, require: { action: "view", resource: "package" } },
   { href: "/promotions", label: "โปรโมชั่น", group: "ข้อมูลร้าน", icon: PromotionIcon, require: { action: "view", resource: "promotion" } },
   { href: "/rooms", label: "ห้อง/เตียง", group: "ข้อมูลร้าน", icon: RoomIcon, require: { action: "view", resource: "room" } },
-  { href: "/inventory", label: "คลัง", group: "ข้อมูลร้าน", icon: InventoryIcon, require: { action: "view", resource: "inventory" } },
   { href: "/staff", label: "พนักงาน", group: "จัดการร้าน", icon: StaffIcon, require: { action: "view", resource: "staff" } },
   { href: "/payroll", label: "ค่ามือ", group: "จัดการร้าน", icon: PayrollIcon, require: { action: "view", resource: "payroll" } },
   { href: "/reports", label: "รายงาน", group: "จัดการร้าน", icon: ReportIcon, require: { action: "view", resource: "report" } },
-  { href: "/settings", label: "ตั้งค่า", group: "จัดการร้าน", icon: SettingsIcon, require: { action: "view", resource: "settings" } },
+  // "คลัง"/"ตั้งค่า" ยังไม่มีหน้าเว็บจริง (T12.3/T12.7 ใน docs/PLAN.md §12 — ส่วนเสริมที่ยังไม่ถึงคิวสร้าง)
+  // ซ่อนออกจากเมนูไปก่อนกัน 404 ดู docs/decisions.md ADR-048 — เพิ่มกลับเมื่อ Task นั้นถูกทำจริง
 ];
