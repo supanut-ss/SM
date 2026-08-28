@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateMemberInput, UpdateMemberInput } from "@lotus-desk/contracts";
@@ -172,6 +173,7 @@ export function MemberPageClient() {
               <TableHead>ชื่อ</TableHead>
               <TableHead>เบอร์โทร</TableHead>
               <TableHead>สถานะ</TableHead>
+              <TableHead>โปรไฟล์</TableHead>
               {canManage && <TableHead className="text-right">จัดการ</TableHead>}
             </TableRow>
           </TableHeader>
@@ -193,6 +195,14 @@ export function MemberPageClient() {
                   >
                     {member.mergedIntoId ? "รวมเข้าสมาชิกอื่นแล้ว" : member.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}
                   </span>
+                </TableCell>
+                <TableCell>
+                  <Link
+                    href={`/members/${member.id}`}
+                    className="text-sm font-medium text-celadon hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
+                  >
+                    ดูโปรไฟล์
+                  </Link>
                 </TableCell>
                 {canManage && (
                   <TableCell className="text-right">

@@ -24,13 +24,6 @@ function formatBalance(pkg: ExpiringCoursePackage): string {
   return "ไม่จำกัดจำนวนครั้ง";
 }
 
-/** เพจสมาชิก (T3.x) ยังไม่มีเส้นทางลึกแบบ /members/[memberId] — ชีทแก้ไขเปิดจาก state ในหน้าเดียว และ
- * ช่องค้นหาไม่ได้ผูกกับ query param ของ URL จึงลิงก์ไปที่ /members?q=<รหัสสมาชิก> เป็นทางเลือกที่ดีที่สุด
- * ตอนนี้ (พาไปหน้าสมาชิกที่ถูกต้องจริง แต่ยังไม่ auto-filter ให้ — ดูรายงานท้ายงาน T7.3) */
-function memberLink(code: string): string {
-  return `/members?q=${encodeURIComponent(code)}`;
-}
-
 /** คอร์สใกล้หมดอายุ (T7.3) — ดึงจาก ReportsController.coursesExpiring (default withinDays=30) */
 export function ExpiringCoursesSection({ branchId }: { branchId: string }) {
   const query = useQuery({
@@ -76,7 +69,7 @@ export function ExpiringCoursesSection({ branchId }: { branchId: string }) {
             return (
               <li key={pkg.id}>
                 <Link
-                  href={memberLink(pkg.member.code)}
+                  href={`/members/${pkg.memberId}`}
                   className="flex items-center justify-between gap-3 rounded-DEFAULT border border-line-strong bg-surface px-4 py-3 transition-colors hover:bg-surface-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
                 >
                   <div>

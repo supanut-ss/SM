@@ -14,12 +14,6 @@ function formatDateThai(iso: string): string {
   });
 }
 
-/** เพจสมาชิกยังไม่มีเส้นทางลึก /members/[memberId] — ลิงก์ไปที่ /members?q=<รหัสสมาชิก> เหมือนการ์ด
- * "คอร์สใกล้หมดอายุ" ด้านบน (พาไปหน้าที่ถูกต้อง แต่ยังไม่ auto-filter — ดูรายงานท้ายงาน T7.3) */
-function memberLink(code: string): string {
-  return `/members?q=${encodeURIComponent(code)}`;
-}
-
 /** ลูกค้าที่หายไปเกิน 60 วัน (T7.3) — ดึงจาก ReportsController.dormantCustomers (default daysSinceLastVisit=60) */
 export function DormantCustomersSection({ branchId }: { branchId: string }) {
   const query = useQuery({
@@ -59,7 +53,7 @@ export function DormantCustomersSection({ branchId }: { branchId: string }) {
           {query.data.map((row) => (
             <li key={row.member.id}>
               <Link
-                href={memberLink(row.member.code)}
+                href={`/members/${row.member.id}`}
                 className="flex items-center justify-between gap-3 rounded-DEFAULT border border-line-strong bg-surface px-4 py-3 transition-colors hover:bg-surface-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
               >
                 <div>
