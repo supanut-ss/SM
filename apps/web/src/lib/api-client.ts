@@ -54,6 +54,7 @@ import type {
   CloseCashierShiftInput,
   ReopenCashierShiftInput,
   VerifyManagerPinInput,
+  ReopenPayrollPeriodInput,
 } from "@lotus-desk/contracts";
 
 /**
@@ -125,8 +126,6 @@ export const userApi = {
 export interface StaffProfile {
   id: string;
   branchId: string;
-  // ผูกกับบัญชีผู้ใช้ที่ล็อกอินได้ (T6.1) — null แปลว่ายังไม่ผูก (ลงเวลาทำงานไม่ได้จนกว่าจะผูก)
-  userId: string | null;
   name: string;
   phone: string | null;
   level: StaffLevel;
@@ -622,7 +621,8 @@ export interface AppointmentItem {
 }
 
 /** ดู ServiceJob model (T5.5) — snapshot ราคา/ค่ามือ/ระดับพนักงาน ณ เวลาเริ่มงาน ห้ามอ่านค่าปัจจุบันจาก
- * ServiceVariant สด (แก้ราคาบริการทีหลังต้องไม่กระทบใบงานเก่า) */
+ * ServiceVariant สด (แก้ราคาบริการทีหลังต้องไม่กระทบใบงานเก่า) paymentMethod/memberPackageId ตัดสินใจตอน
+ * เริ่มงาน (IN_SERVICE) แล้ว ไม่ใช่ตอนจบงาน (ดู docs/decisions.md ADR-046) */
 export interface ServiceJob {
   id: string;
   branchId: string;
@@ -637,6 +637,10 @@ export interface ServiceJob {
   startedAt: string;
   completedAt: string | null;
   paymentMethod: PaymentMethod | null;
+  /** ล็อกไว้ตอนเริ่มงานเมื่อ paymentMethod === "PACKAGE" เท่านั้น (ตัดยอดจริงยังเกิดตอน checkout เหมือนเดิม) */
+  memberPackageId: string | null;
+  /** มีค่าเฉพาะตอนที่ AppointmentItemController.list() include มาให้ — ใช้แสดงชื่อคอร์สแบบอ่านอย่างเดียว */
+  memberPackage?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
   /** มีค่าเฉพาะตอนที่ AppointmentItemController.list() include ให้ (ดู T5.6) — ไม่ null แปลว่าออกบิลไปแล้ว */
@@ -893,56 +897,211 @@ export const cashierShiftApi = {
     }),
 };
 
-/** ดู AttendanceController — ลงเวลาทำงาน (T6.1) clockOutAt null แปลว่ายังไม่ลงเวลาออก (รอบเปิดอยู่) */
-export interface AttendanceRecord {
+/** ดู ReportsController.today (T7.2/T7.3) — คำนวณสดเสมอ ไม่มี cache ฝั่ง client ที่ตั้งใจให้ stale นาน */
+export interface DailyStaffSummaryToday {
+  staffId: string;
+  scheduledMinutes: number;
+  workedMinutes: number;
+  jobCount: number;
+  commissionSatang: number;
+}
+
+export interface TodayReport {
+  date: string;
+  recognizedRevenueSatang: number;
+  cashInSatang: number;
+  cashInPackageSatang: number;
+  paymentCashSatang: number;
+  paymentPackageSatang: number;
+  paymentVoucherSatang: number;
+  paymentComplimentarySatang: number;
+  paymentTransferSatang: number;
+  courseSoldCount: number;
+  courseSoldValueSatang: number;
+  courseUsedCount: number;
+  newCustomerCount: number;
+  returningCustomerCount: number;
+  noShowCount: number;
+  staffSummaries: DailyStaffSummaryToday[];
+}
+
+/** ดู ReportsController.coursesExpiring — MemberPackage (join member ด้วย) + balance ต่อยอด (T7.3 แดชบอร์ด) */
+export interface ExpiringCoursePackage extends MemberPackage {
+  member: { name: string; code: string };
+}
+
+/** ดู ReportsController.dormantCustomers — สมาชิกที่บิลล่าสุดเก่ากว่า N วัน (T7.3 แดชบอร์ด) */
+export interface DormantCustomer {
+  member: { id: string; name: string; phone: string; code: string };
+  lastVisitAt: string;
+  daysSinceLastVisit: number;
+}
+
+/** ดู ReportsController.dailySummary (T7.2) — 1 แถวต่อวัน อ่านจาก DailySummary ที่ cron ตี 2 pre-aggregate ไว้
+ * (T7.1) ทุกฟิลด์เงินเป็นสตางค์ (CLAUDE.md ข้อ 2) date เป็น ISO string ("YYYY-MM-DDT00:00:00.000Z") */
+export interface DailySummaryRow {
   id: string;
   branchId: string;
-  staffId: string;
   date: string;
-  staffShiftId: string | null;
-  clockInAt: string;
-  lateMinutes: number | null;
-  clockOutAt: string | null;
-  otMinutes: number | null;
-  earlyLeaveMinutes: number | null;
+  recognizedRevenueSatang: number;
+  cashInSatang: number;
+  cashInPackageSatang: number;
+  paymentCashSatang: number;
+  paymentPackageSatang: number;
+  paymentVoucherSatang: number;
+  paymentComplimentarySatang: number;
+  paymentTransferSatang: number;
+  courseSoldCount: number;
+  courseSoldValueSatang: number;
+  courseUsedCount: number;
+  newCustomerCount: number;
+  returningCustomerCount: number;
+  noShowCount: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface AttendanceMe {
-  staffId: string | null;
-  staffName: string | null;
-  openRecord: AttendanceRecord | null;
+/** ผลรวมของ DailySummaryRow ทุกฟิลด์เงิน/จำนวนในช่วงที่เลือก (คำนวณฝั่ง ReportsController.sumDailySummaries) */
+export type DailySummaryTotals = Omit<DailySummaryRow, "id" | "branchId" | "date" | "createdAt" | "updatedAt">;
+
+export interface DailySummaryReport {
+  days: DailySummaryRow[];
+  totals: DailySummaryTotals;
 }
 
-export type AttendanceShiftStatus = "UPCOMING" | "IN_PROGRESS" | "COMPLETED" | "ABSENT";
-
-export interface AttendanceDailySummaryRow {
-  staffShiftId: string;
+/** ดู ReportsController.staffUtilization (T7.2) — 1 แถวต่อวันต่อพนักงาน join staff.name/level มาด้วยเสมอ */
+export interface DailyStaffSummaryRow {
+  id: string;
+  branchId: string;
+  date: string;
   staffId: string;
-  staffName: string;
-  startMin: number;
-  endMin: number;
-  status: AttendanceShiftStatus;
+  staff: { name: string; level: StaffLevel };
+  scheduledMinutes: number;
+  workedMinutes: number;
+  jobCount: number;
+  commissionSatang: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffUtilizationReport {
+  days: DailyStaffSummaryRow[];
+}
+
+export const reportsApi = {
+  today: (branchId: string) => apiFetch<TodayReport>(`/branches/${branchId}/reports/today`),
+  coursesExpiring: (branchId: string, withinDays?: number) =>
+    apiFetch<ExpiringCoursePackage[]>(
+      `/branches/${branchId}/reports/courses/expiring${withinDays ? `?withinDays=${withinDays}` : ""}`,
+    ),
+  dormantCustomers: (branchId: string, daysSinceLastVisit?: number) =>
+    apiFetch<DormantCustomer[]>(
+      `/branches/${branchId}/reports/customers/dormant${daysSinceLastVisit ? `?daysSinceLastVisit=${daysSinceLastVisit}` : ""}`,
+    ),
+  // ดู T7.4 — หน้ารายงาน: กราฟยอดขาย/ช่องทางชำระ + ตารางค่ามือ อ่านช่วงวันที่จาก URL query เสมอ
+  dailySummary: (branchId: string, from: string, to: string) =>
+    apiFetch<DailySummaryReport>(`/branches/${branchId}/reports/daily-summary?from=${from}&to=${to}`),
+  staffUtilization: (branchId: string, from: string, to: string, staffId?: string) =>
+    apiFetch<StaffUtilizationReport>(
+      `/branches/${branchId}/reports/staff-utilization?from=${from}&to=${to}${staffId ? `&staffId=${staffId}` : ""}`,
+    ),
+};
+
+/** ดู PayrollController — งวดจ่ายค่ามือ (T6.4) closedAt null แปลว่ายังเปิดอยู่ ตรง field ตาม schema.prisma */
+export interface PayrollPeriod {
+  id: string;
+  branchId: string;
+  periodStart: string;
+  openedByUserId: string;
+  periodEnd: string | null;
+  closedAt: string | null;
+  closedByUserId: string | null;
+  reopenedAt: string | null;
+  reopenedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** ดู PayrollController (close/summary) — join staff.name/level มาด้วยเสมอ */
+export interface PayrollPeriodStaffSummary {
+  id: string;
+  branchId: string;
+  payrollPeriodId: string;
+  staffId: string;
+  staff: { name: string; level: StaffLevel };
+  jobCount: number;
+  commissionSatang: number;
+  tipSatang: number;
+  deductionSatang: number;
+  totalSatang: number;
+  createdAt: string;
+}
+
+export interface PayrollPeriodWithSummaries extends PayrollPeriod {
+  summaries: PayrollPeriodStaffSummary[];
+}
+
+export const payrollApi = {
+  list: (branchId: string) => apiFetch<PayrollPeriod[]>(`/branches/${branchId}/payroll/periods`),
+  // ห่อด้วย { period } เสมอฝั่ง server (ดู PayrollController.current) กัน res.json() พังตอน body ว่าง
+  current: (branchId: string) =>
+    apiFetch<{ period: PayrollPeriod | null }>(`/branches/${branchId}/payroll/periods/current`),
+  open: (branchId: string) =>
+    apiFetch<PayrollPeriod>(`/branches/${branchId}/payroll/periods`, { method: "POST" }),
+  close: (branchId: string, periodId: string) =>
+    apiFetch<PayrollPeriodWithSummaries>(`/branches/${branchId}/payroll/periods/${periodId}/close`, {
+      method: "POST",
+    }),
+  reopen: (branchId: string, periodId: string, approvalToken: string) =>
+    apiFetch<PayrollPeriod>(`/branches/${branchId}/payroll/periods/${periodId}/reopen`, {
+      method: "POST",
+      body: JSON.stringify({ approvalToken } satisfies ReopenPayrollPeriodInput),
+    }),
+  summary: (branchId: string, periodId: string) =>
+    apiFetch<PayrollPeriodWithSummaries>(`/branches/${branchId}/payroll/periods/${periodId}/summary`),
+};
+
+/** ดู AttendanceController.list — attendance.status/lateMinutes/earlyLeaveMinutes/otMinutes มาจาก
+ * evaluateAttendance (packages/core) เสมอ ไม่คำนวณซ้ำฝั่ง client */
+export type AttendanceStatus = "ON_TIME" | "LATE" | "LEFT_EARLY" | "LATE_AND_LEFT_EARLY" | "ABSENT" | "NO_SHIFT";
+
+export interface AttendanceEvaluation {
+  status: AttendanceStatus;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+  otMinutes: number;
+}
+
+/** shape จริงที่ AttendanceController.list()/clockIn/clockOut ตอบกลับต่อแถว (T6.1) — 1 แถวต่อพนักงาน
+ * ต่อวัน union ทั้งพนักงานที่มีกะและ/หรือมีรายการลงเวลาแล้ว (ไม่ list พนักงานที่ไม่มีทั้งคู่ในวันนั้น —
+ * หน้าเว็บต้อง union เข้ากับ staffApi.list() เองถ้าอยากเห็นพนักงานที่ยังไม่มีรายการเลย) */
+export interface AttendanceRow {
+  staffId: string;
+  staff: { name: string; level: StaffLevel } | null;
+  shift: { startMin: number; endMin: number } | null;
+  clockInAt: string | null;
+  clockOutAt: string | null;
+  attendance: AttendanceEvaluation;
 }
 
 export const attendanceApi = {
-  // "ฉัน" (ผู้ใช้ที่ล็อกอินอยู่ตอนนี้) — UI ใช้ตัดสินใจว่าจะโชว์ปุ่ม "เข้างาน" หรือ "ออกงาน"
-  me: (branchId: string) => apiFetch<AttendanceMe>(`/branches/${branchId}/attendance/me`),
-  clockIn: (branchId: string) =>
-    apiFetch<AttendanceRecord>(`/branches/${branchId}/attendance/clock-in`, { method: "POST" }),
-  clockOut: (branchId: string) =>
-    apiFetch<AttendanceRecord>(`/branches/${branchId}/attendance/clock-out`, { method: "POST" }),
-  list: (branchId: string, params?: { staffId?: string; date?: string }) => {
+  list: (branchId: string, date?: string, staffId?: string) => {
     const query = new URLSearchParams();
-    if (params?.staffId) query.set("staffId", params.staffId);
-    if (params?.date) query.set("date", params.date);
+    if (date) query.set("date", date);
+    if (staffId) query.set("staffId", staffId);
     const qs = query.toString();
-    return apiFetch<AttendanceRecord[]>(`/branches/${branchId}/attendance${qs ? `?${qs}` : ""}`);
+    return apiFetch<AttendanceRow[]>(`/branches/${branchId}/attendance${qs ? `?${qs}` : ""}`);
   },
-  summary: (branchId: string, date?: string) =>
-    apiFetch<AttendanceDailySummaryRow[]>(
-      `/branches/${branchId}/attendance/summary${date ? `?date=${date}` : ""}`,
+  // ไม่มีฟิลด์ pin เลย — หน้านี้เป็นโรสเตอร์ที่แคชเชียร์/เจ้าของลงเวลาแทนพนักงาน ไม่เก็บ PIN จากใครทั้งนั้น
+  clockIn: (branchId: string, staffId: string) =>
+    apiFetch<{ id: string; entry: unknown; attendance: AttendanceEvaluation }>(
+      `/branches/${branchId}/attendance/clock-in`,
+      { method: "POST", body: JSON.stringify({ staffId }) },
+    ),
+  clockOut: (branchId: string, staffId: string) =>
+    apiFetch<{ id: string; entry: unknown; attendance: AttendanceEvaluation }>(
+      `/branches/${branchId}/attendance/clock-out`,
+      { method: "POST", body: JSON.stringify({ staffId }) },
     ),
 };
 

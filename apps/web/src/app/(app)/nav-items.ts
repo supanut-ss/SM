@@ -18,13 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/promotions", label: "โปรโมชั่น", require: { action: "view", resource: "promotion" } },
   { href: "/billing", label: "บิล/แคชเชียร์", require: { action: "view", resource: "billing" } },
   { href: "/staff", label: "พนักงาน", require: { action: "view", resource: "staff" } },
-  {
-    href: "/attendance",
-    label: "ลงเวลาทำงาน",
-    // "manage" ไม่ใช่ "view" เพราะบทบาท "พนักงานบริการ" (T6.1) มีแค่ attendance:manage — หน้านี้เป็น
-    // self-service ลงเวลาเข้า/ออกงานของตัวเอง ใช้สิทธิ์เดียวกับที่ทำ action นั้นได้จริง (ดู seed.ts)
-    require: { action: "manage", resource: "attendance" },
-  },
+  { href: "/attendance", label: "ลงเวลาเข้า-ออกงาน", require: { action: "view", resource: "attendance" } },
   { href: "/rooms", label: "ห้อง/เตียง", require: { action: "view", resource: "room" } },
   { href: "/payroll", label: "ค่ามือ", require: { action: "view", resource: "payroll" } },
   { href: "/reports", label: "รายงาน", require: { action: "view", resource: "report" } },

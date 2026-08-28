@@ -163,7 +163,7 @@ describe("Appointment item status transitions (real Postgres via Testcontainers)
     const res = await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
     expect(res.status).toBe(422);
     expect(res.body.message).toContain("จองไว้");
     expect(res.body.message).toContain("กำลังบริการ");
@@ -183,17 +183,17 @@ describe("Appointment item status transitions (real Postgres via Testcontainers)
     await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
     const completed = await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "COMPLETED", paymentMethod: "CASH" });
+      .send({ status: "COMPLETED" });
     expect(completed.status).toBe(200);
 
     const again = await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
     expect(again.status).toBe(422);
   });
 

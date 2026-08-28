@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cancelBillSchema, checkoutBillSchema } from "./bill.js";
+import { cancelBillSchema, checkoutBillSchema, recordBillTipSchema } from "./bill.js";
 
 describe("checkoutBillSchema", () => {
   const basePayment = { method: "CASH" as const, amountSatang: 30000 };
@@ -84,18 +84,45 @@ describe("checkoutBillSchema", () => {
 });
 
 describe("cancelBillSchema", () => {
-  it("accepts a valid cancellation", () => {
+  it("accepts a valid cancellation with an approvalToken", () => {
     const result = cancelBillSchema.safeParse({ approvalToken: "token123", reason: "ลูกค้าจองผิดคน" });
     expect(result.success).toBe(true);
   });
 
-  it("rejects a missing approvalToken", () => {
-    const result = cancelBillSchema.safeParse({ reason: "x" });
+  it("accepts a valid cancellation without an approvalToken (self-cancel eligibility is checked in the controller)", () => {
+    const result = cancelBillSchema.safeParse({ reason: "ลูกค้าจองผิดคน" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty-string approvalToken", () => {
+    const result = cancelBillSchema.safeParse({ approvalToken: "", reason: "x" });
     expect(result.success).toBe(false);
   });
 
   it("rejects a missing reason", () => {
     const result = cancelBillSchema.safeParse({ approvalToken: "token123" });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("recordBillTipSchema", () => {
+  it("accepts a valid cash/transfer split", () => {
+    const result = recordBillTipSchema.safeParse({ cashSatang: 5000, transferSatang: 3000 });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects both cashSatang and transferSatang being zero", () => {
+    const result = recordBillTipSchema.safeParse({ cashSatang: 0, transferSatang: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a negative cashSatang", () => {
+    const result = recordBillTipSchema.safeParse({ cashSatang: -1, transferSatang: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a negative transferSatang", () => {
+    const result = recordBillTipSchema.safeParse({ cashSatang: 0, transferSatang: -1 });
     expect(result.success).toBe(false);
   });
 });

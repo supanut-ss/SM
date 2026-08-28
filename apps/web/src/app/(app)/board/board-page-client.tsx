@@ -120,11 +120,13 @@ export function BoardPageClient() {
       item,
       status,
       paymentMethod,
+      memberPackageId,
     }: {
       item: AppointmentItem;
       status: AppointmentStatus;
       paymentMethod?: PaymentMethod;
-    }) => appointmentItemApi.updateStatus(branch!.branchId, item.id, { status, paymentMethod }),
+      memberPackageId?: string;
+    }) => appointmentItemApi.updateStatus(branch!.branchId, item.id, { status, paymentMethod, memberPackageId }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: itemsKey });
       void queryClient.invalidateQueries({ queryKey: queueKey });
@@ -286,8 +288,9 @@ export function BoardPageClient() {
         onClose={() => setDetailItemId(null)}
         canManage={canManage}
         isPending={statusMutation.isPending}
-        onChangeStatus={(item, status, paymentMethod) =>
-          statusMutation.mutate({ item, status, paymentMethod })
+        errorMessage={error}
+        onChangeStatus={(item, status, paymentMethod, memberPackageId) =>
+          statusMutation.mutate({ item, status, paymentMethod, memberPackageId })
         }
       />
 

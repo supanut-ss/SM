@@ -1,17 +1,63 @@
 "use client";
 
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@lotus-desk/ui";
+import { STAFF_LEVEL_LABEL } from "@lotus-desk/contracts";
+import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
 import {
   ApiError,
   attendanceApi,
-  type AttendanceDailySummaryRow,
-  type AttendanceShiftStatus,
+  staffApi,
+  type AttendanceRow,
+  type AttendanceStatus,
+  type StaffProfile,
 } from "../../../lib/api-client";
+import { minToTimeString } from "../staff/shifts/time-format";
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
 
-function formatTime(iso: string): string {
+/** สถานะวันนี้ของพนักงาน 1 คน (มาแล้ว/กำลังทำงาน/กลับแล้ว) — อนุมานจาก TimeClockEntry ล่าสุด ไม่ใช่จาก
+ * attendance.status ของ evaluateAttendance (นั่นคือผลเทียบกับกะ ไม่ใช่สถานะการมาทำงาน) */
+type TodayStatus = "NOT_ARRIVED" | "WORKING" | "DONE";
+
+function todayStatus(row: AttendanceRow | undefined): TodayStatus {
+  if (!row || !row.clockInAt) return "NOT_ARRIVED";
+  if (!row.clockOutAt) return "WORKING";
+  return "DONE";
+}
+
+const TODAY_STATUS_LABEL: Record<TodayStatus, string> = {
+  NOT_ARRIVED: "ยังไม่มา",
+  WORKING: "กำลังทำงาน",
+  DONE: "กลับแล้ว",
+};
+
+const TODAY_STATUS_STYLE: Record<TodayStatus, string> = {
+  NOT_ARRIVED: "bg-surface-sunk text-ink-faint",
+  WORKING: "bg-celadon-solid text-white",
+  DONE: "bg-surface-sunk text-ink-muted",
+};
+
+const SHIFT_STATUS_LABEL: Record<AttendanceStatus, string> = {
+  ON_TIME: "ตรงเวลา",
+  LATE: "สาย",
+  LEFT_EARLY: "ออกก่อน",
+  LATE_AND_LEFT_EARLY: "สาย+ออกก่อน",
+  ABSENT: "ขาด",
+  NO_SHIFT: "ไม่มีกะ",
+};
+
+const SHIFT_STATUS_STYLE: Record<AttendanceStatus, string> = {
+  ON_TIME: "border border-line-strong text-ink-muted",
+  LATE: "bg-brass-tint text-brass",
+  LEFT_EARLY: "bg-brass-tint text-brass",
+  LATE_AND_LEFT_EARLY: "bg-rose-tint text-rose",
+  ABSENT: "bg-rose-tint text-rose",
+  NO_SHIFT: "border border-dashed border-line text-ink-faint",
+};
+
+function formatClockTime(iso: string | null): string {
+  if (!iso) return "—";
   return new Date(iso).toLocaleTimeString("th-TH", {
     hour: "2-digit",
     minute: "2-digit",
@@ -19,187 +65,71 @@ function formatTime(iso: string): string {
   });
 }
 
-function formatMin(min: number): string {
-  const h = Math.floor(min / 60)
-    .toString()
-    .padStart(2, "0");
-  const m = (min % 60).toString().padStart(2, "0");
-  return `${h}:${m}`;
+interface RosterRow {
+  staff: StaffProfile;
+  entry: AttendanceRow | undefined;
 }
 
-// สีสถานะยืมมาจากชุดเดียวกับ Lane Board (docs/DESIGN.md §3.3) เพื่อไม่ต้องคิดสีใหม่: UPCOMING เหมือน
-// "จองไว้" (indigo), IN_PROGRESS เหมือน "กำลังบริการ" (celadon ทึบ), COMPLETED เหมือน "เสร็จแล้ว"
-// (ink-faint), ABSENT เหมือน "ไม่มา" (rose)
-const STATUS_STYLE: Record<AttendanceShiftStatus, string> = {
-  UPCOMING: "border border-dashed border-indigo bg-indigo-tint text-indigo",
-  IN_PROGRESS: "bg-celadon text-white",
-  COMPLETED: "bg-surface-sunk text-ink-faint",
-  ABSENT: "bg-rose-tint text-rose",
-};
-
-const STATUS_LABEL: Record<AttendanceShiftStatus, string> = {
-  UPCOMING: "ยังไม่ถึงเวลา",
-  IN_PROGRESS: "กำลังทำงาน",
-  COMPLETED: "เสร็จกะแล้ว",
-  ABSENT: "ขาด",
-};
-
-function StatusPill({ status }: { status: AttendanceShiftStatus }) {
-  return (
-    <span className={`inline-flex rounded-DEFAULT px-2.5 py-1 text-xs font-medium ${STATUS_STYLE[status]}`}>
-      {STATUS_LABEL[status]}
-    </span>
-  );
-}
-
-/** แผงลงเวลาเข้า/ออกงานของ "ฉัน" (T6.1) — พนักงานที่ล็อกอินด้วย PIN ที่เครื่องหน้าร้านใช้ปุ่มเดียวนี้ */
-function MyClockPanel({ branchId }: { branchId: string }) {
+/**
+ * โรสเตอร์ลงเวลาเข้า-ออกงาน (T6.1) — แคชเชียร์/ผู้จัดการ/เจ้าของเป็นคนกดแทนพนักงาน ไม่มีช่องกรอก PIN
+ * ในหน้านี้เลย รวมพนักงานทำงานทุกคนของสาขา (staffApi.list) เข้ากับรายการลงเวลาวันนี้ (attendanceApi.list)
+ * เพื่อให้เห็นครบทุกคนแม้ยังไม่มีรายการลงเวลาเลยก็ตาม
+ */
+export function AttendancePageClient() {
+  const branch = useCurrentBranch();
   const queryClient = useQueryClient();
-  const meKey = ["attendance-me", branchId];
+  const canManage = hasPermission(branch?.permissions ?? [], "manage", "attendance");
 
-  const meQuery = useQuery({
-    queryKey: meKey,
-    queryFn: () => attendanceApi.me(branchId),
-    refetchInterval: 30_000,
+  const staffKey = ["attendance-staff-roster", branch?.branchId];
+  const attendanceKey = ["attendance-today", branch?.branchId];
+
+  const staffQuery = useQuery({
+    queryKey: staffKey,
+    queryFn: () => staffApi.list(branch!.branchId, { isActive: "true" }),
+    enabled: !!branch?.branchId,
+  });
+
+  const attendanceQuery = useQuery({
+    queryKey: attendanceKey,
+    queryFn: () => attendanceApi.list(branch!.branchId),
+    enabled: !!branch?.branchId,
   });
 
   function invalidateAll() {
-    void queryClient.invalidateQueries({ queryKey: meKey });
-    void queryClient.invalidateQueries({ queryKey: ["attendance-summary", branchId] });
+    void queryClient.invalidateQueries({ queryKey: attendanceKey });
   }
 
   const clockInMutation = useMutation({
-    mutationFn: () => attendanceApi.clockIn(branchId),
+    mutationFn: (staffId: string) => attendanceApi.clockIn(branch!.branchId, staffId),
     onSuccess: invalidateAll,
   });
+
   const clockOutMutation = useMutation({
-    mutationFn: () => attendanceApi.clockOut(branchId),
+    mutationFn: (staffId: string) => attendanceApi.clockOut(branch!.branchId, staffId),
     onSuccess: invalidateAll,
   });
 
-  const actionError = clockInMutation.error ?? clockOutMutation.error;
+  const rows = useMemo<RosterRow[]>(() => {
+    const entryByStaffId = new Map((attendanceQuery.data ?? []).map((r) => [r.staffId, r]));
+    return (staffQuery.data ?? [])
+      .map((staff) => ({ staff, entry: entryByStaffId.get(staff.id) }))
+      .sort((a, b) => a.staff.name.localeCompare(b.staff.name, "th"));
+  }, [staffQuery.data, attendanceQuery.data]);
 
-  return (
-    <div className="mb-6 rounded-DEFAULT border border-line-strong bg-surface p-6">
-      <h2 className="font-display text-lg font-semibold text-ink">ลงเวลาของฉัน</h2>
+  const arrivedCount = rows.filter((r) => todayStatus(r.entry) !== "NOT_ARRIVED").length;
 
-      {meQuery.isLoading && (
-        <div className="mt-3 h-10 w-40 animate-pulse rounded-DEFAULT bg-surface-sunk" aria-busy="true" />
-      )}
+  const isLoading = staffQuery.isLoading || attendanceQuery.isLoading;
+  const isError = staffQuery.isError || attendanceQuery.isError;
+  const isSuccess = staffQuery.isSuccess && attendanceQuery.isSuccess;
+  const errorMessage =
+    (staffQuery.error instanceof ApiError && staffQuery.error.message) ||
+    (attendanceQuery.error instanceof ApiError && attendanceQuery.error.message) ||
+    "โหลดข้อมูลลงเวลาไม่สำเร็จ กรุณาลองใหม่";
 
-      {meQuery.isError && (
-        <div className="mt-3 rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-          {meQuery.error instanceof ApiError ? meQuery.error.message : "โหลดสถานะลงเวลาไม่สำเร็จ กรุณาลองใหม่"}
-          <Button variant="secondary" size="sm" className="ml-3" onClick={() => void meQuery.refetch()}>
-            ลองใหม่
-          </Button>
-        </div>
-      )}
-
-      {meQuery.isSuccess && meQuery.data.staffId === null && (
-        <p className="mt-3 rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
-          บัญชีนี้ยังไม่ได้ผูกกับพนักงานคนใด — ให้ผู้จัดการไปผูกบัญชีที่หน้า &ldquo;พนักงาน&rdquo; (แก้ไขพนักงาน →
-          บัญชีที่ใช้ลงเวลาทำงาน) ก่อนถึงจะลงเวลาได้
-        </p>
-      )}
-
-      {meQuery.isSuccess && meQuery.data.staffId !== null && (
-        <div className="mt-3 flex flex-wrap items-center gap-4">
-          <div>
-            <p className="text-sm text-ink-muted">{meQuery.data.staffName}</p>
-            {meQuery.data.openRecord ? (
-              <p className="mt-0.5 text-sm text-celadon">
-                เข้างานเมื่อ {formatTime(meQuery.data.openRecord.clockInAt)}
-                {meQuery.data.openRecord.lateMinutes ? ` (สาย ${meQuery.data.openRecord.lateMinutes} นาที)` : ""}
-              </p>
-            ) : (
-              <p className="mt-0.5 text-sm text-ink-faint">ยังไม่ได้ลงเวลาเข้างาน</p>
-            )}
-          </div>
-          {meQuery.data.openRecord ? (
-            <Button
-              variant="secondary"
-              disabled={clockOutMutation.isPending}
-              onClick={() => clockOutMutation.mutate()}
-            >
-              {clockOutMutation.isPending ? "กำลังลงเวลา..." : "ออกงาน"}
-            </Button>
-          ) : (
-            <Button disabled={clockInMutation.isPending} onClick={() => clockInMutation.mutate()}>
-              {clockInMutation.isPending ? "กำลังลงเวลา..." : "เข้างาน"}
-            </Button>
-          )}
-        </div>
-      )}
-
-      {actionError && (
-        <p role="alert" className="mt-3 rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
-          {actionError instanceof ApiError ? actionError.message : "ลงเวลาไม่สำเร็จ กรุณาลองใหม่"}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** สรุปสถานะรายกะของทุกคนวันนี้ (สาย/ขาด/กำลังทำงาน) — เฉพาะผู้มีสิทธิ์ attendance:view (ผู้จัดการ/เจ้าของ) */
-function DailySummaryTable({ branchId }: { branchId: string }) {
-  const summaryQuery = useQuery({
-    queryKey: ["attendance-summary", branchId],
-    queryFn: () => attendanceApi.summary(branchId),
-    refetchInterval: 30_000,
-  });
-
-  return (
-    <div className="rounded-DEFAULT border border-line-strong bg-surface p-6">
-      <h2 className="font-display text-lg font-semibold text-ink">สรุปวันนี้</h2>
-
-      {summaryQuery.isLoading && (
-        <div className="mt-3 space-y-2" aria-busy="true" aria-label="กำลังโหลดสรุปการลงเวลา">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-9 animate-pulse rounded-DEFAULT bg-surface-sunk" />
-          ))}
-        </div>
-      )}
-
-      {summaryQuery.isError && (
-        <div className="mt-3 rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-          {summaryQuery.error instanceof ApiError
-            ? summaryQuery.error.message
-            : "โหลดสรุปการลงเวลาไม่สำเร็จ กรุณาลองใหม่"}
-          <Button variant="secondary" size="sm" className="ml-3" onClick={() => void summaryQuery.refetch()}>
-            ลองใหม่
-          </Button>
-        </div>
-      )}
-
-      {summaryQuery.isSuccess && summaryQuery.data.length === 0 && (
-        <p className="mt-3 text-sm text-ink-muted">
-          วันนี้ยังไม่มีใครมีตารางกะ — ไปตั้งตารางกะได้ที่หน้า &ldquo;พนักงาน&rdquo; → จัดตารางกะ
-        </p>
-      )}
-
-      {summaryQuery.isSuccess && summaryQuery.data.length > 0 && (
-        <ul className="mt-3 divide-y divide-line">
-          {summaryQuery.data.map((row: AttendanceDailySummaryRow) => (
-            <li key={row.staffShiftId} className="flex items-center justify-between gap-3 py-2.5">
-              <div>
-                <p className="text-sm font-medium text-ink">{row.staffName}</p>
-                <p className="font-data text-xs tabular-nums text-ink-muted">
-                  {formatMin(row.startMin)}–{formatMin(row.endMin)}
-                </p>
-              </div>
-              <StatusPill status={row.status} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-export function AttendancePageClient() {
-  const branch = useCurrentBranch();
-  const canView = hasPermission(branch?.permissions ?? [], "view", "attendance");
+  function retry() {
+    void staffQuery.refetch();
+    void attendanceQuery.refetch();
+  }
 
   if (!branch) {
     return (
@@ -213,13 +143,140 @@ export function AttendancePageClient() {
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-semibold text-ink">ลงเวลาทำงาน</h1>
-        <p className="mt-1 text-sm text-ink-muted">สาขา {branch.branchName}</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-ink">ลงเวลาเข้า-ออกงาน</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            รายชื่อพนักงานทำงานวันนี้ของสาขา {branch.branchName} — แคชเชียร์/ผู้จัดการลงเวลาแทนพนักงานได้เลย ไม่ต้องใช้ PIN
+          </p>
+        </div>
+        {isSuccess && rows.length > 0 && (
+          <div className="rounded-DEFAULT border border-line-strong bg-surface px-4 py-2 text-sm">
+            <span className="font-data tabular-nums font-semibold text-ink">
+              {arrivedCount}/{rows.length}
+            </span>{" "}
+            <span className="text-ink-muted">คนมาแล้ววันนี้</span>
+          </div>
+        )}
       </div>
 
-      <MyClockPanel branchId={branch.branchId} />
-      {canView && <DailySummaryTable branchId={branch.branchId} />}
+      {isLoading && (
+        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายการลงเวลา">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && isError && (
+        <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
+          {errorMessage}
+          <Button variant="secondary" size="sm" className="ml-3" onClick={retry}>
+            ลองใหม่
+          </Button>
+        </div>
+      )}
+
+      {!isLoading && !isError && isSuccess && rows.length === 0 && (
+        <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
+          <p className="text-sm text-ink-muted">ยังไม่มีพนักงานในสาขานี้</p>
+          <p className="mt-1 text-xs text-ink-faint">ไปที่หน้า &quot;พนักงาน&quot; เพื่อเพิ่มพนักงานก่อน</p>
+        </div>
+      )}
+
+      {!isLoading && !isError && isSuccess && rows.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ชื่อ</TableHead>
+              <TableHead>ระดับ</TableHead>
+              <TableHead>สถานะวันนี้</TableHead>
+              <TableHead>เข้างาน</TableHead>
+              <TableHead>ออกงาน</TableHead>
+              <TableHead>เทียบกะ</TableHead>
+              <TableHead className="text-right">จัดการ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(({ staff, entry }) => {
+              const status = todayStatus(entry);
+              const pendingIn = clockInMutation.isPending && clockInMutation.variables === staff.id;
+              const pendingOut = clockOutMutation.isPending && clockOutMutation.variables === staff.id;
+              const showShiftBadge = !!entry?.clockInAt;
+
+              return (
+                <TableRow key={staff.id}>
+                  <TableCell className="font-medium">{staff.name}</TableCell>
+                  <TableCell>{STAFF_LEVEL_LABEL[staff.level]}</TableCell>
+                  <TableCell>
+                    <span
+                      className={`inline-flex rounded-DEFAULT px-2 py-0.5 text-xs font-medium ${TODAY_STATUS_STYLE[status]}`}
+                    >
+                      {TODAY_STATUS_LABEL[status]}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-data tabular-nums">{formatClockTime(entry?.clockInAt ?? null)}</TableCell>
+                  <TableCell className="font-data tabular-nums">{formatClockTime(entry?.clockOutAt ?? null)}</TableCell>
+                  <TableCell>
+                    {showShiftBadge && entry ? (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span
+                          className={`inline-flex rounded-DEFAULT px-2 py-0.5 text-xs font-medium ${SHIFT_STATUS_STYLE[entry.attendance.status]}`}
+                        >
+                          {SHIFT_STATUS_LABEL[entry.attendance.status]}
+                        </span>
+                        {entry.attendance.otMinutes > 0 && (
+                          <span className="inline-flex rounded-DEFAULT bg-indigo-tint px-2 py-0.5 text-xs font-medium text-indigo">
+                            OT {entry.attendance.otMinutes} นาที
+                          </span>
+                        )}
+                        {entry.shift && (
+                          <span className="text-xs text-ink-faint">
+                            (กะ {minToTimeString(entry.shift.startMin)}-{minToTimeString(entry.shift.endMin)})
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-ink-faint">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {canManage && status === "NOT_ARRIVED" && (
+                      <Button
+                        size="sm"
+                        disabled={pendingIn}
+                        onClick={() => clockInMutation.mutate(staff.id)}
+                      >
+                        {pendingIn ? "กำลังลงเวลา..." : "ลงเวลาเข้า"}
+                      </Button>
+                    )}
+                    {canManage && status === "WORKING" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={pendingOut}
+                        onClick={() => clockOutMutation.mutate(staff.id)}
+                      >
+                        {pendingOut ? "กำลังลงเวลา..." : "ลงเวลาออก"}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
+
+      {(clockInMutation.isError || clockOutMutation.isError) && (
+        <p role="alert" className="mt-4 rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+          {clockInMutation.error instanceof ApiError
+            ? clockInMutation.error.message
+            : clockOutMutation.error instanceof ApiError
+              ? clockOutMutation.error.message
+              : "ลงเวลาไม่สำเร็จ กรุณาลองใหม่"}
+        </p>
+      )}
     </div>
   );
 }

@@ -9,7 +9,6 @@ import {
   appointmentItemApi,
   billApi,
   memberApi,
-  memberPackageApi,
   promotionCalculatorApi,
   type AppointmentItem,
   type Bill,
@@ -62,7 +61,6 @@ export function BillingPageClient() {
   const dateKey = toDateKey(date);
 
   const [cartJobIds, setCartJobIds] = useState<string[]>([]);
-  const [memberPackageByJob, setMemberPackageByJob] = useState<Record<string, string>>({});
   const [productLines, setProductLines] = useState<ProductLineDraft[]>([]);
   const [productDraft, setProductDraft] = useState(EMPTY_PRODUCT_DRAFT);
   const [memberFilter, setMemberFilter] = useState("");
@@ -86,12 +84,6 @@ export function BillingPageClient() {
     queryKey: ["members", branch?.branchId, "", "true"],
     queryFn: () => memberApi.list(branch!.branchId, { isActive: "true" }),
     enabled: !!branch?.branchId,
-  });
-
-  const memberPackagesQuery = useQuery({
-    queryKey: ["member-packages", branch?.branchId, memberId],
-    queryFn: () => memberPackageApi.list(branch!.branchId, memberId),
-    enabled: !!branch?.branchId && !!memberId,
   });
 
   const readyItems = useMemo(
@@ -157,9 +149,6 @@ export function BillingPageClient() {
   const packageLinesMissingMember = cartJobs.some(
     (item) => item.serviceJob.paymentMethod === "PACKAGE" && !memberId,
   );
-  const packageLinesMissingChoice = cartJobs.some(
-    (item) => item.serviceJob.paymentMethod === "PACKAGE" && !memberPackageByJob[item.serviceJob.id],
-  );
 
   const calculateMutation = useMutation({
     mutationFn: async () => {
@@ -204,7 +193,6 @@ export function BillingPageClient() {
         memberId: memberId || undefined,
         serviceJobLines: cartJobs.map((item) => ({
           serviceJobId: item.serviceJob.id,
-          memberPackageId: memberPackageByJob[item.serviceJob.id] || undefined,
         })),
         productLines: productLines.map((p) => ({
           description: p.description,
@@ -225,7 +213,6 @@ export function BillingPageClient() {
     onSuccess: (bill) => {
       setReceiptBill(bill);
       setCartJobIds([]);
-      setMemberPackageByJob({});
       setProductLines([]);
       setMemberId("");
       setCouponCode("");
@@ -288,7 +275,6 @@ export function BillingPageClient() {
     !cartHasEmptyContent &&
     preview !== null &&
     !packageLinesMissingMember &&
-    !packageLinesMissingChoice &&
     payments.length > 0 &&
     paymentsDiffSatang === 0;
 
@@ -391,10 +377,7 @@ export function BillingPageClient() {
               <Select
                 aria-label="เลือกสมาชิก"
                 value={memberId}
-                onChange={(event) => {
-                  setMemberId(event.target.value);
-                  setMemberPackageByJob({});
-                }}
+                onChange={(event) => setMemberId(event.target.value)}
               >
                 <option value="">-- ไม่ระบุสมาชิก (walk-in) --</option>
                 {filteredMembers.map((m) => (
@@ -412,12 +395,6 @@ export function BillingPageClient() {
             <ul className="grid gap-2">
               {cartJobs.map((item) => {
                 const isPackage = item.serviceJob.paymentMethod === "PACKAGE";
-                const eligiblePackages = (memberPackagesQuery.data ?? []).filter(
-                  (pkg) =>
-                    pkg.status === "ACTIVE" &&
-                    (pkg.type === "VALUE" || pkg.serviceVariantId === item.serviceVariantId) &&
-                    (pkg.type === "UNLIMITED_DURATION" || pkg.balance > 0),
-                );
                 return (
                   <li key={item.id} className="rounded-DEFAULT border border-line-strong bg-surface p-3">
                     <div className="flex items-center justify-between gap-2">
@@ -428,33 +405,12 @@ export function BillingPageClient() {
                         {formatSatang(item.serviceJob.priceSatang)}
                       </span>
                     </div>
+                    {/* คอร์สที่จะตัดล็อกไว้ตั้งแต่ตอนเริ่มงานแล้ว (ดู docs/decisions.md ADR-046) — แสดงผลอย่าง
+                        เดียว ไม่ให้เลือกซ้ำตอนออกบิลอีก */}
                     {isPackage && (
-                      <div className="mt-2">
-                        {!memberId && <p className="text-xs text-brass">ต้องเลือกสมาชิกก่อนถึงจะเลือกคอร์สที่จะตัดได้</p>}
-                        {memberId && eligiblePackages.length === 0 && (
-                          <p className="text-xs text-brass">สมาชิกคนนี้ไม่มีคอร์สที่ใช้กับบริการนี้ได้</p>
-                        )}
-                        {memberId && eligiblePackages.length > 0 && (
-                          <Select
-                            aria-label="เลือกคอร์สที่จะตัด"
-                            value={memberPackageByJob[item.serviceJob.id] ?? ""}
-                            onChange={(event) => {
-                              setMemberPackageByJob((prev) => ({ ...prev, [item.serviceJob.id]: event.target.value }));
-                              resetPreview();
-                            }}
-                            className="w-full"
-                          >
-                            <option value="" disabled>
-                              -- เลือกคอร์สที่จะตัด --
-                            </option>
-                            {eligiblePackages.map((pkg) => (
-                              <option key={pkg.id} value={pkg.id}>
-                                {pkg.name} ({pkg.type === "SESSION_COUNT" ? `เหลือ ${pkg.balance} ครั้ง` : pkg.type === "VALUE" ? `เหลือ ${formatSatang(pkg.balance)}` : "ไม่จำกัดครั้ง"})
-                              </option>
-                            ))}
-                          </Select>
-                        )}
-                      </div>
+                      <p className="mt-2 text-xs text-ink-muted">
+                        ตัดคอร์ส: {item.serviceJob.memberPackage?.name ?? "เลือกไว้ตอนเริ่มงาน"}
+                      </p>
                     )}
                   </li>
                 );
@@ -701,9 +657,6 @@ export function BillingPageClient() {
             </p>
           )}
           {packageLinesMissingMember && <p className="text-xs text-brass">มีรายการตัดคอร์สแต่ยังไม่ได้เลือกสมาชิก</p>}
-          {packageLinesMissingChoice && !packageLinesMissingMember && (
-            <p className="text-xs text-brass">มีรายการตัดคอร์สที่ยังไม่ได้เลือกว่าจะตัดคอร์สใบไหน</p>
-          )}
 
           <Button
             type="button"

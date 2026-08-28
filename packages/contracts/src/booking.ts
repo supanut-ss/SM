@@ -50,16 +50,24 @@ export function nextAppointmentStatuses(from: AppointmentStatus): readonly Appoi
   return APPOINTMENT_TRANSITIONS[from];
 }
 
-// เปลี่ยนสถานะนัด (T4.3) — เปลี่ยนเป็น COMPLETED ต้องระบุแหล่งชำระเสมอ (ตัดสินใจตอนจบงาน ไม่ใช่ตอนเริ่มงาน
-// ดู docs/decisions.md ADR-029) เพราะ ServiceJob (T5.5) snapshot paymentMethod ตอนนี้เท่านั้น
+// เปลี่ยนสถานะนัด (T4.3) — เปลี่ยนเป็น IN_SERVICE ต้องระบุแหล่งชำระเสมอ (ตัดสินใจตอนเริ่มงาน ไม่ใช่ตอนจบงาน
+// อีกต่อไป ดู docs/decisions.md ADR-046 ที่พลิกกลับ ADR-029 ข้อ 4 ตามคำสั่งเจ้าของร้าน — ลูกค้าจ่าย/ตัดคอร์ส
+// ก่อนรับบริการเสมอในความเป็นจริง) ถ้าแหล่งชำระเป็น PACKAGE ต้องระบุ memberPackageId ที่จะตัดมาด้วยเลย
+// (การตัด ledger จริงยังเกิดตอน checkout เหมือนเดิม — ดู bill.controller.ts) COMPLETED ไม่ต้องการ/ไม่รับ
+// paymentMethod อีกต่อไป (แค่ปิด completedAt)
 export const updateAppointmentItemStatusSchema = z
   .object({
     status: z.enum(APPOINTMENT_STATUSES, "กรุณาเลือกสถานะที่ถูกต้อง"),
     paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+    memberPackageId: z.string().optional(),
   })
-  .refine((v) => v.status !== "COMPLETED" || v.paymentMethod !== undefined, {
-    message: "กรุณาเลือกแหล่งชำระก่อนปิดงาน",
+  .refine((v) => v.status !== "IN_SERVICE" || v.paymentMethod !== undefined, {
+    message: "กรุณาเลือกแหล่งชำระก่อนเริ่มงาน",
     path: ["paymentMethod"],
+  })
+  .refine((v) => v.status !== "IN_SERVICE" || v.paymentMethod !== "PACKAGE" || v.memberPackageId !== undefined, {
+    message: "กรุณาเลือกคอร์สที่จะตัด",
+    path: ["memberPackageId"],
   });
 
 export type UpdateAppointmentItemStatusInput = z.infer<typeof updateAppointmentItemStatusSchema>;

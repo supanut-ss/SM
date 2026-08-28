@@ -151,11 +151,11 @@ describe("Cashier shifts (real Postgres via Testcontainers)", () => {
     await request(app.getHttpServer())
       .patch(`/branches/${branchAId}/appointment-items/${item.id}/status`)
       .set("Cookie", cashierCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
     await request(app.getHttpServer())
       .patch(`/branches/${branchAId}/appointment-items/${item.id}/status`)
       .set("Cookie", cashierCookies)
-      .send({ status: "COMPLETED", paymentMethod: "CASH" });
+      .send({ status: "COMPLETED" });
 
     const job = await db.prisma.serviceJob.findUniqueOrThrow({ where: { appointmentItemId: item.id } });
 

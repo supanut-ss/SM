@@ -3,25 +3,23 @@ import { execSync } from "node:child_process";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { bangkokMinuteOfDay, toBangkokDateOnly } from "../bangkok-time";
 
 /**
  * Integration test แบบเต็ม (จริง) ตาม docs/PLAN.md §1: Testcontainers + Supertest
  *   pnpm --filter @lotus-desk/api test:e2e
  *
- * ครอบเกณฑ์ผ่านของ T6.1: "ลงเวลาซ้ำในนาทีเดียวกันต้องถูกปฏิเสธ" — เคสสาย/OT/ขาด (ที่ขึ้นกับเวลาปัจจุบัน
- * แบบละเอียดถึงนาที) ครอบด้วย unit test ล้วนใน packages/core/attendance แทน (ควบคุมเวลาได้แน่นอนกว่า
- * การยิง HTTP จริงที่ใช้เวลาปัจจุบันของเครื่องรันเทส) ที่นี่ครอบเฉพาะการเชื่อมต่อ/สิทธิ์/state machine จริง
+ * ครอบเกณฑ์ผ่านของ T6.1: ตั้ง PIN -> ลงเวลาเข้า/ออก -> ล็อก PIN หลังกรอกผิดครบจำนวน -> กันลงเวลาซ้ำซ้อน
+ * -> คำนวณสาย/ขาด/OT ผ่าน evaluateAttendance ถูกต้องเทียบกับกะจริง
  */
-describe("Attendance clock in/out (real Postgres via Testcontainers)", () => {
+describe("Attendance clock-in/out (real Postgres via Testcontainers)", () => {
   let container: StartedPostgreSqlContainer;
   let app: INestApplication;
   let branchAId: string;
-  let branchBId: string;
-  let staffCookies: string[];
   let managerCookies: string[];
-  let unlinkedStaffCookies: string[];
+  let shiftTemplateId: string;
 
-  const PIN = "654321";
+  const PIN = "112233";
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer("postgres:16-alpine").start();
@@ -47,79 +45,42 @@ describe("Attendance clock in/out (real Postgres via Testcontainers)", () => {
     const argon2 = await import("argon2");
 
     const branchA = await prisma.branch.create({ data: { name: "สาขา A", code: "ATT-A" } });
-    const branchB = await prisma.branch.create({ data: { name: "สาขา B", code: "ATT-B" } });
     branchAId = branchA.id;
-    branchBId = branchB.id;
 
-    const permissionKeys = ["attendance:view", "attendance:manage"];
+    const permissionKeys = ["attendance:view", "attendance:manage", "staff:view", "staff:manage"];
     const permissions = await Promise.all(
       permissionKeys.map((key) => prisma.permission.create({ data: { key, description: key } })),
     );
     const managerRole = await prisma.role.create({ data: { key: "manager", name: "ผู้จัดการ" } });
-    const staffRole = await prisma.role.create({ data: { key: "staff", name: "พนักงานบริการ" } });
     await prisma.rolePermission.createMany({
-      data: permissions.flatMap((p) => [{ roleId: managerRole.id, permissionId: p.id }]),
+      data: permissions.map((p) => ({ roleId: managerRole.id, permissionId: p.id })),
     });
-    // บทบาท "พนักงานบริการ" มีแค่ attendance:manage จริงตาม seed (ดู packages/contracts/src/permissions.ts)
-    // ไม่มี attendance:view — ใช้เทสยืนยันว่า list/summary (view) กับ clock-in/out (manage) แยกสิทธิ์กันจริง
-    const manageOnly = permissions.find((p) => p.key === "attendance:manage")!;
-    await prisma.rolePermission.create({ data: { roleId: staffRole.id, permissionId: manageOnly.id } });
 
-    const device = await prisma.device.create({ data: { branchId: branchAId, label: "เครื่องหน้าร้าน 1" } });
-
+    const managerEmail = "manager-attendance-a@lotusdesk.local";
+    const managerPassword = "ChangeMe123!";
     const managerUser = await prisma.user.create({
       data: {
-        email: "manager-attendance-a@lotusdesk.local",
+        email: managerEmail,
         name: "ผู้จัดการสาขา A (test)",
-        passwordHash: await argon2.hash("ChangeMe123!"),
+        passwordHash: await argon2.hash(managerPassword),
         isActive: true,
       },
     });
     await prisma.userBranch.create({ data: { userId: managerUser.id, branchId: branchAId, roleId: managerRole.id } });
 
-    const staffUser = await prisma.user.create({
-      data: {
-        email: "staff-attendance-a@lotusdesk.local",
-        name: "พนักงานทดสอบ",
-        pinHash: await argon2.hash(PIN),
-        isActive: true,
-      },
+    const shiftTemplate = await prisma.shiftTemplate.create({
+      data: { branchId: branchAId, name: "กะเช้า", startMin: 480, endMin: 1020 },
     });
-    await prisma.userBranch.create({ data: { userId: staffUser.id, branchId: branchAId, roleId: staffRole.id } });
-    await prisma.staffProfile.create({
-      data: { branchId: branchAId, userId: staffUser.id, name: "พนักงานทดสอบ", level: "SENIOR", skills: ["THAI_MASSAGE"] },
-    });
-
-    // บัญชีที่สังกัดสาขา A แต่ไม่ได้ผูกกับ StaffProfile ใด ๆ — ใช้เทส 422 ตอนลงเวลา
-    const unlinkedUser = await prisma.user.create({
-      data: {
-        email: "unlinked-attendance-a@lotusdesk.local",
-        name: "บัญชีไม่ผูกพนักงาน",
-        pinHash: await argon2.hash(PIN),
-        isActive: true,
-      },
-    });
-    await prisma.userBranch.create({ data: { userId: unlinkedUser.id, branchId: branchAId, roleId: staffRole.id } });
+    shiftTemplateId = shiftTemplate.id;
 
     const { createApp } = await import("../../../main");
     app = await createApp();
     await app.init();
 
-    const managerLogin = await request(app.getHttpServer())
+    const login = await request(app.getHttpServer())
       .post("/auth/login")
-      .send({ email: "manager-attendance-a@lotusdesk.local", password: "ChangeMe123!" });
-    managerCookies = managerLogin.headers["set-cookie"] as unknown as string[];
-
-    const staffLogin = await request(app.getHttpServer())
-      .post("/auth/pin-login")
-      .send({ deviceId: device.id, userId: staffUser.id, pin: PIN });
-    expect(staffLogin.status).toBe(200);
-    staffCookies = staffLogin.headers["set-cookie"] as unknown as string[];
-
-    const unlinkedLogin = await request(app.getHttpServer())
-      .post("/auth/pin-login")
-      .send({ deviceId: device.id, userId: unlinkedUser.id, pin: PIN });
-    unlinkedStaffCookies = unlinkedLogin.headers["set-cookie"] as unknown as string[];
+      .send({ email: managerEmail, password: managerPassword });
+    managerCookies = login.headers["set-cookie"] as unknown as string[];
   }, 120_000);
 
   afterAll(async () => {
@@ -127,118 +88,250 @@ describe("Attendance clock in/out (real Postgres via Testcontainers)", () => {
     await container?.stop();
   });
 
-  it("rejects clock-in from an account not linked to any staff profile with 422", async () => {
+  let staffCounter = 0;
+
+  /** สร้างพนักงานใหม่ (ยังไม่มี PIN) กันเทสชนกันเรื่อง "ลงเวลาค้างอยู่" ข้ามเคส */
+  async function createStaff(): Promise<string> {
+    staffCounter += 1;
+    const db = await import("@lotus-desk/db");
+    const staff = await db.prisma.staffProfile.create({
+      data: { branchId: branchAId, name: `พนักงานทดสอบ ${staffCounter}`, level: "JUNIOR", skills: ["THAI_MASSAGE"] },
+    });
+    return staff.id;
+  }
+
+  async function setPin(staffId: string, pin = PIN) {
+    const res = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/staff/${staffId}/pin`)
+      .set("Cookie", managerCookies)
+      .send({ pin });
+    expect(res.status).toBe(201);
+  }
+
+  it("rejects clock-in for a staff who hasn't set a PIN yet", async () => {
+    const staffId = await createStaff();
     const res = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/attendance/clock-in`)
-      .set("Cookie", unlinkedStaffCookies);
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: PIN });
     expect(res.status).toBe(422);
   });
 
-  it("clocks in with no shift scheduled, then clocks out — no shift matched, late/OT stay null", async () => {
+  it("sets a PIN then clocks in successfully with an open entry (clockOutAt null)", async () => {
+    const staffId = await createStaff();
+    await setPin(staffId);
+
+    const res = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: PIN });
+    expect(res.status).toBe(201);
+    expect(res.body.entry.clockOutAt).toBeNull();
+    expect(res.body.entry.staffId).toBe(staffId);
+  });
+
+  it("rejects clock-in with the wrong PIN (401), and locks out after enough wrong attempts", async () => {
+    const staffId = await createStaff();
+    await setPin(staffId);
+
+    const wrong = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: "999999" });
+    expect(wrong.status).toBe(401);
+
+    // กรอกผิดต่ออีกให้ครบ PIN_MAX_ATTEMPTS (5 ครั้งรวม) แล้วลองด้วย PIN ที่ถูกต้อง — ต้องโดนล็อกแทนที่จะผ่าน
+    for (let i = 0; i < 3; i += 1) {
+      await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/attendance/clock-in`)
+        .set("Cookie", managerCookies)
+        .send({ staffId, pin: "999999" });
+    }
+    // ครั้งที่ 5 (ครบ PIN_MAX_ATTEMPTS) ล็อกทันทีในตัวเดียวกัน — คืน 409 ไม่ใช่ 401 (เหมือน AuthService.verifyPin)
+    const fifthWrong = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: "999999" });
+    expect(fifthWrong.status).toBe(409);
+
+    const lockedOutEvenWithCorrectPin = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: PIN });
+    expect(lockedOutEvenWithCorrectPin.status).toBe(409);
+  });
+
+  it("rejects clocking in again while already clocked in (409)", async () => {
+    const staffId = await createStaff();
+    await setPin(staffId);
+
+    const first = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: PIN });
+    expect(first.status).toBe(201);
+
+    const second = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: PIN });
+    expect(second.status).toBe(409);
+  });
+
+  it("rejects clock-out when there is no open entry (422)", async () => {
+    const staffId = await createStaff();
+    await setPin(staffId);
+
+    const res = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-out`)
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: PIN });
+    expect(res.status).toBe(422);
+  });
+
+  it("runs a full clock-in -> clock-out cycle, then GET / shows the entry with a computed attendance status", async () => {
+    const staffId = await createStaff();
+    await setPin(staffId);
+
     const clockIn = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/attendance/clock-in`)
-      .set("Cookie", staffCookies);
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: PIN });
     expect(clockIn.status).toBe(201);
-    expect(clockIn.body.staffShiftId).toBeNull();
-    expect(clockIn.body.lateMinutes).toBeNull();
-    expect(clockIn.body.clockOutAt).toBeNull();
-
-    const me = await request(app.getHttpServer())
-      .get(`/branches/${branchAId}/attendance/me`)
-      .set("Cookie", staffCookies);
-    expect(me.status).toBe(200);
-    expect(me.body.openRecord.id).toBe(clockIn.body.id);
 
     const clockOut = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/attendance/clock-out`)
-      .set("Cookie", staffCookies);
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: PIN });
     expect(clockOut.status).toBe(201);
-    expect(clockOut.body.id).toBe(clockIn.body.id);
-    expect(clockOut.body.clockOutAt).not.toBeNull();
-    expect(clockOut.body.otMinutes).toBeNull();
-    expect(clockOut.body.earlyLeaveMinutes).toBeNull();
+    expect(clockOut.body.entry.clockOutAt).not.toBeNull();
 
-    const meAfter = await request(app.getHttpServer())
-      .get(`/branches/${branchAId}/attendance/me`)
-      .set("Cookie", staffCookies);
-    expect(meAfter.body.openRecord).toBeNull();
+    const list = await request(app.getHttpServer())
+      .get(`/branches/${branchAId}/attendance`)
+      .set("Cookie", managerCookies)
+      .query({ staffId });
+    expect(list.status).toBe(200);
+    expect(list.body).toHaveLength(1);
+    expect(list.body[0].staffId).toBe(staffId);
+    expect(list.body[0].attendance.status).toBeDefined();
   });
 
-  it("rejects clocking in twice in a row without clocking out first, with the same-minute duplicate message (T6.1 pass criteria)", async () => {
+  it("matches a staff shift for the day and reports LATE with the correct lateMinutes", async () => {
+    const staffId = await createStaff();
+    await setPin(staffId);
+
+    const db = await import("@lotus-desk/db");
+    const now = new Date();
+    const nowMinuteOfDay = bangkokMinuteOfDay(now);
+    // กะเริ่มเมื่อ 60 นาทีก่อน "ตอนนี้" (กัน flake ที่นาทีเปลี่ยนระหว่างเทส) ให้ลงเวลาเข้าตอนนี้ต้อง "สาย" แน่นอน
+    const shiftStartMin = Math.max(0, nowMinuteOfDay - 60);
+    const shiftEndMin = Math.min(1439, nowMinuteOfDay + 120);
+    await db.prisma.staffShift.create({
+      data: {
+        branchId: branchAId,
+        staffId,
+        shiftTemplateId,
+        date: toBangkokDateOnly(now),
+        startMin: shiftStartMin,
+        endMin: shiftEndMin,
+      },
+    });
+
+    const clockIn = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: PIN });
+    expect(clockIn.status).toBe(201);
+    expect(clockIn.body.entry.staffShiftId).not.toBeNull();
+    expect(clockIn.body.attendance.status).toBe("LATE");
+    expect(clockIn.body.attendance.lateMinutes).toBeGreaterThan(0);
+
+    const list = await request(app.getHttpServer())
+      .get(`/branches/${branchAId}/attendance`)
+      .set("Cookie", managerCookies)
+      .query({ staffId });
+    expect(list.status).toBe(200);
+    expect(list.body[0].attendance.status).toBe("LATE");
+    expect(list.body[0].attendance.lateMinutes).toBeGreaterThan(0);
+    expect(list.body[0].shift.startMin).toBe(shiftStartMin);
+  });
+
+  it("clocks in with staffId only (no pin) even for a staff member with no pinHash set — the default cashier-recorded workflow", async () => {
+    const staffId = await createStaff();
+    // ไม่เรียก setPin เลย — พนักงานคนนี้ไม่มี pinHash ตั้งแต่ต้น (ค่าเริ่มต้นตามโมเดลนี้)
+
+    const res = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(res.status).toBe(201);
+    expect(res.body.entry.clockOutAt).toBeNull();
+    expect(res.body.entry.staffId).toBe(staffId);
+  });
+
+  it("clocks out the same no-pin-set staff with staffId only (no pin), completing the cycle", async () => {
+    const staffId = await createStaff();
+
+    const clockIn = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(clockIn.status).toBe(201);
+
+    const clockOut = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-out`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(clockOut.status).toBe(201);
+    expect(clockOut.body.entry.clockOutAt).not.toBeNull();
+  });
+
+  it("still enforces the already-clocked-in (409) guard on the no-pin path", async () => {
+    const staffId = await createStaff();
+
     const first = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/attendance/clock-in`)
-      .set("Cookie", staffCookies);
+      .set("Cookie", managerCookies)
+      .send({ staffId });
     expect(first.status).toBe(201);
 
-    // ยิงซ้ำทันที — ต้องตกในนาทีเดียวกันแทบทุกครั้งจริง (ความเสี่ยง flaky ต่ำมาก เฉพาะตอนคาบเกี่ยวขอบนาทีพอดี)
-    const duplicate = await request(app.getHttpServer())
+    const second = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/attendance/clock-in`)
-      .set("Cookie", staffCookies);
-    expect(duplicate.status).toBe(409);
-    expect(duplicate.body.message).toContain("นาทีเดียวกัน");
-
-    // เคลียร์สถานะกลับเป็นปิด กันชนกับเทสอื่นที่รันทีหลัง (มีแค่รอบเดียวเปิดพร้อมกันได้ต่อพนักงาน)
-    const cleanup = await request(app.getHttpServer())
-      .post(`/branches/${branchAId}/attendance/clock-out`)
-      .set("Cookie", staffCookies);
-    expect(cleanup.status).toBe(201);
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(second.status).toBe(409);
   });
 
-  it("rejects clocking out again with no open record", async () => {
+  it("still enforces the not-clocked-in-yet (422) guard on clock-out with no pin", async () => {
+    const staffId = await createStaff();
+
     const res = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/attendance/clock-out`)
-      .set("Cookie", staffCookies);
-    expect(res.status).toBe(409);
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(res.status).toBe(422);
   });
 
-  it("keeps clock-in blocked while a record is still open, even well past the same minute", async () => {
-    const open = await request(app.getHttpServer())
+  it("still verifies pin normally when a staff member DOES have a pinHash but pin is sent wrong — PIN capability is preserved, not deleted", async () => {
+    const staffId = await createStaff();
+    await setPin(staffId);
+
+    const wrong = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/attendance/clock-in`)
-      .set("Cookie", staffCookies);
-    expect(open.status).toBe(201);
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: "000000" });
+    expect(wrong.status).toBe(401);
 
-    // ไม่ได้รอข้ามนาทีจริงในเทสนี้ (ยิงถัดกันทันที) แต่ยืนยันว่า "มีรอบเปิดอยู่" เป็นเหตุผลที่ถูกต้องเสมอ
-    // ไม่ว่าจะชนนาทีเดียวกันหรือไม่ก็ตาม — reject ด้วยเหตุผลใดเหตุผลหนึ่งใน 409 ก็ถูกต้องทั้งคู่
-    const again = await request(app.getHttpServer())
+    // แต่ถ้าไม่ส่ง pin มาเลย (แม้พนักงานจะมี PIN ตั้งไว้แล้ว) ก็ยังลงเวลาได้ตามปกติ — pin เป็นทางเลือกเสมอ
+    const noPinAttempt = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/attendance/clock-in`)
-      .set("Cookie", staffCookies);
-    expect(again.status).toBe(409);
-
-    await request(app.getHttpServer())
-      .post(`/branches/${branchAId}/attendance/clock-out`)
-      .set("Cookie", staffCookies);
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(noPinAttempt.status).toBe(201);
   });
 
-  it("lets a manager (attendance:view) read the list and daily summary", async () => {
-    const list = await request(app.getHttpServer())
-      .get(`/branches/${branchAId}/attendance`)
-      .set("Cookie", managerCookies);
-    expect(list.status).toBe(200);
-    expect(Array.isArray(list.body)).toBe(true);
-
-    const summary = await request(app.getHttpServer())
-      .get(`/branches/${branchAId}/attendance/summary`)
-      .set("Cookie", managerCookies);
-    expect(summary.status).toBe(200);
-    expect(Array.isArray(summary.body)).toBe(true);
-  });
-
-  it("lets the staff role read the list/summary reports too — 'manage' implies 'view' in this app's CASL setup (ability.factory.ts)", async () => {
-    const list = await request(app.getHttpServer())
-      .get(`/branches/${branchAId}/attendance`)
-      .set("Cookie", staffCookies);
-    expect(list.status).toBe(200);
-
-    const summary = await request(app.getHttpServer())
-      .get(`/branches/${branchAId}/attendance/summary`)
-      .set("Cookie", staffCookies);
-    expect(summary.status).toBe(200);
-  });
-
-  it("rejects the branch A staff cookie from clocking in against branch B with 403 (no UserBranch there)", async () => {
-    const res = await request(app.getHttpServer())
-      .post(`/branches/${branchBId}/attendance/clock-in`)
-      .set("Cookie", staffCookies);
-    expect(res.status).toBe(403);
+  it("rejects an unauthenticated request before it even checks branch scope", async () => {
+    const res = await request(app.getHttpServer()).get(`/branches/${branchAId}/attendance`);
+    expect(res.status).toBe(401);
   });
 });

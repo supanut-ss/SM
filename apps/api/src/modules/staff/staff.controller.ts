@@ -11,7 +11,15 @@ import {
   UnprocessableEntityException,
   UseGuards,
 } from "@nestjs/common";
-import { createStaffSchema, updateStaffSchema, type CreateStaffInput, type UpdateStaffInput } from "@lotus-desk/contracts";
+import * as argon2 from "argon2";
+import {
+  createStaffSchema,
+  setStaffPinSchema,
+  updateStaffSchema,
+  type CreateStaffInput,
+  type SetStaffPinInput,
+  type UpdateStaffInput,
+} from "@lotus-desk/contracts";
 import { AuditEntity } from "../../audit/audit-entity.decorator";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -125,5 +133,32 @@ export class StaffController {
       return new ConflictException("บัญชีผู้ใช้นี้ถูกผูกกับพนักงานคนอื่นไปแล้ว");
     }
     return err;
+  }
+
+  /**
+   * ตั้ง/เปลี่ยน PIN ลงเวลาเข้า-ออกงาน (T6.1) — คนละระบบจาก User.pinHash (ดู comment บน
+   * StaffProfile.pinHash ใน schema.prisma) รีเซ็ตตัวนับผิด/ล็อกทุกครั้งที่ตั้ง PIN ใหม่
+   * ไม่คืน hash หรือ PIN ดิบกลับไปเด็ดขาด
+   */
+  @Post(":staffId/pin")
+  @RequirePermission("manage", "staff")
+  @AuditEntity("StaffProfile")
+  async setPin(
+    @CurrentBranch() branch: BranchContext,
+    @Param("staffId") staffId: string,
+    @Body(new ZodValidationPipe(setStaffPinSchema)) body: SetStaffPinInput,
+  ): Promise<{ id: string; ok: true }> {
+    const existing = await this.prisma.client.staffProfile.findUnique({ where: { id: staffId } });
+    if (!existing || existing.branchId !== branch.branchId) {
+      throw new NotFoundException("ไม่พบพนักงานนี้");
+    }
+    const pinHash = await argon2.hash(body.pin);
+    await this.prisma.client.staffProfile.update({
+      where: { id: staffId },
+      data: { pinHash, pinFailedAttempts: 0, pinLockedUntil: null },
+    });
+    // `id` ที่ระดับบน (นอกจาก `ok`) — route param ชื่อ :staffId ไม่ตรงกับ paramName ที่ AuditInterceptor
+    // คำนวณจาก @AuditEntity("StaffProfile") (จะได้ "staffProfileId") จึง fallback ไปอ่าน `after.id` แทน
+    return { id: existing.id, ok: true };
   }
 }

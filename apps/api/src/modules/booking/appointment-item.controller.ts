@@ -22,7 +22,7 @@ import {
   type RescheduleAppointmentItemInput,
   type UpdateAppointmentItemStatusInput,
 } from "@lotus-desk/contracts";
-import { findAvailableSlots } from "@lotus-desk/core";
+import { findAvailableSlots, validateUse } from "@lotus-desk/core";
 import { Prisma } from "@lotus-desk/db";
 import { AuditEntity } from "../../audit/audit-entity.decorator";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
@@ -197,7 +197,7 @@ export class AppointmentItemController {
         room: true,
         serviceVariant: { include: { service: true } },
         appointment: { include: { member: true } },
-        serviceJob: { include: { billLine: true } },
+        serviceJob: { include: { billLine: true, memberPackage: true } },
       },
       orderBy: { startAt: "asc" },
     });
@@ -274,7 +274,7 @@ export class AppointmentItemController {
   ) {
     const existing = await this.prisma.client.appointmentItem.findUnique({
       where: { id: appointmentItemId },
-      include: { serviceVariant: true, staff: true },
+      include: { serviceVariant: true, staff: true, appointment: true },
     });
     if (!existing || existing.branchId !== branch.branchId) {
       throw new NotFoundException("ไม่พบรายการนัดนี้");
@@ -294,10 +294,10 @@ export class AppointmentItemController {
       });
 
       if (body.status === "IN_SERVICE") {
-        await this.startServiceJob(tx, branch.branchId, existing);
+        await this.startServiceJob(tx, branch.branchId, existing, body.paymentMethod!, body.memberPackageId);
       }
       if (body.status === "COMPLETED") {
-        await this.completeServiceJob(tx, appointmentItemId, body.paymentMethod!);
+        await this.completeServiceJob(tx, appointmentItemId);
       }
       if (body.status === "COMPLETED" || body.status === "CANCELLED" || body.status === "NO_SHOW") {
         await this.applyQueueEffect(tx, branch.branchId, existing, body.status);
@@ -310,7 +310,15 @@ export class AppointmentItemController {
   /**
    * เริ่มงาน (T5.5) — สร้าง ServiceJob อัตโนมัติตอนเข้า IN_SERVICE พร้อม snapshot ราคา/ระดับพนักงาน/ค่ามือ
    * ณ ตอนนี้ทันที (ไม่ join กลับไปอ่าน ServiceVariant สดทีหลังเด็ดขาด) เลือกอัตราค่ามือ 1 ใน 3 เรตให้ตรงกับ
-   * staff.level ตอนนี้ (ดู docs/DOMAIN.md ข้อ 9-10, docs/decisions.md ADR-029)
+   * staff.level ตอนนี้ (ดู docs/DOMAIN.md ข้อ 9-10)
+   *
+   * แหล่งชำระ+คอร์สที่จะตัดตัดสินใจ "ตอนนี้" แล้ว (ดู docs/decisions.md ADR-046 ที่พลิกกลับ ADR-029 ข้อ 4)
+   * — ถ้าเป็น PACKAGE ต้องผ่านการตรวจสิทธิ์แบบ read-only ก่อน (ความเป็นเจ้าของ/ประเภทบริการตรงกัน/ยอดคงเหลือ
+   * พอ) ชุดเดียวกับที่ bill.controller.ts ใช้ตอน checkout จริง — ที่นี่ "ไม่" ล็อกแถวและ "ไม่" สร้าง ledger
+   * entry ตัดยอดจริงเด็ดขาด (นั่นยังเกิดที่ checkout เหมือนเดิม เป็น defense-in-depth คนละชั้น เผื่อยอด
+   * เปลี่ยนไปจากตอนเริ่มงานถึงตอน checkout เช่นมีนัดอื่นตัดคอร์สใบเดียวกันไปพร้อมกัน) ถ้าตรวจไม่ผ่านต้อง throw
+   * ก่อนที่จะ create ServiceJob เพื่อให้ทั้ง $transaction (รวม appointmentItem.update ที่ทำไปก่อนหน้าใน
+   * transaction เดียวกัน) rollback สะอาด ๆ — สถานะนัดจะไม่ขยับไป IN_SERVICE เลยถ้าเช็คไม่ผ่าน
    */
   private async startServiceJob(
     tx: Prisma.TransactionClient,
@@ -328,13 +336,49 @@ export class AppointmentItemController {
         commissionMasterSatang: number;
       };
       staff: { level: "JUNIOR" | "SENIOR" | "MASTER" };
+      appointment: { memberId: string | null };
     },
+    paymentMethod: "CASH" | "PACKAGE" | "VOUCHER" | "COMPLIMENTARY" | "TRANSFER",
+    memberPackageId: string | undefined,
   ): Promise<void> {
     const commissionByLevel = {
       JUNIOR: item.serviceVariant.commissionJuniorSatang,
       SENIOR: item.serviceVariant.commissionSeniorSatang,
       MASTER: item.serviceVariant.commissionMasterSatang,
     } as const;
+
+    if (paymentMethod === "PACKAGE") {
+      // memberPackageId มีจริงเสมอเมื่อ paymentMethod === PACKAGE (บังคับที่ zod schema แล้ว) — non-null
+      // assertion นี้ปลอดภัยเพราะผ่าน ZodValidationPipe มาก่อนถึงจะเข้าคอนโทรลเลอร์
+      const memberPackage = await tx.memberPackage.findUnique({ where: { id: memberPackageId! } });
+      if (!memberPackage || memberPackage.branchId !== branchId) {
+        throw new NotFoundException("ไม่พบคอร์สนี้ในสาขานี้");
+      }
+      if (!item.appointment.memberId || memberPackage.memberId !== item.appointment.memberId) {
+        throw new UnprocessableEntityException("คอร์สนี้ไม่ใช่ของสมาชิกที่จองนัดนี้");
+      }
+      if (memberPackage.type !== "VALUE" && memberPackage.serviceVariantId !== item.serviceVariantId) {
+        throw new UnprocessableEntityException("คอร์สนี้ใช้กับบริการนี้ไม่ได้");
+      }
+
+      const balanceRow = await tx.memberPackageLedgerEntry.aggregate({
+        where: { memberPackageId: memberPackageId! },
+        _sum: { delta: true },
+      });
+      const balance = balanceRow._sum.delta ?? 0;
+      const amount = memberPackage.type === "VALUE" ? item.serviceVariant.priceSatang : 1;
+      const result = validateUse({
+        packageType: memberPackage.type,
+        currentBalance: balance,
+        amount,
+        now: new Date(),
+        expiresAt: memberPackage.expiresAt,
+        approvedByUserId: null,
+      });
+      if (!result.ok) {
+        throw new UnprocessableEntityException(result.reason);
+      }
+    }
 
     await tx.serviceJob.create({
       data: {
@@ -348,22 +392,21 @@ export class AppointmentItemController {
         staffLevelAtJob: item.staff.level,
         commissionSatang: commissionByLevel[item.staff.level],
         startedAt: new Date(),
+        paymentMethod,
+        memberPackageId: paymentMethod === "PACKAGE" ? memberPackageId! : null,
       },
     });
   }
 
-  /** จบงาน (T5.5) — ปิด ServiceJob ที่เปิดค้างไว้ พร้อมแหล่งชำระที่ตัดสินใจตอนนี้เท่านั้น (ดู ADR-029) */
-  private async completeServiceJob(
-    tx: Prisma.TransactionClient,
-    appointmentItemId: string,
-    paymentMethod: "CASH" | "PACKAGE" | "VOUCHER" | "COMPLIMENTARY",
-  ): Promise<void> {
+  /** จบงาน (T5.5) — ปิด ServiceJob ที่เปิดค้างไว้ แหล่งชำระ/คอร์สที่จะตัดตัดสินใจไปแล้วตอนเริ่มงาน
+   * (ดู docs/decisions.md ADR-046) ขั้นนี้แค่บันทึกเวลาจบงาน ไม่มีอะไรให้เลือกอีก */
+  private async completeServiceJob(tx: Prisma.TransactionClient, appointmentItemId: string): Promise<void> {
     // updateMany (ไม่ใช่ update) โดยตั้งใจ — ไม่ throw ถ้าไม่มี ServiceJob อยู่จริง (เช่นนัดเก่าที่ถูกเซ็ต
     // เป็น IN_SERVICE ไว้ก่อนมี T5.5 หรือข้อมูลที่ import มาโดยไม่ผ่าน endpoint เริ่มงาน) ปิดงานได้ปกติ
     // แต่จะไม่มีใบงานให้บันทึกราคา/ค่ามือ (ไม่ใช่ error ของผู้ใช้ที่กำลังปิดงานตรงหน้า)
     await tx.serviceJob.updateMany({
       where: { appointmentItemId },
-      data: { completedAt: new Date(), paymentMethod },
+      data: { completedAt: new Date() },
     });
   }
 

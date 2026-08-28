@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { execSync } from "node:child_process";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { bangkokDayRange } from "../bangkok-time";
 
 /**
  * Integration test แบบเต็ม (จริง) ตาม docs/PLAN.md §1: Testcontainers + Supertest
@@ -16,6 +17,7 @@ describe("Bills (real Postgres via Testcontainers)", () => {
   let branchAId: string;
   let branchBId: string;
   let cashierCookies: string[];
+  let cashierUserId: string;
   let managerUserId: string;
   let staffId: string;
   let roomId: string;
@@ -100,6 +102,7 @@ describe("Bills (real Postgres via Testcontainers)", () => {
       },
     });
     await prisma.userBranch.create({ data: { userId: cashierUser.id, branchId: branchAId, roleId: cashierRole.id } });
+    cashierUserId = cashierUser.id;
 
     const roomType = await prisma.roomType.create({ data: { branchId: branchAId, name: "ห้องนวดไทย" } });
     const room = await prisma.room.create({ data: { branchId: branchAId, roomTypeId: roomType.id, name: "ห้อง 1" } });
@@ -188,11 +191,11 @@ describe("Bills (real Postgres via Testcontainers)", () => {
     await request(app.getHttpServer())
       .patch(`/branches/${branchAId}/appointment-items/${item.id}/status`)
       .set("Cookie", cashierCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "PACKAGE", memberPackageId });
     await request(app.getHttpServer())
       .patch(`/branches/${branchAId}/appointment-items/${item.id}/status`)
       .set("Cookie", cashierCookies)
-      .send({ status: "COMPLETED", paymentMethod: "PACKAGE" });
+      .send({ status: "COMPLETED" });
 
     const job = await db.prisma.serviceJob.findUniqueOrThrow({ where: { appointmentItemId: item.id } });
     return { serviceJobId: job.id, memberPackageId };
@@ -274,12 +277,13 @@ describe("Bills (real Postgres via Testcontainers)", () => {
     });
     expect(balanceAfterCheckout._sum.delta).toBe(4);
 
-    // ยกเลิกบิลต้องมี PIN ผู้จัดการ
+    // บิลนี้ตัดคอร์สสมาชิก จึงยกเลิกเองไม่ได้แม้จะยังใหม่อยู่ — ต้องมี PIN ผู้จัดการเสมอ
     const withoutApproval = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/bills/${billId}/cancel`)
       .set("Cookie", cashierCookies)
       .send({ reason: "ลูกค้าจองผิดคน" });
-    expect(withoutApproval.status).toBe(400);
+    expect(withoutApproval.status).toBe(401);
+    expect(withoutApproval.body.message).toContain("ตัดคอร์ส");
 
     const approvalToken = await getApprovalToken();
     const cancelled = await request(app.getHttpServer())
@@ -354,6 +358,87 @@ describe("Bills (real Postgres via Testcontainers)", () => {
     expect(again.status).toBe(409);
   });
 
+  describe("cashier self-cancel without a manager PIN (relaxed policy)", () => {
+    async function checkoutCashOnlyBill(): Promise<string> {
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills`)
+        .set("Cookie", cashierCookies)
+        .send({
+          productLines: [{ description: "ครีมบำรุงผิว (เทสยกเลิกเอง)", priceSatang: 15000, paymentMethod: "CASH" }],
+          payments: [{ method: "CASH", amountSatang: 15000 }],
+        });
+      expect(res.status).toBe(201);
+      return res.body.id as string;
+    }
+
+    it("lets the cashier cancel their own recent, package-free bill without an approvalToken", async () => {
+      const billId = await checkoutCashOnlyBill();
+
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ reason: "กดผิดรายการ รีบแก้ทันที" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe("CANCELLED");
+      expect(res.body.cancelledByUserId).toBe(cashierUserId);
+      expect(res.body.cancelledByUserId).not.toBe(managerUserId);
+    });
+
+    it("rejects a self-cancel without a token once the bill is older than the 10-minute window, then succeeds with a manager approvalToken", async () => {
+      const billId = await checkoutCashOnlyBill();
+      const db = await import("@lotus-desk/db");
+      const staleCreatedAt = new Date(Date.now() - 11 * 60 * 1000);
+      await db.prisma.bill.update({ where: { id: billId }, data: { createdAt: staleCreatedAt } });
+
+      const withoutApproval = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ reason: "ลืมยกเลิกตอนแรก" });
+      expect(withoutApproval.status).toBe(401);
+      expect(withoutApproval.body.message).toContain("10 นาที");
+
+      const approvalToken = await getApprovalToken();
+      const withApproval = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ approvalToken, reason: "ผู้จัดการอนุมัติยกเลิกบิลเก่า" });
+      expect(withApproval.status).toBe(201);
+      expect(withApproval.body.status).toBe("CANCELLED");
+      expect(withApproval.body.cancelledByUserId).toBe(managerUserId);
+    });
+
+    it("rejects a self-cancel without a token when the bill touched a package, even though it's recent, then succeeds with a manager approvalToken", async () => {
+      const { serviceJobId, memberPackageId } = await createCompletedPackageJob();
+      const checkout = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills`)
+        .set("Cookie", cashierCookies)
+        .send({
+          memberId: memberAId,
+          serviceJobLines: [{ serviceJobId, memberPackageId }],
+          payments: [{ method: "PACKAGE", amountSatang: 30000 }],
+        });
+      expect(checkout.status).toBe(201);
+      const billId = checkout.body.id as string;
+
+      const withoutApproval = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ reason: "กดผิดรายการ" });
+      expect(withoutApproval.status).toBe(401);
+      expect(withoutApproval.body.message).toContain("ตัดคอร์ส");
+
+      const approvalToken = await getApprovalToken();
+      const withApproval = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ approvalToken, reason: "ผู้จัดการอนุมัติยกเลิกบิลที่ตัดคอร์ส" });
+      expect(withApproval.status).toBe(201);
+      expect(withApproval.body.status).toBe("CANCELLED");
+      expect(withApproval.body.cancelledByUserId).toBe(managerUserId);
+    });
+  });
+
   it("checks out a bill with a CASH product line and computes change from tenderedSatang", async () => {
     const res = await request(app.getHttpServer())
       .post(`/branches/${branchAId}/bills`)
@@ -398,7 +483,7 @@ describe("Bills (real Postgres via Testcontainers)", () => {
     await request(app.getHttpServer())
       .patch(`/branches/${branchAId}/appointment-items/${item.id}/status`)
       .set("Cookie", cashierCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
     const job = await db.prisma.serviceJob.findUniqueOrThrow({ where: { appointmentItemId: item.id } });
 
     const res = await request(app.getHttpServer())
@@ -453,5 +538,152 @@ describe("Bills (real Postgres via Testcontainers)", () => {
   it("rejects an unauthenticated request before it even checks branch scope", async () => {
     const res = await request(app.getHttpServer()).get(`/branches/${branchAId}/bills`);
     expect(res.status).toBe(401);
+  });
+
+  describe("POST /bills/:billId/tips (T6.3)", () => {
+    // ทุกเทสต์ในบล็อกนี้ลงเวลาด้วย new Date() จริง (วันเดียวกันเสมอ) — ต้องล้าง TimeClockEntry ของสาขา A
+    // ก่อนทุกเทสต์ ไม่งั้นพนักงานจากเทสต์ก่อนหน้ายังนับเป็น "ลงเวลาวันนี้" อยู่ ทำให้จำนวนคนแบ่งทิปเพี้ยน
+    beforeEach(async () => {
+      const db = await import("@lotus-desk/db");
+      await db.prisma.timeClockEntry.deleteMany({ where: { branchId: branchAId } });
+    });
+
+    /** สร้าง StaffProfile ใหม่ + ลงเวลาเข้างานตอนนี้เลย (ครอบวันปฏิทินไทยเดียวกับที่บิลจะถูกสร้างทันทีหลังจากนี้) */
+    async function clockInNewStaff(): Promise<string> {
+      const db = await import("@lotus-desk/db");
+      const staff = await db.prisma.staffProfile.create({
+        data: { branchId: branchAId, name: `พนักงานทิป ${Math.random()}`, level: "JUNIOR", skills: ["THAI_MASSAGE"] },
+      });
+      await db.prisma.timeClockEntry.create({
+        data: { branchId: branchAId, staffId: staff.id, clockInAt: new Date() },
+      });
+      return staff.id;
+    }
+
+    async function checkoutSimpleBill(): Promise<string> {
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills`)
+        .set("Cookie", cashierCookies)
+        .send({
+          productLines: [{ description: "ครีมบำรุงผิว", priceSatang: 20000, paymentMethod: "CASH" }],
+          payments: [{ method: "CASH", amountSatang: 20000 }],
+        });
+      expect(res.status).toBe(201);
+      return res.body.id as string;
+    }
+
+    it("splits a tip equally between every staff clocked in that day", async () => {
+      await clockInNewStaff();
+      await clockInNewStaff();
+      const billId = await checkoutSimpleBill();
+
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/tips`)
+        .set("Cookie", cashierCookies)
+        .send({ cashSatang: 5000, transferSatang: 3000 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.allocations).toHaveLength(2);
+      const total = (res.body.allocations as Array<{ tipSatang: number }>).reduce(
+        (sum, a) => sum + a.tipSatang,
+        0,
+      );
+      expect(total).toBe(8000);
+      for (const allocation of res.body.allocations as Array<{ tipSatang: number }>) {
+        expect(allocation.tipSatang).toBe(4000);
+      }
+    });
+
+    it("allocates any leftover satang without losing or duplicating a single satang (3 staff, 100 satang)", async () => {
+      await clockInNewStaff();
+      await clockInNewStaff();
+      await clockInNewStaff();
+      const billId = await checkoutSimpleBill();
+
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/tips`)
+        .set("Cookie", cashierCookies)
+        .send({ cashSatang: 100, transferSatang: 0 });
+
+      expect(res.status).toBe(201);
+      const shares = (res.body.allocations as Array<{ tipSatang: number }>).map((a) => a.tipSatang);
+      expect(shares).toHaveLength(3);
+      const total = shares.reduce((sum, s) => sum + s, 0);
+      expect(total).toBe(100);
+      expect(Math.max(...shares) - Math.min(...shares)).toBeLessThanOrEqual(1);
+    });
+
+    it("rejects recording a tip twice on the same bill", async () => {
+      await clockInNewStaff();
+      const billId = await checkoutSimpleBill();
+
+      const first = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/tips`)
+        .set("Cookie", cashierCookies)
+        .send({ cashSatang: 1000, transferSatang: 0 });
+      expect(first.status).toBe(201);
+
+      const second = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/tips`)
+        .set("Cookie", cashierCookies)
+        .send({ cashSatang: 1000, transferSatang: 0 });
+      expect(second.status).toBe(409);
+    });
+
+    it("rejects a tip with both cashSatang and transferSatang at zero", async () => {
+      await clockInNewStaff();
+      const billId = await checkoutSimpleBill();
+
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/tips`)
+        .set("Cookie", cashierCookies)
+        .send({ cashSatang: 0, transferSatang: 0 });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects recording a tip on a cancelled bill", async () => {
+      await clockInNewStaff();
+      const { serviceJobId, memberPackageId } = await createCompletedPackageJob();
+      const checkout = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills`)
+        .set("Cookie", cashierCookies)
+        .send({
+          memberId: memberAId,
+          serviceJobLines: [{ serviceJobId, memberPackageId }],
+          payments: [{ method: "PACKAGE", amountSatang: 30000 }],
+        });
+      const billId = checkout.body.id as string;
+
+      const approvalToken = await getApprovalToken();
+      const cancel = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/cancel`)
+        .set("Cookie", cashierCookies)
+        .send({ approvalToken, reason: "ทดสอบทิปบิลที่ยกเลิก" });
+      expect(cancel.status).toBe(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/tips`)
+        .set("Cookie", cashierCookies)
+        .send({ cashSatang: 1000, transferSatang: 0 });
+      expect(res.status).toBe(409);
+    });
+
+    it("rejects recording a tip when no staff clocked in that day", async () => {
+      // สาขา B ไม่มีใครลงเวลาเลยตลอดทั้งไฟล์เทสนี้ — เปิดรอบกะ/ออกบิลง่าย ๆ ในสาขา B ไม่ได้เพราะแคชเชียร์
+      // สาขา A ไม่มีสิทธิ์ ใช้วิธีลบ TimeClockEntry ของสาขา A ที่สร้างไว้ในวันนี้ทั้งหมดแทน เพื่อจำลองกรณี
+      // "ไม่มีใครลงเวลา" แบบ isolate จากเทสอื่นให้น้อยที่สุด
+      const db = await import("@lotus-desk/db");
+      const billId = await checkoutSimpleBill();
+      const { start, end } = bangkokDayRange(new Date());
+      await db.prisma.timeClockEntry.deleteMany({
+        where: { branchId: branchAId, clockInAt: { gte: start, lt: end } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .post(`/branches/${branchAId}/bills/${billId}/tips`)
+        .set("Cookie", cashierCookies)
+        .send({ cashSatang: 1000, transferSatang: 0 });
+      expect(res.status).toBe(422);
+    });
   });
 });

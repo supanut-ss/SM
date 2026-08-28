@@ -95,21 +95,38 @@ describe("updateAppointmentItemStatusSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("ปฏิเสธการเปลี่ยนเป็น COMPLETED โดยไม่ระบุแหล่งชำระ (T5.5 — ตัดสินใจตอนจบงาน)", () => {
-    const result = updateAppointmentItemStatusSchema.safeParse({ status: "COMPLETED" });
+  it("ปฏิเสธการเปลี่ยนเป็น IN_SERVICE โดยไม่ระบุแหล่งชำระ (ADR-046 — ตัดสินใจตอนเริ่มงาน)", () => {
+    const result = updateAppointmentItemStatusSchema.safeParse({ status: "IN_SERVICE" });
     expect(result.success).toBe(false);
   });
 
-  it("ยอมรับการเปลี่ยนเป็น COMPLETED เมื่อระบุแหล่งชำระมาด้วย", () => {
+  it("ยอมรับการเปลี่ยนเป็น IN_SERVICE เมื่อระบุแหล่งชำระที่ไม่ใช่ PACKAGE มาด้วย", () => {
     const result = updateAppointmentItemStatusSchema.safeParse({
-      status: "COMPLETED",
+      status: "IN_SERVICE",
       paymentMethod: "CASH",
     });
     expect(result.success).toBe(true);
   });
 
-  it("ไม่บังคับแหล่งชำระสำหรับสถานะอื่นที่ไม่ใช่ COMPLETED", () => {
-    const result = updateAppointmentItemStatusSchema.safeParse({ status: "IN_SERVICE" });
+  it("ปฏิเสธการเปลี่ยนเป็น IN_SERVICE ด้วยแหล่งชำระ PACKAGE โดยไม่ระบุ memberPackageId", () => {
+    const result = updateAppointmentItemStatusSchema.safeParse({
+      status: "IN_SERVICE",
+      paymentMethod: "PACKAGE",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("ยอมรับการเปลี่ยนเป็น IN_SERVICE ด้วยแหล่งชำระ PACKAGE เมื่อระบุ memberPackageId มาด้วย", () => {
+    const result = updateAppointmentItemStatusSchema.safeParse({
+      status: "IN_SERVICE",
+      paymentMethod: "PACKAGE",
+      memberPackageId: "mp_1",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("ไม่บังคับ/ไม่ต้องการแหล่งชำระสำหรับ COMPLETED อีกต่อไป", () => {
+    const result = updateAppointmentItemStatusSchema.safeParse({ status: "COMPLETED" });
     expect(result.success).toBe(true);
   });
 });
