@@ -18,7 +18,6 @@ describe("Walk-in quick booking (real Postgres via Testcontainers)", () => {
   let branchId: string;
   let managerCookies: string[];
   let roomTypeId: string;
-  const todayLabel = toBangkokDateOnly(new Date());
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer("postgres:16-alpine").start();
@@ -97,9 +96,17 @@ describe("Walk-in quick booking (real Postgres via Testcontainers)", () => {
     });
   }
 
-  /** กะเต็มวัน (00:00-23:59) กัน flaky จากเวลาจริงตอนรันเทสต์ — "ตอนนี้" อยู่ในกะเสมอ */
+  /**
+   * กะเต็มวัน (00:00-23:59) กัน flaky จากเวลาจริงตอนรันเทสต์ — "ตอนนี้" อยู่ในกะเสมอ
+   * คำนวณ "วันนี้" สดตอนเรียกฟังก์ชันนี้ (ไม่ใช่ครั้งเดียวตอน describe() เริ่มทำงาน) — เดิม `todayLabel`
+   * เป็นค่าคงที่ระดับ describe block คำนวณตั้งแต่ก่อน Testcontainers ตั้งค่าเสร็จด้วยซ้ำ ถ้าเวลาจริงข้าม
+   * เที่ยงคืนไปก่อนที่ HTTP request จองด่วนจะยิงจริง (ใช้เวลาหลายวินาทีถึงหลายนาทีกว่าจะถึงเทสต์หลัง ๆ ในไฟล์)
+   * กะจะถูกสร้างไว้ที่วันที่ "เมื่อวาน" ตามที่ endpoint คำนวณสดตอนนั้น ทำให้หาไม่เจอ (422) เป็นระยะ ๆ ใกล้
+   * เที่ยงคืน — เจอบั๊กนี้จริงจากการรัน e2e suite เต็มไฟล์ 2 ครั้งติดกันช่วง 23:53 และ 23:59 เวลาไทย
+   */
   async function giveFullDayShift(staffId: string) {
     const db = await import("@lotus-desk/db");
+    const todayLabel = toBangkokDateOnly(new Date());
     const template = await db.prisma.shiftTemplate.create({
       data: { branchId, name: `เต็มวัน-${staffId}`, startMin: 0, endMin: 1439 },
     });
