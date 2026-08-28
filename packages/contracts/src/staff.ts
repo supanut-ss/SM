@@ -39,9 +39,6 @@ export const createStaffSchema = z.object({
   skills: z.array(z.enum(STAFF_SKILLS)).min(1, "เลือกทักษะอย่างน้อย 1 อย่าง"),
   startDate: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
   note: z.preprocess(emptyToUndefined, z.string().trim().max(1000, "บันทึกยาวเกินไป").optional()),
-  // ผูกกับบัญชีผู้ใช้ที่ล็อกอินได้ (T6.1) — ให้พนักงานคนนี้ลงเวลาเข้า/ออกงานด้วย PIN ของบัญชีนั้นได้
-  // "" จากฟอร์มแปลว่า "ไม่ผูก" เหมือนฟิลด์ optional อื่น ๆ ในสคีมานี้
-  userId: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 });
 
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;
@@ -50,9 +47,6 @@ export type CreateStaffFormInput = z.input<typeof createStaffSchema>;
 
 export const updateStaffSchema = createStaffSchema.partial().extend({
   isActive: z.boolean().optional(),
-  // เว้น undefined ไว้ (ไม่ส่ง key มา) แปลว่า "ไม่แก้" ส่ง null ตรง ๆ แปลว่า "เลิกผูกบัญชี" — ต่างจากฟิลด์อื่น
-  // ที่ optional().partial() ทำให้แค่ "ไม่แก้" อย่างเดียว เพราะการ "เลิกผูก" ต้องแยกจาก "ไม่แก้" ได้จริง
-  userId: z.preprocess(emptyToUndefined, z.string().min(1).nullable().optional()),
 });
 
 export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
