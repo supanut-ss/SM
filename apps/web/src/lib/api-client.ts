@@ -1056,4 +1056,48 @@ export const payrollApi = {
     apiFetch<PayrollPeriodWithSummaries>(`/branches/${branchId}/payroll/periods/${periodId}/summary`),
 };
 
+/** ดู AttendanceController.list — attendance.status/lateMinutes/earlyLeaveMinutes/otMinutes มาจาก
+ * evaluateAttendance (packages/core) เสมอ ไม่คำนวณซ้ำฝั่ง client */
+export type AttendanceStatus = "ON_TIME" | "LATE" | "LEFT_EARLY" | "LATE_AND_LEFT_EARLY" | "ABSENT" | "NO_SHIFT";
+
+export interface AttendanceEvaluation {
+  status: AttendanceStatus;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+  otMinutes: number;
+}
+
+/** shape จริงที่ AttendanceController.list()/clockIn/clockOut ตอบกลับต่อแถว (T6.1) — 1 แถวต่อพนักงาน
+ * ต่อวัน union ทั้งพนักงานที่มีกะและ/หรือมีรายการลงเวลาแล้ว (ไม่ list พนักงานที่ไม่มีทั้งคู่ในวันนั้น —
+ * หน้าเว็บต้อง union เข้ากับ staffApi.list() เองถ้าอยากเห็นพนักงานที่ยังไม่มีรายการเลย) */
+export interface AttendanceRow {
+  staffId: string;
+  staff: { name: string; level: StaffLevel } | null;
+  shift: { startMin: number; endMin: number } | null;
+  clockInAt: string | null;
+  clockOutAt: string | null;
+  attendance: AttendanceEvaluation;
+}
+
+export const attendanceApi = {
+  list: (branchId: string, date?: string, staffId?: string) => {
+    const query = new URLSearchParams();
+    if (date) query.set("date", date);
+    if (staffId) query.set("staffId", staffId);
+    const qs = query.toString();
+    return apiFetch<AttendanceRow[]>(`/branches/${branchId}/attendance${qs ? `?${qs}` : ""}`);
+  },
+  // ไม่มีฟิลด์ pin เลย — หน้านี้เป็นโรสเตอร์ที่แคชเชียร์/เจ้าของลงเวลาแทนพนักงาน ไม่เก็บ PIN จากใครทั้งนั้น
+  clockIn: (branchId: string, staffId: string) =>
+    apiFetch<{ id: string; entry: unknown; attendance: AttendanceEvaluation }>(
+      `/branches/${branchId}/attendance/clock-in`,
+      { method: "POST", body: JSON.stringify({ staffId }) },
+    ),
+  clockOut: (branchId: string, staffId: string) =>
+    apiFetch<{ id: string; entry: unknown; attendance: AttendanceEvaluation }>(
+      `/branches/${branchId}/attendance/clock-out`,
+      { method: "POST", body: JSON.stringify({ staffId }) },
+    ),
+};
+
 export type { LinePaymentMethod, PaymentMethod };

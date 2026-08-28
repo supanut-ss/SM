@@ -39,6 +39,12 @@ function parseDateOnlyParam(value: string): Date {
  * ลงเวลาเข้า-ออกงานพนักงานให้บริการที่เครื่องหน้าร้าน (T6.1) — ยืนยันตัวตนด้วย StaffProfile.pinHash
  * (คนละระบบจาก User PIN login ของ T1.3) คำนวณสาย/ขาด/OT ผ่าน evaluateAttendance (packages/core/attendance)
  * ไม่มี service แยก — logic อยู่ในคอนโทรลเลอร์นี้ทั้งหมดตามแพทเทิร์นโมดูลขนาดนี้ (ดู CashierShiftModule)
+ *
+ * PIN เป็น "ทางเลือก" ไม่ใช่ "บังคับ" — ร้านนี้พนักงานให้บริการไม่แตะระบบเลย แคชเชียร์/ผู้จัดการ/เจ้าของ
+ * เป็นคนลงเวลาแทนพนักงานทุกครั้งจากเครื่องหน้าร้าน (เหมือนการจอง/เริ่ม-จบใบงาน/เช็คเอาต์ทั้งหมดในระบบนี้)
+ * สิทธิ์ attendance:manage ที่ route guard บังคับอยู่แล้วถือเป็นการยืนยันตัวตนที่เพียงพอสำหรับกรณีนี้
+ * ถ้ามีการส่ง pin มาด้วย (เผื่ออนาคตอยากเปิดโหมดพนักงานกรอกเองที่เครื่อง) ระบบยังตรวจสอบ/ล็อกเอาต์ตามปกติ
+ * — ดู verifyStaffPin ด้านล่าง ไม่ได้ถูกลบหรือปิดการใช้งาน
  */
 @Controller("branches/:branchId/attendance")
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -53,7 +59,9 @@ export class AttendanceController {
     @Body(new ZodValidationPipe(clockActionSchema)) body: ClockActionInput,
   ) {
     const staff = await this.loadActiveStaff(branch.branchId, body.staffId);
-    await this.verifyStaffPin(staff, body.pin);
+    if (body.pin) {
+      await this.verifyStaffPin(staff, body.pin);
+    }
 
     const now = new Date();
 
@@ -104,7 +112,9 @@ export class AttendanceController {
     @Body(new ZodValidationPipe(clockActionSchema)) body: ClockActionInput,
   ) {
     const staff = await this.loadActiveStaff(branch.branchId, body.staffId);
-    await this.verifyStaffPin(staff, body.pin);
+    if (body.pin) {
+      await this.verifyStaffPin(staff, body.pin);
+    }
 
     const openEntry = await this.prisma.forBranch(branch.branchId).timeClockEntry.findFirst({
       where: { staffId: staff.id, clockOutAt: null },

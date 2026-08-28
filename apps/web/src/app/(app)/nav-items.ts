@@ -18,6 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/promotions", label: "โปรโมชั่น", require: { action: "view", resource: "promotion" } },
   { href: "/billing", label: "บิล/แคชเชียร์", require: { action: "view", resource: "billing" } },
   { href: "/staff", label: "พนักงาน", require: { action: "view", resource: "staff" } },
+  { href: "/attendance", label: "ลงเวลาเข้า-ออกงาน", require: { action: "view", resource: "attendance" } },
   { href: "/rooms", label: "ห้อง/เตียง", require: { action: "view", resource: "room" } },
   { href: "/payroll", label: "ค่ามือ", require: { action: "view", resource: "payroll" } },
   { href: "/reports", label: "รายงาน", require: { action: "view", resource: "report" } },

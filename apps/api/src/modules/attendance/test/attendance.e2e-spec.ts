@@ -256,6 +256,80 @@ describe("Attendance clock-in/out (real Postgres via Testcontainers)", () => {
     expect(list.body[0].shift.startMin).toBe(shiftStartMin);
   });
 
+  it("clocks in with staffId only (no pin) even for a staff member with no pinHash set — the default cashier-recorded workflow", async () => {
+    const staffId = await createStaff();
+    // ไม่เรียก setPin เลย — พนักงานคนนี้ไม่มี pinHash ตั้งแต่ต้น (ค่าเริ่มต้นตามโมเดลนี้)
+
+    const res = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(res.status).toBe(201);
+    expect(res.body.entry.clockOutAt).toBeNull();
+    expect(res.body.entry.staffId).toBe(staffId);
+  });
+
+  it("clocks out the same no-pin-set staff with staffId only (no pin), completing the cycle", async () => {
+    const staffId = await createStaff();
+
+    const clockIn = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(clockIn.status).toBe(201);
+
+    const clockOut = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-out`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(clockOut.status).toBe(201);
+    expect(clockOut.body.entry.clockOutAt).not.toBeNull();
+  });
+
+  it("still enforces the already-clocked-in (409) guard on the no-pin path", async () => {
+    const staffId = await createStaff();
+
+    const first = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(first.status).toBe(201);
+
+    const second = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(second.status).toBe(409);
+  });
+
+  it("still enforces the not-clocked-in-yet (422) guard on clock-out with no pin", async () => {
+    const staffId = await createStaff();
+
+    const res = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-out`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(res.status).toBe(422);
+  });
+
+  it("still verifies pin normally when a staff member DOES have a pinHash but pin is sent wrong — PIN capability is preserved, not deleted", async () => {
+    const staffId = await createStaff();
+    await setPin(staffId);
+
+    const wrong = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId, pin: "000000" });
+    expect(wrong.status).toBe(401);
+
+    // แต่ถ้าไม่ส่ง pin มาเลย (แม้พนักงานจะมี PIN ตั้งไว้แล้ว) ก็ยังลงเวลาได้ตามปกติ — pin เป็นทางเลือกเสมอ
+    const noPinAttempt = await request(app.getHttpServer())
+      .post(`/branches/${branchAId}/attendance/clock-in`)
+      .set("Cookie", managerCookies)
+      .send({ staffId });
+    expect(noPinAttempt.status).toBe(201);
+  });
+
   it("rejects an unauthenticated request before it even checks branch scope", async () => {
     const res = await request(app.getHttpServer()).get(`/branches/${branchAId}/attendance`);
     expect(res.status).toBe(401);

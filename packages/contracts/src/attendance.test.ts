@@ -43,4 +43,14 @@ describe("clockActionSchema", () => {
     const result = clockActionSchema.safeParse({ staffId: "staff_1", pin: "abcdef" });
     expect(result.success).toBe(false);
   });
+
+  it("accepts staffId only (no pin) — cashier/owner records attendance on staff's behalf", () => {
+    const result = clockActionSchema.safeParse({ staffId: "staff_1" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a non-6-digit pin even though pin is optional (partial validation when present)", () => {
+    const result = clockActionSchema.safeParse({ staffId: "staff_1", pin: "123" });
+    expect(result.success).toBe(false);
+  });
 });
