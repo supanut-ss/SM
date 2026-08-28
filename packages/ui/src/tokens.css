@@ -1,4 +1,5 @@
-/* Design tokens — "Celadon & Indigo" (ดู docs/DESIGN.md) ห้ามสร้างสีใหม่นอกไฟล์นี้ */
+/* Design tokens — "Teal & Indigo" (เดิมชื่อ "Celadon & Indigo" ก่อนเปลี่ยนสีหลักตาม ADR-047)
+   ดู docs/DESIGN.md ห้ามสร้างสีใหม่นอกไฟล์นี้ */
 :root {
   /* พื้นผิว — โทนเย็นอมเขียว ไม่ใช่ครีม */
   --paper: #f6f8f6;
@@ -13,14 +14,15 @@
   /* เข้มกว่าค่าดั้งเดิม (#8B979C) เพื่อให้ผ่าน AA 4.5:1 บนพื้น surface-sunk (ดู ADR-003) */
   --ink-faint: #626e73;
 
-  /* สีหลัก — ศิลาดล */
-  --celadon: #42806f;
-  --celadon-hover: #376d5f;
-  --celadon-tint: #e3efea;
+  /* สีหลัก — ปิโตรเลียมทีล (เดิมเป็นเขียวศิลาดล เปลี่ยนทิศทางตาม ADR-047 คงชื่อตัวแปรเดิมไว้
+     เพื่อไม่ต้องแก้ทุก component ที่ใช้ Tailwind class bg-celadon-*, text-celadon-* ทั่วระบบ) */
+  --celadon: #0e6e74;
+  --celadon-hover: #0a5860;
+  --celadon-tint: #e2f0f0;
   /* ค่าคงที่ไม่สลับตามธีม — ใช้เฉพาะพื้นทึบที่วางตัวอักษรขาวทับ (เช่น badge in_service)
      เพราะ --celadon โหมดมืดถูกทำให้สว่างขึ้นสำหรับใช้เป็นตัวอักษร/เส้นขอบ ไม่ใช่พื้นทึบ
-     ตัวอักษรขาวทับ --celadon โหมดมืดโดยตรงจะได้คอนทราสต์แค่ ~2.7:1 ไม่ผ่าน AA (ดู ADR-003) */
-  --celadon-solid: #376d5f;
+     ตัวอักษรขาวทับ --celadon โหมดมืดโดยตรงจะคอนทราสต์ไม่พอ ไม่ผ่าน AA (ดู ADR-003) */
+  --celadon-solid: #0a5860;
 
   /* สีรอง */
   --indigo: #2c4a7c;
@@ -50,9 +52,9 @@
   --ink-muted: #93a6a4;
   /* สว่างกว่าค่าดั้งเดิม (#6B7E7D) เพื่อให้ผ่าน AA 4.5:1 บนพื้น surface (ดู ADR-003) */
   --ink-faint: #798d8c;
-  --celadon: #63ab94;
-  --celadon-hover: #7abda6;
-  --celadon-tint: #1b3630;
+  --celadon: #4fb8be;
+  --celadon-hover: #72cbcf;
+  --celadon-tint: #113436;
   --indigo: #7c9cd4;
   --indigo-tint: #1a2740;
   --brass: #d2a65c;

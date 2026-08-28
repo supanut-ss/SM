@@ -17,6 +17,12 @@ export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from ".
 export { ThemeToggle, THEME_INIT_SCRIPT } from "./components/theme-toggle";
 
 export { AppShell, type AppShellProps } from "./app-shell/app-shell";
-export { Sidebar, SidebarLink, type SidebarLinkProps } from "./app-shell/sidebar";
+export {
+  Sidebar,
+  SidebarGroup,
+  SidebarLink,
+  type SidebarGroupProps,
+  type SidebarLinkProps,
+} from "./app-shell/sidebar";
 export { Topbar } from "./app-shell/topbar";
 export { BranchSwitcher, type BranchOption } from "./app-shell/branch-switcher";
