@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Response } from "express";
+import ExcelJS from "exceljs";
 import {
   reopenPayrollPeriodSchema,
   type ReopenPayrollPeriodInput,
@@ -214,18 +215,21 @@ export class PayrollController {
   }
 
   /**
-   * ส่งออกสรุปงวดจ่ายเป็น CSV (T6.4 "export Excel") — CSV เปิดใน Excel ได้ตรง ๆ ไม่ต้องเพิ่ม dependency
-   * ใหม่ (xlsx/exceljs) ตาม CLAUDE.md ข้อ "ห้ามเพิ่ม dependency ใหม่โดยไม่ถาม" นี่คือ endpoint แรกในระบบที่
-   * ส่งไฟล์ดาวน์โหลดกลับ — ใช้ @Res({ passthrough: true }) แล้ว set header เอง จากนั้นยัง `return` ค่า string
-   * ตรง ๆ ได้ตามปกติ (Nest ส่งค่า return เป็น body ให้หลัง header ที่เรากำหนดเองเมื่อใช้ passthrough: true)
+   * ส่งออกสรุปงวดจ่ายเป็นไฟล์ Excel จริง (.xlsx, T6.4 "export Excel") — ใช้ exceljs (ผู้จัดการอนุมัติเพิ่ม
+   * dependency นี้แล้วเฉพาะฝั่ง apps/api ดู CLAUDE.md ข้อ "ห้ามเพิ่ม dependency ใหม่โดยไม่ถาม") คอลัมน์เงิน
+   * แปลงจากสตางค์เป็นบาทแล้วใส่เป็นตัวเลข (ไม่ใช่สตริง) ให้ Excel sum ได้ตรง ๆ
+   *
+   * ใช้ @Res() แบบไม่ passthrough แล้ว res.send(buffer) เองตรง ๆ (ไม่ return ค่ากลับให้ Nest handle) —
+   * ทดสอบแล้วว่า passthrough:true + return Buffer ทำให้ Nest พยายาม JSON.stringify body ให้ ซึ่งทำลาย
+   * ไฟล์ .xlsx ทันที (มันคือ zip archive ไบนารีล้วน ๆ ไม่ใช่ string) ต้อง res.send(buffer) ตรง ๆ เท่านั้น
    */
-  @Get(":periodId/summary.csv")
+  @Get(":periodId/summary.xlsx")
   @RequirePermission("view", "payroll")
-  async summaryCsv(
+  async summaryXlsx(
     @CurrentBranch() branch: BranchContext,
     @Param("periodId") periodId: string,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<string> {
+    @Res() res: Response,
+  ): Promise<void> {
     await this.findOwned(branch.branchId, periodId);
     const period = await this.prisma.client.payrollPeriod.findUnique({
       where: { id: periodId },
@@ -235,24 +239,41 @@ export class PayrollController {
       throw new NotFoundException("ไม่พบงวดจ่ายนี้");
     }
 
-    const header = "staffId,staffName,level,jobCount,commissionSatang,tipSatang,deductionSatang,totalSatang";
-    const rows = period.summaries.map((s) =>
-      [
-        s.staffId,
-        `"${s.staff.name.replace(/"/g, '""')}"`,
-        s.staff.level,
-        s.jobCount,
-        s.commissionSatang,
-        s.tipSatang,
-        s.deductionSatang,
-        s.totalSatang,
-      ].join(","),
-    );
-    const csv = [header, ...rows].join("\n");
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("สรุปค่ามือ");
+    sheet.columns = [
+      { header: "รหัสพนักงาน", key: "staffId", width: 24 },
+      { header: "ชื่อพนักงาน", key: "staffName", width: 24 },
+      { header: "ระดับ", key: "level", width: 12 },
+      { header: "จำนวนใบงาน", key: "jobCount", width: 14 },
+      { header: "ค่ามือ (บาท)", key: "commissionBaht", width: 16 },
+      { header: "ทิป (บาท)", key: "tipBaht", width: 14 },
+      { header: "หัก (บาท)", key: "deductionBaht", width: 14 },
+      { header: "รวมสุทธิ (บาท)", key: "totalBaht", width: 16 },
+    ];
+    sheet.getRow(1).font = { bold: true };
 
-    res.header("Content-Type", "text/csv; charset=utf-8");
-    res.header("Content-Disposition", `attachment; filename="payroll-${periodId}.csv"`);
-    return csv;
+    for (const s of period.summaries) {
+      sheet.addRow({
+        staffId: s.staffId,
+        staffName: s.staff.name,
+        level: s.staff.level,
+        jobCount: s.jobCount,
+        commissionBaht: s.commissionSatang / 100,
+        tipBaht: s.tipSatang / 100,
+        deductionBaht: s.deductionSatang / 100,
+        totalBaht: s.totalSatang / 100,
+      });
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="payroll-${periodId}.xlsx"`);
+    res.send(Buffer.from(buffer));
   }
 
   private async findOwned(branchId: string, periodId: string) {

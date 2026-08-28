@@ -289,13 +289,20 @@ describe("Payroll periods (real Postgres via Testcontainers)", () => {
         .set("Cookie", cashierCookies);
       expect(closeAgain.status).toBe(409);
 
-      // Export CSV เปิดใน Excel ได้ (T6.4)
-      const csv = await request(app.getHttpServer())
-        .get(`/branches/${branchAId}/payroll/periods/${periodId}/summary.csv`)
-        .set("Cookie", cashierCookies);
-      expect(csv.status).toBe(200);
-      expect(csv.headers["content-type"]).toContain("text/csv");
-      expect(csv.text).toContain("14000");
+      // Export .xlsx เปิดใน Excel ได้จริง (T6.4) — เช็คแบบเบา ๆ ว่าเป็น zip archive ที่ถูกต้อง (ไฟล์ .xlsx
+      // คือ zip เสมอ ไม่ต้อง parse เต็มรูปแบบ แค่เช็ค magic number "PK" 2 byte แรก) และไม่ว่างเปล่า
+      const xlsx = await request(app.getHttpServer())
+        .get(`/branches/${branchAId}/payroll/periods/${periodId}/summary.xlsx`)
+        .set("Cookie", cashierCookies)
+        .responseType("blob");
+      expect(xlsx.status).toBe(200);
+      expect(xlsx.headers["content-type"]).toContain(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      const xlsxBuffer = Buffer.from(xlsx.body as Buffer);
+      expect(xlsxBuffer.length).toBeGreaterThan(0);
+      expect(xlsxBuffer[0]).toBe(0x50); // "P"
+      expect(xlsxBuffer[1]).toBe(0x4b); // "K"
 
       // ยกเลิกบิลที่อยู่ในงวดจ่ายที่ปิดไปแล้วต้องถูกปฏิเสธ 409 (เกณฑ์ผ่านหลักของ T6.4)
       const blockedToken = await getApprovalToken();

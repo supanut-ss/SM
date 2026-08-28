@@ -54,6 +54,7 @@ import type {
   CloseCashierShiftInput,
   ReopenCashierShiftInput,
   VerifyManagerPinInput,
+  ReopenPayrollPeriodInput,
 } from "@lotus-desk/contracts";
 
 /**
@@ -999,6 +1000,60 @@ export const reportsApi = {
     apiFetch<StaffUtilizationReport>(
       `/branches/${branchId}/reports/staff-utilization?from=${from}&to=${to}${staffId ? `&staffId=${staffId}` : ""}`,
     ),
+};
+
+/** ดู PayrollController — งวดจ่ายค่ามือ (T6.4) closedAt null แปลว่ายังเปิดอยู่ ตรง field ตาม schema.prisma */
+export interface PayrollPeriod {
+  id: string;
+  branchId: string;
+  periodStart: string;
+  openedByUserId: string;
+  periodEnd: string | null;
+  closedAt: string | null;
+  closedByUserId: string | null;
+  reopenedAt: string | null;
+  reopenedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** ดู PayrollController (close/summary) — join staff.name/level มาด้วยเสมอ */
+export interface PayrollPeriodStaffSummary {
+  id: string;
+  branchId: string;
+  payrollPeriodId: string;
+  staffId: string;
+  staff: { name: string; level: StaffLevel };
+  jobCount: number;
+  commissionSatang: number;
+  tipSatang: number;
+  deductionSatang: number;
+  totalSatang: number;
+  createdAt: string;
+}
+
+export interface PayrollPeriodWithSummaries extends PayrollPeriod {
+  summaries: PayrollPeriodStaffSummary[];
+}
+
+export const payrollApi = {
+  list: (branchId: string) => apiFetch<PayrollPeriod[]>(`/branches/${branchId}/payroll/periods`),
+  // ห่อด้วย { period } เสมอฝั่ง server (ดู PayrollController.current) กัน res.json() พังตอน body ว่าง
+  current: (branchId: string) =>
+    apiFetch<{ period: PayrollPeriod | null }>(`/branches/${branchId}/payroll/periods/current`),
+  open: (branchId: string) =>
+    apiFetch<PayrollPeriod>(`/branches/${branchId}/payroll/periods`, { method: "POST" }),
+  close: (branchId: string, periodId: string) =>
+    apiFetch<PayrollPeriodWithSummaries>(`/branches/${branchId}/payroll/periods/${periodId}/close`, {
+      method: "POST",
+    }),
+  reopen: (branchId: string, periodId: string, approvalToken: string) =>
+    apiFetch<PayrollPeriod>(`/branches/${branchId}/payroll/periods/${periodId}/reopen`, {
+      method: "POST",
+      body: JSON.stringify({ approvalToken } satisfies ReopenPayrollPeriodInput),
+    }),
+  summary: (branchId: string, periodId: string) =>
+    apiFetch<PayrollPeriodWithSummaries>(`/branches/${branchId}/payroll/periods/${periodId}/summary`),
 };
 
 export type { LinePaymentMethod, PaymentMethod };

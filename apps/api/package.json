@@ -25,6 +25,7 @@
     "argon2": "0.45.1",
     "bullmq": "6.3.1",
     "cookie-parser": "1.4.7",
+    "exceljs": "^4.4.0",
     "ioredis": "6.0.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",

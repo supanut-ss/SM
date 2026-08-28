@@ -1707,3 +1707,68 @@ endpoint ที่ไม่จำเป็น ไม่เพิ่มฟีเ�
 
 ผลกระทบ: ถ้าจะเพิ่มเส้นทางลึกของบิลเดี่ยว (`/billing/[billId]`) ในอนาคต ตาราง "ประวัติการซื้อ" ในหน้านี้เป็นจุด
 ที่ควรกลับมาเพิ่มลิงก์ต่อแถวด้วย — ยังไม่ทำตอนนี้เพราะนอกขอบเขต
+
+---
+
+## ADR-043: หน้าเว็บค่ามือ `/payroll` + สลิปพิมพ์ได้ + สลับ export จาก CSV เป็น `.xlsx` จริงด้วย exceljs — ปิดงานค้างที่ ADR-035 บันทึกไว้
+
+วันที่: 2026-08-28
+Task ที่เกี่ยวข้อง: T6.4 (เดิม backend เสร็จแล้ว ตาม ADR-035 — งานนี้ปิดส่วนที่เหลือค้าง: หน้าเว็บ + สลิป +
+export Excel จริง ตามที่ PLAN.md ระบุไว้แต่แรกว่า T6.4 ต้องมี "export Excel + สลิปรายบุคคล PDF")
+
+บริบท: ADR-035 (T6.4 รอบแรก) จงใจทำ "export Excel" เป็น CSV endpoint (`summary.csv`) เพราะตอนนั้น CLAUDE.md
+ห้ามเพิ่ม dependency ใหม่โดยไม่ถาม และไม่มีหน้าเว็บเลย — บันทึกไว้ชัดเจนว่าเป็นงานค้าง เจ้าของร้านอนุมัติเพิ่ม
+`exceljs` แล้วในรอบนี้ (ระบุชื่อ library ตรง ๆ ในคำสั่งงาน เหมือนที่ `recharts` เคยได้รับอนุมัติมาก่อนใน ADR-039)
+
+ตัดสินใจ:
+1. **แทนที่ `GET .../summary.csv` ด้วย `GET .../summary.xlsx`** (`payroll.controller.ts`) ไม่ใช่เพิ่มเสริมคู่กัน
+   — ของเดิมไม่มี consumer ฝั่งเว็บอยู่แล้ว (หน้าเว็บเพิ่งสร้างในรอบนี้) จึงลบ route เดิมทิ้งได้ปลอดภัย ใช้
+   `ExcelJS.Workbook` เขียน 1 sheet ชื่อ "สรุปค่ามือ" คอลัมน์เงินแปลงสตางค์→บาทเป็นตัวเลขจริง (ไม่ใช่สตริง)
+   เพื่อให้ Excel sum ได้ตรง ๆ — เพิ่ม `exceljs` เป็น dependency ของ `apps/api` เท่านั้นตามที่ระบุ (ยังไม่แตะ
+   `apps/web` เลย, `/reports` CSV export ของ ADR-039 ไม่ถูกแตะเช่นกัน)
+2. **ส่งไฟล์กลับด้วย `@Res()` แบบไม่ passthrough + `res.send(Buffer.from(buffer))` ตรง ๆ** — ทดสอบแล้วว่า
+   `@Res({ passthrough: true })` + `return` ค่า Buffer ทำให้ Nest พยายาม JSON serialize body ให้ ซึ่งทำลาย
+   ไฟล์ .xlsx (เป็น zip binary ล้วน ไม่ใช่ string/JSON) ยืนยันด้วย e2e test ที่เช็ค magic number `PK`
+   (`0x50 0x4B`) 2 byte แรกของ response body ตรง ๆ และด้วยการดาวน์โหลดจริงผ่านเบราว์เซอร์ (ดูข้อ 6)
+3. **หน้าเว็บ `apps/web/src/app/(app)/payroll/`** (`page.tsx` + `payroll-page-client.tsx`) โครงเดียวกับ
+   `CashierShiftPanel` (T5.7): การ์ดงวดปัจจุบัน (เปิด/ปิด) + ประวัติงวดที่ปิดแล้ว (`ดูสรุป`/`ดาวน์โหลด Excel`/
+   `เปิดงวดนี้ใหม่`) ปุ่มจัดการทั้งหมดกันด้วย `payroll:manage` (ใช้ `hasPermission` เดิม) ประวัติงวดกรองเฉพาะ
+   `closedAt !== null` (งวดที่เปิดอยู่แสดงในการ์ดด้านบนอยู่แล้ว ไม่ซ้ำ) — ใช้ `ManagerPinDialog` เดิมจาก
+   `billing/manager-pin-dialog.tsx` ตรง ๆ สำหรับ flow "เปิดงวดนี้ใหม่" (import ไม่ fork โค้ด) เหมือนที่โจทย์
+   กำหนด — งวดใดก็เปิดใหม่ได้ (ไม่ได้จำกัดแค่งวดล่าสุด เพราะ backend เองก็ไม่ได้จำกัดไว้)
+4. **ดาวน์โหลด `.xlsx` ด้วย `<a href>` ธรรมดา ไม่ใช้ fetch+blob** — ตรวจสอบ `apiFetch` (`api-client.ts`) แล้วพบ
+   ว่าใช้ `credentials: "include"` ผ่าน rewrite `/api/:path*` ของ `next.config.ts` (proxy ฝั่ง server ของ
+   Next.js เอง ไม่ใช่ client redirect) ทำให้เบราว์เซอร์เห็น request เป็น same-origin เสมอ cookie
+   `access_token`/`refresh_token` เป็น `httpOnly` + `sameSite: "lax"` ซึ่ง sameSite=lax อนุญาต cookie ติดไปกับ
+   top-level navigation แบบ GET อยู่แล้ว (และเป็น same-origin จริงด้วย จึงไม่มีข้อจำกัดจาก sameSite เลยด้วยซ้ำ)
+   ประกอบกับ endpoint ส่ง `Content-Disposition: attachment` ทำให้เบราว์เซอร์ดาวน์โหลดไฟล์แทนการ navigate ออก
+   จากหน้า — ทดสอบจริงด้วย `fetch(url, {credentials:"include"})` ในคอนโซลเบราว์เซอร์ (หลัง login จริงผ่าน UI)
+   ได้ status 200, content-type/content-disposition ถูกต้อง, byte แรกเป็น `50 4b 03 04` (PK.. ของ zip/xlsx จริง)
+   จึงเลือกทางนี้เพราะง่ายกว่า fetch+blob ของ `downloadCsv` (`reports/csv-export.ts`) มาก โดยไม่เสีย auth เลย
+5. **สลิปพิมพ์ได้ `apps/web/src/app/(app)/payroll/payslip.tsx`** — ใช้เทคนิคเดียวกับ `receipt.tsx` ทุกประการ
+   (`body * { visibility: hidden }` แล้วเปิดเฉพาะ id เดียวตอน `@media print`) ต่างจากใบเสร็จตรงที่ไม่มีตัวเลือก
+   58/80mm (เป็นเอกสารทั่วไป ไม่ใช่กระดาษความร้อน) **นี่คือการตีความ "PDF" ของ PLAN.md เป็นแบบ print-to-PDF ของ
+   เบราว์เซอร์เอง ไม่ใช่สร้างไฟล์ .pdf จริงด้วย library** — สอดคล้องกับ ADR-024 ที่วางบรรทัดฐานไว้แล้วว่าเอกสาร
+   พิมพ์ได้ทั้งหมดในระบบนี้ (ใบเสร็จ/ใบคิว) ใช้ `window.print()` + CSS ล้วน ไม่มี PDF library เลยสักตัว ห่อสลิป
+   ด้วย `Sheet` (แผงเลื่อนจากขวา) แทนการ render inline ตรง ๆ แบบ `receipt.tsx` — เลือกแบบนี้เพราะ `Sheet` มี
+   focus trap/Escape ปิด/คืน focus ให้ฟรีอยู่แล้ว ไม่ต้องเขียนเอง และปุ่ม "พิมพ์สลิป" อยู่ในหน้าหลัก ไม่ได้อยู่ใน
+   `ManagerPinDialog` จึงไม่ผิดกฎ "ห้าม modal ซ้อน modal" ของ docs/DESIGN.md §3.5 — mount/unmount แบบ
+   conditional ทั้งก้อน (`{payslipTarget && <Payslip .../>}`) เหมือนที่ `billing-page-client.tsx` ทำกับ
+   `Receipt` ตรง ๆ (ไม่ใช่ toggle prop `open` ค้างไว้แบบ `ManagerPinDialog` เพราะ props ที่ต้องส่ง — งวด/สรุป
+   รายพนักงาน — เปลี่ยนไปตามแถวที่กด ไม่มี "ค่าว่าง" ที่สมเหตุสมผลจะ default ไว้ก่อนเลือก)
+6. **ทดสอบมือเต็มรูปแบบผ่านเบราว์เซอร์จริง** (ไม่ใช่แค่ typecheck/build ผ่าน): login เป็น `owner@lotusdesk.local`,
+   เปิดงวด → ปิดงวด (งวดว่าง เช็ค empty state ของตาราง "งวดนี้ไม่มีรายการค่ามือ/ทิปเลย") → สร้างข้อมูลทดสอบจริง
+   ผ่าน API ตรง ๆ (walk-in + จบงาน + ออกบิล ตามแพทเทิร์นเดียวกับ `payroll.e2e-spec.ts`) → เปิด/ปิดงวดใหม่รอบสอง
+   เห็นแถวพนักงานจริง (นก, มาสเตอร์, 1 ใบงาน, ฿210) → กด "พิมพ์สลิป" เห็นเนื้อหาสลิปถูกต้องครบทุกฟิลด์ → กด
+   Escape ปิดสลิปได้ (คีย์บอร์ด) → ดาวน์โหลด `.xlsx` ยืนยัน byte จริงตามข้อ 4 — เจอบั๊กเครื่องมือทดสอบเอง (ไม่ใช่
+   บั๊กของโค้ด) ระหว่างทาง: access token หมดอายุกลางเซสชันเบราว์เซอร์ทดสอบ ต้อง login ใหม่ และปุ่ม "เปิดงวดใหม่"
+   บาง ต้องคลิกซ้ำ/รอ re-render — ไม่เกี่ยวกับโค้ดของงานนี้
+
+เหตุผล: ปิดงานค้างที่ ADR-035 ระบุไว้ชัดเจนว่าต้องทำต่อ ("ต้องทำหน้าเว็บสรุปงวดจ่าย + ปุ่มพิมพ์สลิปรายบุคคล...
+เป็นงานที่เหลือค้างอยู่") ให้ตรงกับที่ PLAN.md T6.4 ระบุไว้แต่แรก (export Excel จริง + สลิป) โดยไม่แตะ business
+logic เดิมของ backend เลย (เปลี่ยนแค่ endpoint ส่งออกไฟล์ endpoint เดียว) และ reuse component/แพทเทิร์นเดิมของ
+ระบบทุกจุดที่ทำได้ (`ManagerPinDialog`, `Sheet`, เทคนิค print ของ `receipt.tsx`, โครง `CashierShiftPanel`)
+ตามกฎเหล็กเรื่องความสอดคล้องของโค้ดฐาน
+
+ผลกระทบ: ADR-035 ข้อ 4-5 (CSV แทน xlsx, ไม่มีหน้าเว็บ) ถือเป็นโมฆะแล้วหลังงานนี้ — ถ้าอ่านย้อนหลังให้ยึดตาม
+ADR นี้แทน `/reports` ยังคง export เป็น CSV มือเขียน (ADR-039) ต่อไปตามที่ระบุว่าเป็นงานแยกนอกขอบเขตรอบนี้
