@@ -17,6 +17,7 @@
     "@lotus-desk/ui": "workspace:*",
     "@tanstack/react-query": "5.101.4",
     "@tanstack/react-virtual": "^3.14.10",
+    "exceljs": "^4.4.0",
     "next": "15.5.23",
     "react": "19.2.8",
     "react-dom": "19.2.8",

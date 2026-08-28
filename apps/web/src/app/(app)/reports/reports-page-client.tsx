@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Input, Label, Select } from "@lotus-desk/ui";
 import { reportsApi, staffApi } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
-import { buildDailySummaryCsv, downloadCsv } from "./csv-export";
+import { downloadDailySummaryXlsx } from "./xlsx-export";
 import { defaultDateRange } from "./date-utils";
 import { RevenueChartSection } from "./revenue-chart-section";
 import { PaymentBreakdownSection } from "./payment-breakdown-section";
@@ -62,10 +62,16 @@ export function ReportsPageClient() {
     enabled: !!branch?.branchId,
   });
 
-  function handleExportCsv() {
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExportXlsx() {
     const days = dailySummaryQuery.data?.days ?? [];
-    const csv = buildDailySummaryCsv(days);
-    downloadCsv(`รายงาน-${from}-ถึง-${to}.csv`, csv);
+    setIsExporting(true);
+    try {
+      await downloadDailySummaryXlsx(`รายงาน-${from}-ถึง-${to}.xlsx`, days);
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   if (!branch) {
@@ -87,8 +93,8 @@ export function ReportsPageClient() {
           <h1 className="font-display text-2xl font-semibold text-ink">รายงาน</h1>
           <p className="mt-1 text-sm text-ink-muted">ยอดขาย ช่องทางชำระ และชั่วโมงทำงานของสาขา {branch.branchName}</p>
         </div>
-        <Button variant="secondary" onClick={handleExportCsv} disabled={!canExport}>
-          ส่งออก CSV
+        <Button variant="secondary" onClick={handleExportXlsx} disabled={!canExport || isExporting}>
+          {isExporting ? "กำลังสร้างไฟล์..." : "ส่งออก Excel"}
         </Button>
       </div>
 
