@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   APPOINTMENT_STATUS_LABEL,
   ASSIGN_TYPE_LABEL,
@@ -10,8 +11,9 @@ import {
 } from "@lotus-desk/contracts";
 import type { AppointmentStatus, PaymentMethod } from "@lotus-desk/contracts";
 import { Button, Select, Sheet } from "@lotus-desk/ui";
-import type { AppointmentItem } from "../../../lib/api-client";
+import { memberPackageApi, type AppointmentItem } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
+import { useCurrentBranch } from "../current-branch-context";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("th-TH", {
@@ -32,8 +34,10 @@ function Row({ label, value }: { label: string; value: string }) {
 
 /**
  * เปิดด้วย Enter/ดับเบิลคลิกบนบล็อกใน Lane Board (T4.5) — ดูรายละเอียด + เปลี่ยนสถานะได้ตรงนี้
- * เปลี่ยนเป็น "เสร็จแล้ว" (COMPLETED) ต้องเลือกแหล่งชำระก่อนเสมอ (ตัดสินใจตอนจบงาน ไม่ใช่ตอนเริ่ม —
- * ดู docs/decisions.md ADR-029) ใบงาน (ServiceJob, T5.5) แสดงราคา/ค่ามือ snapshot ถ้ามีแล้ว
+ * เปลี่ยนเป็น "เริ่มงาน" (IN_SERVICE) ต้องเลือกแหล่งชำระ (+ คอร์สที่จะตัดถ้าเลือกจ่ายด้วยคอร์ส) ก่อนเสมอ
+ * (ตัดสินใจตอนเริ่มงาน ไม่ใช่ตอนจบงานอีกต่อไป — ดู docs/decisions.md ADR-046 ที่พลิกกลับ ADR-029) การตัด
+ * ยอดคอร์สจริงยังเกิดตอน checkout เหมือนเดิม ที่นี่แค่ตรวจสิทธิ์ล่วงหน้า+ล็อกไว้ว่าจะตัดใบไหน — เปลี่ยนเป็น
+ * "จบงาน" (COMPLETED) ไม่มีอะไรให้เลือกอีกแล้ว ใบงาน (ServiceJob, T5.5) แสดงราคา/ค่ามือ snapshot ถ้ามีแล้ว
  */
 export function AppointmentDetailSheet({
   item,
@@ -41,25 +45,55 @@ export function AppointmentDetailSheet({
   canManage,
   onChangeStatus,
   isPending,
+  errorMessage,
 }: {
   item: AppointmentItem | null;
   onClose: () => void;
   canManage: boolean;
-  onChangeStatus: (item: AppointmentItem, status: AppointmentStatus, paymentMethod?: PaymentMethod) => void;
+  onChangeStatus: (
+    item: AppointmentItem,
+    status: AppointmentStatus,
+    paymentMethod?: PaymentMethod,
+    memberPackageId?: string,
+  ) => void;
   isPending: boolean;
+  /** ข้อความ error จาก backend (เช่น validateUse() ปฏิเสธตอนเริ่มงานเพราะยอดคอร์สไม่พอ) — แสดงให้เห็นชัด ๆ
+   * ไม่ปล่อยให้เงียบ */
+  errorMessage?: string | null;
 }) {
+  const branch = useCurrentBranch();
   const [choosingPayment, setChoosingPayment] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [memberPackageId, setMemberPackageId] = useState("");
   const nextStatuses = item ? nextAppointmentStatuses(item.status) : [];
+  const memberId = item?.appointment.memberId ?? null;
+
+  const memberPackagesQuery = useQuery({
+    queryKey: ["member-packages", branch?.branchId, memberId],
+    queryFn: () => memberPackageApi.list(branch!.branchId, memberId!),
+    enabled: !!branch?.branchId && !!memberId && choosingPayment && paymentMethod === "PACKAGE",
+  });
+
+  const availablePaymentMethods = memberId ? PAYMENT_METHODS : PAYMENT_METHODS.filter((m) => m !== "PACKAGE");
+  const eligiblePackages = item
+    ? (memberPackagesQuery.data ?? []).filter(
+        (pkg) =>
+          pkg.status === "ACTIVE" &&
+          (pkg.type === "VALUE" || pkg.serviceVariantId === item.serviceVariantId) &&
+          (pkg.type === "UNLIMITED_DURATION" || pkg.balance > 0),
+      )
+    : [];
 
   function handleClose() {
     setChoosingPayment(false);
+    setPaymentMethod("CASH");
+    setMemberPackageId("");
     onClose();
   }
 
   function clickStatus(status: AppointmentStatus) {
     if (!item) return;
-    if (status === "COMPLETED") {
+    if (status === "IN_SERVICE") {
       setChoosingPayment(true);
       return;
     }
@@ -94,6 +128,12 @@ export function AppointmentDetailSheet({
               {item.serviceJob.paymentMethod && (
                 <Row label="แหล่งชำระ" value={PAYMENT_METHOD_LABEL[item.serviceJob.paymentMethod]} />
               )}
+              {item.serviceJob.paymentMethod === "PACKAGE" && (
+                <Row
+                  label="ตัดคอร์ส"
+                  value={item.serviceJob.memberPackage?.name ?? "เลือกไว้ตอนเริ่มงาน"}
+                />
+              )}
             </div>
           )}
 
@@ -109,7 +149,7 @@ export function AppointmentDetailSheet({
                     disabled={isPending}
                     onClick={() => clickStatus(status)}
                   >
-                    {APPOINTMENT_STATUS_LABEL[status]}
+                    {status === "COMPLETED" ? "จบงาน" : APPOINTMENT_STATUS_LABEL[status]}
                   </Button>
                 ))}
                 {nextStatuses.length === 0 && (
@@ -117,29 +157,104 @@ export function AppointmentDetailSheet({
                 )}
               </div>
 
+              {errorMessage && (
+                <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+                  {errorMessage}
+                </p>
+              )}
+
               {choosingPayment && (
                 <div className="grid gap-2 rounded-DEFAULT border border-line p-3">
-                  <span className="text-xs font-medium text-ink-muted">เลือกแหล่งชำระก่อนปิดงาน</span>
-                  <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
-                    {PAYMENT_METHODS.map((m) => (
+                  <span className="text-xs font-medium text-ink-muted">เลือกแหล่งชำระก่อนเริ่มงาน</span>
+                  <Select
+                    aria-label="แหล่งชำระ"
+                    value={paymentMethod}
+                    onChange={(e) => {
+                      setPaymentMethod(e.target.value as PaymentMethod);
+                      setMemberPackageId("");
+                    }}
+                  >
+                    {availablePaymentMethods.map((m) => (
                       <option key={m} value={m}>
                         {PAYMENT_METHOD_LABEL[m]}
                       </option>
                     ))}
                   </Select>
+                  {!memberId && (
+                    <p className="text-xs text-ink-faint">นัดนี้ไม่มีสมาชิกผูกอยู่ จ่ายด้วยคอร์สไม่ได้</p>
+                  )}
+
+                  {paymentMethod === "PACKAGE" && (
+                    <div className="grid gap-1">
+                      {memberPackagesQuery.isLoading && (
+                        <p className="text-xs text-ink-muted">กำลังโหลดคอร์สของสมาชิก...</p>
+                      )}
+                      {memberPackagesQuery.isError && (
+                        <p className="text-xs text-rose">
+                          โหลดคอร์สของสมาชิกไม่สำเร็จ —{" "}
+                          <button
+                            type="button"
+                            className="underline"
+                            onClick={() => void memberPackagesQuery.refetch()}
+                          >
+                            ลองใหม่
+                          </button>
+                        </p>
+                      )}
+                      {memberPackagesQuery.isSuccess && eligiblePackages.length === 0 && (
+                        <p className="text-xs text-brass">สมาชิกคนนี้ไม่มีคอร์สที่ใช้กับบริการนี้ได้</p>
+                      )}
+                      {memberPackagesQuery.isSuccess && eligiblePackages.length > 0 && (
+                        <Select
+                          aria-label="เลือกคอร์สที่จะตัด"
+                          value={memberPackageId}
+                          onChange={(e) => setMemberPackageId(e.target.value)}
+                        >
+                          <option value="" disabled>
+                            -- เลือกคอร์สที่จะตัด --
+                          </option>
+                          {eligiblePackages.map((pkg) => (
+                            <option key={pkg.id} value={pkg.id}>
+                              {pkg.name} (
+                              {pkg.type === "SESSION_COUNT"
+                                ? `เหลือ ${pkg.balance} ครั้ง`
+                                : pkg.type === "VALUE"
+                                  ? `เหลือ ${formatSatang(pkg.balance)}`
+                                  : "ไม่จำกัดครั้ง"}
+                              )
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setChoosingPayment(false)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setChoosingPayment(false);
+                        setPaymentMethod("CASH");
+                        setMemberPackageId("");
+                      }}
+                    >
                       ยกเลิก
                     </Button>
                     <Button
                       size="sm"
-                      disabled={isPending}
+                      disabled={isPending || (paymentMethod === "PACKAGE" && !memberPackageId)}
                       onClick={() => {
-                        onChangeStatus(item, "COMPLETED", paymentMethod);
+                        onChangeStatus(
+                          item,
+                          "IN_SERVICE",
+                          paymentMethod,
+                          paymentMethod === "PACKAGE" ? memberPackageId : undefined,
+                        );
                         setChoosingPayment(false);
                       }}
                     >
-                      ยืนยันจบงาน
+                      ยืนยันเริ่มงาน
                     </Button>
                   </div>
                 </div>

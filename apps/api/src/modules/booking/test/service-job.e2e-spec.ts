@@ -135,12 +135,12 @@ describe("ServiceJob snapshot on start/complete (real Postgres via Testcontainer
     });
   }
 
-  it("creates a ServiceJob automatically when entering IN_SERVICE, snapshotting price and the staff's commission rate", async () => {
+  it("creates a ServiceJob automatically when entering IN_SERVICE, snapshotting price and the staff's commission rate, with the payment method decided right there", async () => {
     const item = await createCheckedInItem();
     const res = await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
     expect(res.status).toBe(200);
 
     const db = await import("@lotus-desk/db");
@@ -151,32 +151,36 @@ describe("ServiceJob snapshot on start/complete (real Postgres via Testcontainer
     expect(job!.commissionSatang).toBe(12000); // เรตของ SENIOR ไม่ใช่ JUNIOR/MASTER
     expect(job!.startedAt).not.toBeNull();
     expect(job!.completedAt).toBeNull();
-    expect(job!.paymentMethod).toBeNull();
+    // แหล่งชำระตัดสินใจตอนเริ่มงานแล้ว (ดู docs/decisions.md ADR-046) ไม่ใช่ null รอตอนจบงานอีกต่อไป
+    expect(job!.paymentMethod).toBe("CASH");
+    expect(job!.memberPackageId).toBeNull();
   });
 
-  it("rejects completing without a paymentMethod, requires it, then closes the job with completedAt + paymentMethod", async () => {
+  it("rejects entering IN_SERVICE without a paymentMethod (ADR-046 — decided at job start now), then closes the job on COMPLETED without needing one there", async () => {
     const item = await createCheckedInItem();
-    await request(app.getHttpServer())
-      .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
-      .set("Cookie", managerCookies)
-      .send({ status: "IN_SERVICE" });
 
     const withoutPayment = await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "COMPLETED" });
+      .send({ status: "IN_SERVICE" });
     expect(withoutPayment.status).toBe(400);
 
     const withPayment = await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "COMPLETED", paymentMethod: "PACKAGE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "VOUCHER" });
     expect(withPayment.status).toBe(200);
+
+    const completed = await request(app.getHttpServer())
+      .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
+      .set("Cookie", managerCookies)
+      .send({ status: "COMPLETED" });
+    expect(completed.status).toBe(200);
 
     const db = await import("@lotus-desk/db");
     const job = await db.prisma.serviceJob.findUnique({ where: { appointmentItemId: item.id } });
     expect(job!.completedAt).not.toBeNull();
-    expect(job!.paymentMethod).toBe("PACKAGE");
+    expect(job!.paymentMethod).toBe("VOUCHER");
   });
 
   it("keeps an old ServiceJob's snapshotted price/commission unchanged after the ServiceVariant's live price/commission is edited (T5.5 pass criteria)", async () => {
@@ -184,7 +188,7 @@ describe("ServiceJob snapshot on start/complete (real Postgres via Testcontainer
     await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
 
     const db = await import("@lotus-desk/db");
     const jobBeforePriceChange = await db.prisma.serviceJob.findUnique({
@@ -202,7 +206,7 @@ describe("ServiceJob snapshot on start/complete (real Postgres via Testcontainer
     await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "COMPLETED", paymentMethod: "CASH" });
+      .send({ status: "COMPLETED" });
 
     const jobAfterPriceChange = await db.prisma.serviceJob.findUnique({
       where: { appointmentItemId: item.id },
@@ -236,7 +240,7 @@ describe("ServiceJob snapshot on start/complete (real Postgres via Testcontainer
     await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
 
     const job = await db.prisma.serviceJob.findUnique({ where: { appointmentItemId: item.id } });
     expect(job!.staffLevelAtJob).toBe("JUNIOR");

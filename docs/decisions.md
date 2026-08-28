@@ -1833,3 +1833,60 @@ Task ที่เกี่ยวข้อง: ไม่มีใน docs/PLAN.md
 
 ผลกระทบ: ตอนนี้ทุกฟีเจอร์ในระบบสอดคล้องกับโมเดล "แคชเชียร์/เจ้าของร้านบันทึกทุกอย่างแทนพนักงาน" แล้วครบถ้วน
 100% ไม่มีจุดไหนที่ยังคาดหวังให้พนักงานให้บริการแตะซอฟต์แวร์เองอีก
+
+---
+
+## ADR-046: ย้ายจุดตัดสินใจ+ตรวจสิทธิ์แหล่งชำระของ ServiceJob จาก "ตอนจบงาน" มา "ตอนเริ่มงาน" — พลิกกลับ ADR-029 ข้อ 4 ตามความเป็นจริงหน้าร้าน, ไม่แตะจังหวะตัดยอดจริงที่ยังอยู่ที่ checkout เหมือนเดิม
+
+วันที่: 2026-08-28
+Task ที่เกี่ยวข้อง: ไม่มีใน docs/PLAN.md — เจ้าของร้านชี้แจงโมเดลการทำงานจริงของร้าน ทับคำตัดสินใจเดิมใน ADR-029
+
+บริบท: ADR-029 (T5.5) ตัดสินใจไว้ว่า `paymentMethod` ของ `ServiceJob` ต้องระบุตอนเปลี่ยนสถานะเป็น `COMPLETED`
+เท่านั้น ("ตัดสินใจตอนจบงาน ไม่ใช่ตอนเริ่มงาน") — รอบนี้เจ้าของร้านชี้แจงโมเดลการทำงานจริงของร้านตรงกันข้าม
+ชัดเจน: ลูกค้าเลือกบริการ (หรือถือคอร์ส/แพ็กเกจอยู่แล้ว) แล้ว **จ่ายเงินหรือถูกตัดคอร์สก่อนเริ่มนวดเสมอ ไม่ใช่
+หลังจบงาน** ("จ่ายหรือตัดก่อนรับบริการเสมอ") — ระบบเดิมทำให้เกิดเคสที่แย่ในทางปฏิบัติ: เริ่มนวดไปแล้ว จบงาน
+แล้ว ค่อยมารู้ตอนเลือกแหล่งชำระ (หรือแย่กว่านั้นคือตอนออกบิลที่แคชเชียร์) ว่าคอร์สที่ลูกค้าจะใช้ยอดไม่พอ/หมด
+อายุ/ใช้กับบริการนี้ไม่ได้ — ทำให้บริการที่ทำไปแล้วกลายเป็นปัญหาเก็บเงินย้อนหลัง
+
+ทางเลือกที่คุยกัน 2 ทาง: (1) restructure ให้ Bill/ledger deduction เกิดที่ตอนเริ่มงานจริง ๆ (ตรงกับความจริง
+ที่สุด แต่กระทบโครงสร้างเยอะ — Bill/BillLine ผูกกับใบงานที่ "จบแล้ว" มาตั้งแต่ T5.6 เปลี่ยนแนวคิดทั้งระบบบิล)
+กับ (2) แค่ย้าย "จุดตัดสินใจ + ตรวจสิทธิ์ล่วงหน้า" มาไว้ตอนเริ่มงาน แต่ตัวธุรกรรมตัดยอดจริง (Bill/
+MemberPackageLedgerEntry) ยังคงอยู่ที่ checkout เหมือนเดิม — เจ้าของร้านเลือกทางเบา (2) เพราะแก้ปัญหาจริงได้
+ครบ (บล็อกก่อนเริ่มงานถ้ายอดไม่พอ ไม่ต้องรอไปเจอตอนออกบิล) โดยไม่ต้องรื้อโครงสร้างบิล/ledger ที่ทดสอบและใช้
+งานจริงอยู่แล้ว
+
+ตัดสินใจ:
+1. **`paymentMethod`/`memberPackageId` ตัดสินใจตอนเปลี่ยนสถานะเป็น `IN_SERVICE` (เริ่มงาน) แทน `COMPLETED`
+   (จบงาน)** — `updateAppointmentItemStatusSchema` (packages/contracts/src/booking.ts) ย้าย `.refine()` ที่
+   บังคับ `paymentMethod` มาที่ `IN_SERVICE` และเพิ่ม `.refine()` ใหม่บังคับ `memberPackageId` เมื่อ
+   `paymentMethod === "PACKAGE"` — `COMPLETED` ไม่ต้องการ/ไม่รับ `paymentMethod` อีกต่อไป (แค่ปิด
+   `completedAt`)
+2. **`ServiceJob` schema เพิ่ม `memberPackageId String?` (+ FK ไป `MemberPackage`) เป็นฟิลด์ additive ล้วน ๆ**
+   (migration `servicejob_payment_decided_at_start`: เพิ่มคอลัมน์ nullable + index + FK เท่านั้น ไม่มี breaking
+   change) — บันทึกว่า "จะตัดคอร์สใบไหน" ตั้งแต่ตอนเริ่มงาน ไม่ใช่แค่ตอน checkout อีกต่อไป
+3. **`AppointmentItemController.startServiceJob()` ตรวจสิทธิ์แบบ read-only ก่อนสร้าง `ServiceJob` เมื่อ
+   `paymentMethod === "PACKAGE"`** — ชุดตรวจเดียวกับที่ `BillController.checkout()` ใช้ตอนตัดยอดจริงเป๊ะ
+   (ความเป็นเจ้าของคอร์ส/สมาชิกตรงกับที่จองนัด/ประเภทบริการตรงกัน/`validateUse()` จาก
+   `packages/core/member-package-ledger` เช็คยอดคงเหลือ+วันหมดอายุ) แต่ **ไม่ล็อกแถว
+   (`memberPackageService.lock`) และไม่สร้าง `memberPackageLedgerEntry` ตัดยอดจริงที่จุดนี้เด็ดขาด** — ถ้า
+   ตรวจไม่ผ่าน throw `UnprocessableEntityException` ก่อนสร้างแถว `ServiceJob` เพื่อให้ทั้ง
+   `$transaction` (รวม `appointmentItem.update` ที่ทำไปก่อนหน้าในทรานแซกชันเดียวกัน) rollback สะอาด ๆ —
+   สถานะนัดจะไม่ขยับไป `IN_SERVICE` เลยถ้าเช็คไม่ผ่าน (ทดสอบแล้วจริงว่า rollback ทำงานถูกต้อง ไม่ใช่แค่สมมติ
+   ตามพฤติกรรมปกติของ Prisma `$transaction` — ดู service-job-payment-at-start.e2e-spec.ts)
+4. **`BillController.checkout()` ไม่รับ `memberPackageId` จาก client อีกต่อไป** — อ่านจาก
+   `ServiceJob.memberPackageId` ที่ล็อกไว้ตั้งแต่ตอนเริ่มงานแทน (`checkoutServiceJobLineSchema` คง field
+   `memberPackageId` ไว้เฉย ๆ เป็น optional ที่ handler ไม่อ่านแล้ว เพื่อไม่ต้อง breaking-change ฝั่ง client ที่
+   อาจยังส่งมาอยู่ — ไม่ลบ field ออกจาก schema ทันที) มีเช็คป้องกันไว้เผื่อแถวเก่าก่อน migration นี้ที่
+   `paymentMethod === PACKAGE` แต่ `memberPackageId` เป็น null (throw error แทน crash)
+5. **ตัวธุรกรรมตัดยอดจริง (`Bill`/`BillLine`/`memberPackageLedgerEntry.create`/`memberPackageService.lock`)
+   ไม่เปลี่ยนที่เกิดเลย — ยังอยู่ที่ `checkout()` เหมือนเดิมทุกประการ** ตรวจสิทธิ์ที่ทำตอนเริ่มงานเป็นแค่
+   pre-check เพื่อกันปัญหาก่อนเริ่มบริการ ส่วน checkout ยัง re-validate + ล็อกแถว + ตัดยอดจริงอย่างเป็นอิสระ
+   (defense-in-depth ตั้งใจ ไม่ใช่ความซ้ำซ้อนที่ไม่มีประโยชน์ — ยอดคงเหลืออาจเปลี่ยนไปจากตอนเริ่มงานถึงตอน
+   checkout ได้จริง เช่นมีนัดอื่นของสมาชิกคนเดียวกันตัดคอร์สใบเดียวกันไปพร้อมกันระหว่างนั้น)
+
+ผลกระทบ: หน้าเว็บ Lane Board (`appointment-detail-sheet.tsx`) ย้าย UI เลือกแหล่งชำระ+คอร์สมาที่ปุ่ม "เริ่มงาน"
+แทน "จบงาน" ซึ่งกลายเป็นปุ่มยืนยันเฉย ๆ ไม่มีอะไรให้กรอกอีก หน้าบิล/แคชเชียร์ (`billing-page-client.tsx`) ตัด
+UI เลือกคอร์สตอน checkout ออก (เหลือแค่แสดงผลอย่างเดียวว่าใบงานนี้จะตัดคอร์สใบไหน อ่านจาก
+`ServiceJob.memberPackageId`) เทสต์เก่าทุกจุดที่เคยส่ง `paymentMethod` ตอน `COMPLETED` (booking/bill/
+cashier-shift/payroll e2e specs) ต้องย้ายมาส่งตอน `IN_SERVICE` แทน — แก้แล้วทุกไฟล์ที่พบจากการ grep
+`paymentMethod` ทั่ว `apps/api/src/**/test/*.e2e-spec.ts`

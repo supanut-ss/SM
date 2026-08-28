@@ -621,7 +621,8 @@ export interface AppointmentItem {
 }
 
 /** ดู ServiceJob model (T5.5) — snapshot ราคา/ค่ามือ/ระดับพนักงาน ณ เวลาเริ่มงาน ห้ามอ่านค่าปัจจุบันจาก
- * ServiceVariant สด (แก้ราคาบริการทีหลังต้องไม่กระทบใบงานเก่า) */
+ * ServiceVariant สด (แก้ราคาบริการทีหลังต้องไม่กระทบใบงานเก่า) paymentMethod/memberPackageId ตัดสินใจตอน
+ * เริ่มงาน (IN_SERVICE) แล้ว ไม่ใช่ตอนจบงาน (ดู docs/decisions.md ADR-046) */
 export interface ServiceJob {
   id: string;
   branchId: string;
@@ -636,6 +637,10 @@ export interface ServiceJob {
   startedAt: string;
   completedAt: string | null;
   paymentMethod: PaymentMethod | null;
+  /** ล็อกไว้ตอนเริ่มงานเมื่อ paymentMethod === "PACKAGE" เท่านั้น (ตัดยอดจริงยังเกิดตอน checkout เหมือนเดิม) */
+  memberPackageId: string | null;
+  /** มีค่าเฉพาะตอนที่ AppointmentItemController.list() include มาให้ — ใช้แสดงชื่อคอร์สแบบอ่านอย่างเดียว */
+  memberPackage?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
   /** มีค่าเฉพาะตอนที่ AppointmentItemController.list() include ให้ (ดู T5.6) — ไม่ null แปลว่าออกบิลไปแล้ว */

@@ -755,6 +755,10 @@ model MemberPackage {
 
   ledgerEntries MemberPackageLedgerEntry[]
   billLines     BillLine[]
+  /// ใบงานที่ล็อกคอร์สนี้ไว้ตั้งแต่ตอนเริ่มงาน (ServiceJob.memberPackageId — ดู docs/decisions.md ADR-046)
+  /// ไม่ใช่การตัดยอดจริง (ledger เท่านั้นที่มีความหมายด้านยอดคงเหลือ ดู CLAUDE.md ข้อ 7) แค่บันทึกว่าใบงาน
+  /// ไหนเลือกจะตัดใบนี้
+  serviceJobs ServiceJob[]
 
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
@@ -884,8 +888,11 @@ enum PaymentMethod {
 
 /// ใบงาน (T5.5) — 1 ใบต่อ 1 AppointmentItem เท่านั้น (@unique) สร้างอัตโนมัติตอน AppointmentItem เข้า
 /// สถานะ IN_SERVICE (startedAt = ตอนนั้น, snapshot ราคา/ค่ามือ/staffLevel ณ เวลานั้นทันที) ปิดอัตโนมัติตอน
-/// เข้า COMPLETED (completedAt + paymentMethod ที่ผู้เรียกต้องระบุมาตอนนั้น) — แก้ราคา ServiceVariant หรือ
-/// ระดับพนักงานทีหลังต้องไม่กระทบใบงานเก่าแม้แต่บาทเดียว (ดู docs/PLAN.md T5.5 เกณฑ์ผ่าน, ADR-029)
+/// เข้า COMPLETED (แค่ completedAt — ไม่มี paymentMethod ในขั้นนี้แล้ว) — แก้ราคา ServiceVariant หรือ
+/// ระดับพนักงานทีหลังต้องไม่กระทบใบงานเก่าแม้แต่บาทเดียว (ดู docs/PLAN.md T5.5 เกณฑ์ผ่าน)
+/// paymentMethod/memberPackageId ตอนนี้ตัดสินใจ+ตรวจสิทธิ์ตอนเริ่มงาน (IN_SERVICE) ไม่ใช่ตอนจบงานอีกต่อไป —
+/// นี่คือการพลิกกลับ ADR-029 ข้อ 4 ตามคำสั่งเจ้าของร้าน (ดู docs/decisions.md ADR-046) การตัดยอด/สร้างบิลจริง
+/// ยังอยู่ที่ checkout เหมือนเดิม ไม่เปลี่ยน — ย้ายแค่ "จุดตัดสินใจ+เช็คสิทธิ์ล่วงหน้า" เท่านั้น
 model ServiceJob {
   id       String @id @default(cuid())
   branchId String
@@ -913,8 +920,13 @@ model ServiceJob {
 
   startedAt     DateTime       @db.Timestamptz
   completedAt   DateTime?      @db.Timestamptz
-  /// null จนกว่าจะจบงาน (COMPLETED) — ตัดสินใจตอนจบงานเสมอ ไม่ใช่ตอนเริ่ม (ดู ADR-029)
+  /// ตัดสินใจตอนเริ่มงาน (IN_SERVICE) แล้ว ไม่ใช่ตอนจบงานอีกต่อไป (ดู docs/decisions.md ADR-046
+  /// ที่พลิกกลับ ADR-029 ข้อ 4) ยังเป็น optional เพราะข้อมูลเก่าก่อน migration นี้อาจไม่มีค่า
   paymentMethod PaymentMethod?
+  /// คอร์สที่จะถูกตัดตอน checkout จริง — ล็อกไว้ตั้งแต่ตอนเริ่มงานเมื่อ paymentMethod === PACKAGE เท่านั้น
+  /// (jobs อื่นปล่อย null) การตัด ledger จริงยังเกิดที่ checkout เหมือนเดิม ฟิลด์นี้แค่บอกว่า "จะตัดใบไหน"
+  memberPackageId String?
+  memberPackage   MemberPackage? @relation(fields: [memberPackageId], references: [id])
   /// ไม่ null แปลว่าใบงานนี้เป็นโมฆะแล้ว (บิลที่ผูกอยู่ถูกยกเลิก ดู docs/decisions.md ADR-030) — T6.2
   /// (payroll/commission ledger ในอนาคต) ต้องกรอง voidedAt IS NULL เสมอตอนคำนวณค่ามือ ไม่นับใบงานที่เป็นโมฆะ
   voidedAt      DateTime?      @db.Timestamptz
@@ -927,6 +939,7 @@ model ServiceJob {
   @@index([branchId])
   @@index([staffId])
   @@index([serviceVariantId])
+  @@index([memberPackageId])
   @@map("service_jobs")
 }
 

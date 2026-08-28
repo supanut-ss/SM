@@ -166,9 +166,9 @@ describe("Staff rotation queue (real Postgres via Testcontainers)", () => {
   }
 
   async function setStatus(itemId: string, status: string) {
-    // COMPLETED ต้องมีแหล่งชำระเสมอตั้งแต่ T5.5 (ตัดสินใจตอนจบงาน ดู docs/decisions.md ADR-029) —
-    // ใส่ค่าเริ่มต้นให้เทสต์คิวหมุนเหล่านี้ที่ไม่ได้สนใจเรื่องแหล่งชำระโดยตรง
-    const body = status === "COMPLETED" ? { status, paymentMethod: "CASH" } : { status };
+    // IN_SERVICE ต้องมีแหล่งชำระเสมอตั้งแต่ ADR-046 (ตัดสินใจตอนเริ่มงาน ไม่ใช่ตอนจบงานอีกต่อไป — พลิกกลับ
+    // ADR-029 ข้อ 4) — ใส่ค่าเริ่มต้นให้เทสต์คิวหมุนเหล่านี้ที่ไม่ได้สนใจเรื่องแหล่งชำระโดยตรง
+    const body = status === "IN_SERVICE" ? { status, paymentMethod: "CASH" } : { status };
     return request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${itemId}/status`)
       .set("Cookie", managerCookies)

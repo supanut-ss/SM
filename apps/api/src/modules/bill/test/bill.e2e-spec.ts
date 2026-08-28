@@ -191,11 +191,11 @@ describe("Bills (real Postgres via Testcontainers)", () => {
     await request(app.getHttpServer())
       .patch(`/branches/${branchAId}/appointment-items/${item.id}/status`)
       .set("Cookie", cashierCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "PACKAGE", memberPackageId });
     await request(app.getHttpServer())
       .patch(`/branches/${branchAId}/appointment-items/${item.id}/status`)
       .set("Cookie", cashierCookies)
-      .send({ status: "COMPLETED", paymentMethod: "PACKAGE" });
+      .send({ status: "COMPLETED" });
 
     const job = await db.prisma.serviceJob.findUniqueOrThrow({ where: { appointmentItemId: item.id } });
     return { serviceJobId: job.id, memberPackageId };
@@ -483,7 +483,7 @@ describe("Bills (real Postgres via Testcontainers)", () => {
     await request(app.getHttpServer())
       .patch(`/branches/${branchAId}/appointment-items/${item.id}/status`)
       .set("Cookie", cashierCookies)
-      .send({ status: "IN_SERVICE" });
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
     const job = await db.prisma.serviceJob.findUniqueOrThrow({ where: { appointmentItemId: item.id } });
 
     const res = await request(app.getHttpServer())

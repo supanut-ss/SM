@@ -76,8 +76,10 @@ export class BillController {
 
   /**
    * เช็คเอาต์ (T5.6) — ใบงานต้อง COMPLETED แล้วเท่านั้นถึงออกบิลได้ (1 ใบงานอยู่ได้บิลเดียว) แหล่งชำระของ
-   * แต่ละใบงานอ่านจาก ServiceJob.paymentMethod ที่ตัดสินใจไว้แล้วตอนจบงาน (ดู ADR-029) ไม่ถามซ้ำ — โปรฯ
-   * เดียวต่อบิล (docs/DOMAIN.md ข้อ 15) เลือกอัตโนมัติจาก evaluatePromotions เสมอ
+   * แต่ละใบงานอ่านจาก ServiceJob.paymentMethod ที่ตัดสินใจไว้แล้วตอนเริ่มงาน (ดู docs/decisions.md ADR-046
+   * ที่พลิกกลับ ADR-029 ข้อ 4) ไม่ถามซ้ำ — คอร์สที่จะตัดก็อ่านจาก ServiceJob.memberPackageId ที่ล็อกไว้ตอน
+   * เริ่มงานเช่นกัน ไม่รับจาก client อีกต่อไป (client เป็นแค่ตัวเลือกที่ล้าสมัยได้ ServiceJob เท่านั้นคือ
+   * แหล่งความจริง) โปรฯ เดียวต่อบิล (docs/DOMAIN.md ข้อ 15) เลือกอัตโนมัติจาก evaluatePromotions เสมอ
    */
   @Post()
   @RequirePermission("manage", "billing")
@@ -108,10 +110,12 @@ export class BillController {
         if (job.billLine) {
           throw new ConflictException("ใบงานนี้ถูกออกบิลไปแล้ว");
         }
-        if (job.paymentMethod === "PACKAGE" && !line.memberPackageId) {
-          throw new UnprocessableEntityException("ใบงานนี้จ่ายด้วยการตัดคอร์ส ต้องระบุคอร์สที่จะตัด");
+        // memberPackageId เป็นแหล่งความจริงจาก ServiceJob (ล็อกไว้ตอนเริ่มงานแล้ว) ไม่ใช่จาก client อีกต่อไป
+        // — เช็คป้องกันไว้เผื่อแถวเก่าก่อน migration นี้ที่ paymentMethod=PACKAGE แต่ไม่มี memberPackageId
+        if (job.paymentMethod === "PACKAGE" && !job.memberPackageId) {
+          throw new UnprocessableEntityException("ใบงานนี้จ่ายด้วยการตัดคอร์ส แต่ไม่มีคอร์สที่ล็อกไว้ตอนเริ่มงาน");
         }
-        return { job, memberPackageId: line.memberPackageId };
+        return { job, memberPackageId: job.memberPackageId };
       }),
     );
 
