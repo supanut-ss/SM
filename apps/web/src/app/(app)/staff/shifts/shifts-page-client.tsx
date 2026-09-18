@@ -14,13 +14,16 @@ import {
 } from "../../../../lib/api-client";
 import { useCurrentBranch } from "../../current-branch-context";
 import { hasPermission } from "../../permissions";
+import { AssignShiftSheetBody, MobileShiftView } from "./mobile-shift-view";
 import { ShiftTemplateForm, shiftTemplateDefaults } from "./shift-template-form";
 import { StaffLeaveForm, defaultStaffLeaveValues, type StaffLeaveFormValues } from "./staff-leave-form";
 import { addDays, isoToDateKey, minToTimeString, startOfWeek, toDateKey, weekDates, weekdayLabel } from "./time-format";
 
 type ActiveSheet =
   | { type: "templates"; formTarget: "create" | ShiftTemplate | null }
-  | { type: "leave"; defaults: StaffLeaveFormValues };
+  | { type: "leave"; defaults: StaffLeaveFormValues }
+  /** มอบหมายกะผ่านปุ่ม (มือถือ) แทนลากวาง — ดู docs/DESIGN.md §9.4 (T10.6) */
+  | { type: "assign"; staffId: string; date: Date };
 
 export function ShiftsPageClient() {
   const branch = useCurrentBranch();
@@ -28,6 +31,7 @@ export function ShiftsPageClient() {
   const canManage = hasPermission(branch?.permissions ?? [], "manage", "staff");
 
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState<ActiveSheet | null>(null);
   const [pendingRemoveShiftId, setPendingRemoveShiftId] = useState<string | null>(null);
   const [pendingRemoveLeaveId, setPendingRemoveLeaveId] = useState<string | null>(null);
@@ -78,6 +82,9 @@ export function ShiftsPageClient() {
     onSuccess: () => {
       invalidateShifts();
       setAssignError(null);
+      // ปิด sheet "มอบหมายกะ" ถ้าเปิดอยู่ (มือถือ) — ตอนลากวางบนกริด desktop ไม่มี sheet เปิดอยู่แล้ว
+      // เรียก setActiveSheet(null) ตรงนี้จึงไม่กระทบ flow เดิม
+      setActiveSheet(null);
     },
     onError: (err) => setAssignError(err instanceof ApiError ? err.message : "มอบหมายกะไม่สำเร็จ"),
   });
@@ -168,7 +175,9 @@ export function ShiftsPageClient() {
       </div>
 
       {canManage && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-DEFAULT border border-dashed border-line-strong p-3">
+        // ซ่อนบนมือถือ — ลากวางใช้ไม่ได้บนจอสัมผัส มือถือมอบหมายกะผ่านปุ่ม "+ มอบหมายกะ" ใน
+        // MobileShiftView แทน (ดู docs/DESIGN.md §9.4)
+        <div className="mb-4 hidden flex-wrap items-center gap-2 rounded-DEFAULT border border-dashed border-line-strong p-3 md:flex">
           <span className="text-xs text-ink-muted">ลากกะไปวางบนตารางเพื่อมอบหมาย:</span>
           {activeTemplates.map((t) => (
             <div
@@ -212,7 +221,7 @@ export function ShiftsPageClient() {
       )}
 
       {staffQuery.isSuccess && staffQuery.data.length > 0 && (
-        <div className="overflow-x-auto rounded-DEFAULT border border-line">
+        <div className="hidden overflow-x-auto rounded-DEFAULT border border-line md:block">
           <div className="grid min-w-[900px]" style={{ gridTemplateColumns: "160px repeat(7, 1fr)" }}>
             <div className="border-b border-r border-line bg-surface-sunk p-2" />
             {dates.map((date, i) => (
@@ -350,6 +359,51 @@ export function ShiftsPageClient() {
           </div>
         </div>
       )}
+
+      {staffQuery.isSuccess && staffQuery.data.length > 0 && (
+        <div className="md:hidden">
+          <MobileShiftView
+            staffList={staffQuery.data}
+            selectedStaffId={selectedStaffId}
+            onSelectStaff={setSelectedStaffId}
+            dates={dates}
+            shifts={shiftsQuery.data ?? []}
+            leaves={leavesQuery.data ?? []}
+            canManage={canManage}
+            pendingRemoveShiftId={pendingRemoveShiftId}
+            onRequestRemoveShift={setPendingRemoveShiftId}
+            onConfirmRemoveShift={(id) => removeShiftMutation.mutate(id)}
+            onCancelRemoveShift={() => setPendingRemoveShiftId(null)}
+            pendingRemoveLeaveId={pendingRemoveLeaveId}
+            onRequestRemoveLeave={setPendingRemoveLeaveId}
+            onConfirmRemoveLeave={(id) => removeLeaveMutation.mutate(id)}
+            onCancelRemoveLeave={() => setPendingRemoveLeaveId(null)}
+            onOpenAssignSheet={(staffId, date) => setActiveSheet({ type: "assign", staffId, date })}
+            onOpenLeaveSheet={(staffId, date) =>
+              setActiveSheet({ type: "leave", defaults: defaultStaffLeaveValues(staffId, date) })
+            }
+          />
+        </div>
+      )}
+
+      <Sheet
+        open={activeSheet?.type === "assign"}
+        onClose={() => setActiveSheet(null)}
+        title="มอบหมายกะ"
+      >
+        {activeSheet?.type === "assign" && (
+          <AssignShiftSheetBody
+            templates={activeTemplates}
+            onPick={(templateId) =>
+              assignMutation.mutate({
+                staffId: activeSheet.staffId,
+                shiftTemplateId: templateId,
+                date: toDateKey(activeSheet.date),
+              })
+            }
+          />
+        )}
+      </Sheet>
 
       <Sheet
         open={activeSheet?.type === "templates"}
