@@ -16,6 +16,7 @@ import { hasPermission } from "../permissions";
 import { addDays, bangkokInstant, startOfToday, toDateKey } from "./date-format";
 import { AppointmentDetailSheet } from "./appointment-detail-sheet";
 import { LaneBoard, type BoardRow } from "./lane-board";
+import { MobileAgenda } from "./mobile-agenda";
 import { QueueRail } from "./queue-rail";
 import { WalkInSheet } from "./walk-in-sheet";
 import type { AppointmentStatus, PaymentMethod } from "@lotus-desk/contracts";
@@ -269,36 +270,51 @@ export function BoardPageClient() {
       )}
 
       {!isLoading && !isError && rows.length > 0 && (
-        <div className="flex flex-1 gap-0 overflow-hidden">
-          <QueueRail
-            queue={queueQuery.data ?? []}
-            items={itemsQuery.data ?? []}
-            onSelectStaff={(staffId) => {
-              // เลือกนัดแรกของพนักงานคนนี้บนกระดาน (ถ้ามี) — ยังไม่มี scroll-to-row จริง (ยกไปอนาคน)
-              const firstItem = (itemsQuery.data ?? []).find((i) => i.staffId === staffId);
-              if (firstItem) setSelectedItemId(firstItem.id);
-            }}
-            notInQueue={canManage ? staffNotInQueue : []}
-            onJoinQueue={(staffId) => joinQueueMutation.mutate(staffId)}
-            isJoining={joinQueueMutation.isPending}
-          />
-          <LaneBoard
-            dateKey={dateKey}
-            dayStart={dayStart}
-            boardStartHour={BOARD_START_HOUR}
-            boardEndHour={BOARD_END_HOUR}
-            rows={rows}
-            items={itemsQuery.data ?? []}
-            rowKeyOf={rowKeyOf}
-            granularityMin={granularity}
-            now={now}
-            canManage={canManage}
-            selectedItemId={selectedItemId}
-            onSelectItem={setSelectedItemId}
-            onOpenDetail={(item) => setDetailItemId(item.id)}
-            onReschedule={handleReschedule}
-          />
-        </div>
+        <>
+          {/* จอกว้าง (>= md): Lane Board grid เวลา×แถวเดิม ลาก-วางได้ (ดู docs/DESIGN.md §5) */}
+          <div className="hidden flex-1 gap-0 overflow-hidden md:flex">
+            <QueueRail
+              queue={queueQuery.data ?? []}
+              items={itemsQuery.data ?? []}
+              onSelectStaff={(staffId) => {
+                // เลือกนัดแรกของพนักงานคนนี้บนกระดาน (ถ้ามี) — ยังไม่มี scroll-to-row จริง (ยกไปอนาคน)
+                const firstItem = (itemsQuery.data ?? []).find((i) => i.staffId === staffId);
+                if (firstItem) setSelectedItemId(firstItem.id);
+              }}
+              notInQueue={canManage ? staffNotInQueue : []}
+              onJoinQueue={(staffId) => joinQueueMutation.mutate(staffId)}
+              isJoining={joinQueueMutation.isPending}
+            />
+            <LaneBoard
+              dateKey={dateKey}
+              dayStart={dayStart}
+              boardStartHour={BOARD_START_HOUR}
+              boardEndHour={BOARD_END_HOUR}
+              rows={rows}
+              items={itemsQuery.data ?? []}
+              rowKeyOf={rowKeyOf}
+              granularityMin={granularity}
+              now={now}
+              canManage={canManage}
+              selectedItemId={selectedItemId}
+              onSelectItem={setSelectedItemId}
+              onOpenDetail={(item) => setDetailItemId(item.id)}
+              onReschedule={handleReschedule}
+            />
+          </div>
+
+          {/* จอแคบ (< md): มุมมองรายคนแนวตั้ง ไม่มี drag-and-drop (T10.5, ดู docs/DESIGN.md §9.4) */}
+          <div className="flex-1 overflow-hidden md:hidden">
+            <MobileAgenda
+              key={`${viewMode}-${dateKey}`}
+              rows={rows}
+              items={itemsQuery.data ?? []}
+              rowKeyOf={rowKeyOf}
+              queue={viewMode === "staff" ? (queueQuery.data ?? []) : undefined}
+              onOpenDetail={(item) => setDetailItemId(item.id)}
+            />
+          </div>
+        </>
       )}
 
       <AppointmentDetailSheet
