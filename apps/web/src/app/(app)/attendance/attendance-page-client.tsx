@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_LEVEL_LABEL } from "@lotus-desk/contracts";
-import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import type { ReactNode } from "react";
 import {
   ApiError,
   attendanceApi,
@@ -131,6 +132,55 @@ export function AttendancePageClient() {
     void attendanceQuery.refetch();
   }
 
+  function renderTodayBadge(status: TodayStatus): ReactNode {
+    return (
+      <span className={`inline-flex rounded-DEFAULT px-2 py-0.5 text-xs font-medium ${TODAY_STATUS_STYLE[status]}`}>
+        {TODAY_STATUS_LABEL[status]}
+      </span>
+    );
+  }
+
+  function renderShiftInfo(entry: AttendanceRow | undefined): ReactNode {
+    if (!entry?.clockInAt) return <span className="text-xs text-ink-faint">—</span>;
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        <span className={`inline-flex rounded-DEFAULT px-2 py-0.5 text-xs font-medium ${SHIFT_STATUS_STYLE[entry.attendance.status]}`}>
+          {SHIFT_STATUS_LABEL[entry.attendance.status]}
+        </span>
+        {entry.attendance.otMinutes > 0 && (
+          <span className="inline-flex rounded-DEFAULT bg-indigo-tint px-2 py-0.5 text-xs font-medium text-indigo">
+            OT {entry.attendance.otMinutes} นาที
+          </span>
+        )}
+        {entry.shift && (
+          <span className="text-xs text-ink-faint">
+            (กะ {minToTimeString(entry.shift.startMin)}-{minToTimeString(entry.shift.endMin)})
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  function renderClockAction(staff: StaffProfile, status: TodayStatus): ReactNode {
+    const pendingIn = clockInMutation.isPending && clockInMutation.variables === staff.id;
+    const pendingOut = clockOutMutation.isPending && clockOutMutation.variables === staff.id;
+    if (canManage && status === "NOT_ARRIVED") {
+      return (
+        <Button size="sm" disabled={pendingIn} onClick={() => clockInMutation.mutate(staff.id)}>
+          {pendingIn ? "กำลังลงเวลา..." : "ลงเวลาเข้า"}
+        </Button>
+      );
+    }
+    if (canManage && status === "WORKING") {
+      return (
+        <Button size="sm" variant="secondary" disabled={pendingOut} onClick={() => clockOutMutation.mutate(staff.id)}>
+          {pendingOut ? "กำลังลงเวลา..." : "ลงเวลาออก"}
+        </Button>
+      );
+    }
+    return null;
+  }
+
   if (!branch) {
     return (
       <div className="p-8">
@@ -185,87 +235,58 @@ export function AttendancePageClient() {
       )}
 
       {!isLoading && !isError && isSuccess && rows.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ชื่อ</TableHead>
-              <TableHead>ระดับ</TableHead>
-              <TableHead>สถานะวันนี้</TableHead>
-              <TableHead>เข้างาน</TableHead>
-              <TableHead>ออกงาน</TableHead>
-              <TableHead>เทียบกะ</TableHead>
-              <TableHead className="text-right">จัดการ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map(({ staff, entry }) => {
-              const status = todayStatus(entry);
-              const pendingIn = clockInMutation.isPending && clockInMutation.variables === staff.id;
-              const pendingOut = clockOutMutation.isPending && clockOutMutation.variables === staff.id;
-              const showShiftBadge = !!entry?.clockInAt;
-
-              return (
-                <TableRow key={staff.id}>
-                  <TableCell className="font-medium">{staff.name}</TableCell>
-                  <TableCell>{STAFF_LEVEL_LABEL[staff.level]}</TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-flex rounded-DEFAULT px-2 py-0.5 text-xs font-medium ${TODAY_STATUS_STYLE[status]}`}
-                    >
-                      {TODAY_STATUS_LABEL[status]}
-                    </span>
-                  </TableCell>
-                  <TableCell className="font-data tabular-nums">{formatClockTime(entry?.clockInAt ?? null)}</TableCell>
-                  <TableCell className="font-data tabular-nums">{formatClockTime(entry?.clockOutAt ?? null)}</TableCell>
-                  <TableCell>
-                    {showShiftBadge && entry ? (
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span
-                          className={`inline-flex rounded-DEFAULT px-2 py-0.5 text-xs font-medium ${SHIFT_STATUS_STYLE[entry.attendance.status]}`}
-                        >
-                          {SHIFT_STATUS_LABEL[entry.attendance.status]}
-                        </span>
-                        {entry.attendance.otMinutes > 0 && (
-                          <span className="inline-flex rounded-DEFAULT bg-indigo-tint px-2 py-0.5 text-xs font-medium text-indigo">
-                            OT {entry.attendance.otMinutes} นาที
-                          </span>
-                        )}
-                        {entry.shift && (
-                          <span className="text-xs text-ink-faint">
-                            (กะ {minToTimeString(entry.shift.startMin)}-{minToTimeString(entry.shift.endMin)})
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-ink-faint">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {canManage && status === "NOT_ARRIVED" && (
-                      <Button
-                        size="sm"
-                        disabled={pendingIn}
-                        onClick={() => clockInMutation.mutate(staff.id)}
-                      >
-                        {pendingIn ? "กำลังลงเวลา..." : "ลงเวลาเข้า"}
-                      </Button>
-                    )}
-                    {canManage && status === "WORKING" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={pendingOut}
-                        onClick={() => clockOutMutation.mutate(staff.id)}
-                      >
-                        {pendingOut ? "กำลังลงเวลา..." : "ลงเวลาออก"}
-                      </Button>
-                    )}
-                  </TableCell>
+        <ResponsiveList
+          table={
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ชื่อ</TableHead>
+                  <TableHead>ระดับ</TableHead>
+                  <TableHead>สถานะวันนี้</TableHead>
+                  <TableHead>เข้างาน</TableHead>
+                  <TableHead>ออกงาน</TableHead>
+                  <TableHead>เทียบกะ</TableHead>
+                  <TableHead className="text-right">จัดการ</TableHead>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {rows.map(({ staff, entry }) => {
+                  const status = todayStatus(entry);
+                  return (
+                    <TableRow key={staff.id}>
+                      <TableCell className="font-medium">{staff.name}</TableCell>
+                      <TableCell>{STAFF_LEVEL_LABEL[staff.level]}</TableCell>
+                      <TableCell>{renderTodayBadge(status)}</TableCell>
+                      <TableCell className="font-data tabular-nums">{formatClockTime(entry?.clockInAt ?? null)}</TableCell>
+                      <TableCell className="font-data tabular-nums">{formatClockTime(entry?.clockOutAt ?? null)}</TableCell>
+                      <TableCell>{renderShiftInfo(entry)}</TableCell>
+                      <TableCell className="text-right">{renderClockAction(staff, status)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          }
+          cards={rows.map(({ staff, entry }) => {
+            const status = todayStatus(entry);
+            return (
+              <ListCard
+                key={staff.id}
+                title={staff.name}
+                badge={renderTodayBadge(status)}
+                lines={[
+                  `${STAFF_LEVEL_LABEL[staff.level]} · เข้า ${formatClockTime(entry?.clockInAt ?? null)} · ออก ${formatClockTime(entry?.clockOutAt ?? null)}`,
+                ]}
+                actions={
+                  <>
+                    {renderShiftInfo(entry)}
+                    {renderClockAction(staff, status)}
+                  </>
+                }
+              />
+            );
+          })}
+        />
       )}
 
       {(clockInMutation.isError || clockOutMutation.isError) && (

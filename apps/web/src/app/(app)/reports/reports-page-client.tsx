@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Input, Label, Select } from "@lotus-desk/ui";
+import { Button, Input, Label, Select, Sheet } from "@lotus-desk/ui";
 import { reportsApi, staffApi } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
 import { downloadDailySummaryXlsx } from "./xlsx-export";
@@ -63,6 +63,7 @@ export function ReportsPageClient() {
   });
 
   const [isExporting, setIsExporting] = useState(false);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   async function handleExportXlsx() {
     const days = dailySummaryQuery.data?.days ?? [];
@@ -86,6 +87,46 @@ export function ReportsPageClient() {
 
   const canExport = dailySummaryQuery.isSuccess && (dailySummaryQuery.data?.days.length ?? 0) > 0;
 
+  function renderFilterFields(idPrefix: string) {
+    return (
+      <>
+        <div>
+          <Label htmlFor={`${idPrefix}-from`}>จากวันที่</Label>
+          <Input
+            id={`${idPrefix}-from`}
+            type="date"
+            value={from}
+            max={to}
+            onChange={(e) => setFrom(e.target.value)}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label htmlFor={`${idPrefix}-to`}>ถึงวันที่</Label>
+          <Input
+            id={`${idPrefix}-to`}
+            type="date"
+            value={to}
+            min={from}
+            onChange={(e) => setTo(e.target.value)}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label htmlFor={`${idPrefix}-staff`}>พนักงาน</Label>
+          <Select id={`${idPrefix}-staff`} value={staffId} onChange={(e) => setStaffId(e.target.value)} className="mt-1">
+            <option value="">พนักงานทั้งหมด</option>
+            {staffListQuery.data?.map((staff) => (
+              <option key={staff.id} value={staff.id}>
+                {staff.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="p-8">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -98,45 +139,19 @@ export function ReportsPageClient() {
         </Button>
       </div>
 
-      <div className="mb-6 flex flex-wrap items-end gap-4 rounded-DEFAULT border border-line-strong bg-surface p-4">
-        <div>
-          <Label htmlFor="reports-from">จากวันที่</Label>
-          <Input
-            id="reports-from"
-            type="date"
-            value={from}
-            max={to}
-            onChange={(e) => setFrom(e.target.value)}
-            className="mt-1"
-          />
-        </div>
-        <div>
-          <Label htmlFor="reports-to">ถึงวันที่</Label>
-          <Input
-            id="reports-to"
-            type="date"
-            value={to}
-            min={from}
-            onChange={(e) => setTo(e.target.value)}
-            className="mt-1"
-          />
-        </div>
-        <div>
-          <Label htmlFor="reports-staff">พนักงาน</Label>
-          <Select
-            id="reports-staff"
-            value={staffId}
-            onChange={(e) => setStaffId(e.target.value)}
-            className="mt-1"
-          >
-            <option value="">พนักงานทั้งหมด</option>
-            {staffListQuery.data?.map((staff) => (
-              <option key={staff.id} value={staff.id}>
-                {staff.name}
-              </option>
-            ))}
-          </Select>
-        </div>
+      {/* จอกว้าง (>= md): ตัวกรองแบบแถวเดิม */}
+      <div className="mb-6 hidden flex-wrap items-end gap-4 rounded-DEFAULT border border-line-strong bg-surface p-4 md:flex">
+        {renderFilterFields("reports")}
+      </div>
+
+      {/* จอแคบ (< md, T10.8): พับตัวกรองเป็นปุ่มเดียว เปิด Sheet แทนแถวฟอร์มยาว */}
+      <div className="mb-6 md:hidden">
+        <Button variant="secondary" onClick={() => setMobileFilterOpen(true)} className="w-full justify-between">
+          <span>
+            ตัวกรอง — {from} ถึง {to}
+            {staffId && staffListQuery.data ? ` · ${staffListQuery.data.find((s) => s.id === staffId)?.name}` : ""}
+          </span>
+        </Button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -144,6 +159,10 @@ export function ReportsPageClient() {
         <PaymentBreakdownSection query={dailySummaryQuery} />
         <StaffUtilizationSection query={staffUtilizationQuery} />
       </div>
+
+      <Sheet open={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} title="ตัวกรองรายงาน">
+        <div className="grid gap-4">{renderFilterFields("reports-mobile")}</div>
+      </Sheet>
     </div>
   );
 }

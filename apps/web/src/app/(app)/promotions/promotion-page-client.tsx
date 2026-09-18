@@ -4,7 +4,21 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PROMOTION_TYPE_LABEL, type CreatePromotionInput, type UpdatePromotionInput } from "@lotus-desk/contracts";
-import { Button, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import {
+  Button,
+  Fab,
+  ListCard,
+  ResponsiveList,
+  Select,
+  Sheet,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@lotus-desk/ui";
+import type { ReactNode } from "react";
 import { ApiError, promotionApi, serviceApi, type Promotion } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 import { useCurrentBranch } from "../current-branch-context";
@@ -82,6 +96,65 @@ export function PromotionPageClient() {
     [listQuery.data, detailPromotionId],
   );
 
+  function renderPromoActions(promo: Promotion): ReactNode {
+    return (
+      <>
+        <Button variant="ghost" size="sm" onClick={() => setDetailPromotionId(promo.id)}>
+          {canManage ? "แก้ไข" : "ดูรายละเอียด"}
+        </Button>
+        {canManage &&
+          (confirmingDeactivateId === promo.id ? (
+            <>
+              <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={updateMutation.isPending}
+                onClick={() => updateMutation.mutate({ promotionId: promo.id, input: { isActive: false } })}
+              >
+                ปิดใช้งาน
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
+                ไม่ใช่
+              </Button>
+            </>
+          ) : promo.isActive ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-rose hover:bg-rose-tint"
+              onClick={() => setConfirmingDeactivateId(promo.id)}
+            >
+              ปิดใช้งาน
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={updateMutation.isPending}
+              onClick={() => updateMutation.mutate({ promotionId: promo.id, input: { isActive: true } })}
+            >
+              เปิดใช้งานอีกครั้ง
+            </Button>
+          ))}
+      </>
+    );
+  }
+
+  function renderPromoBadge(promo: Promotion): ReactNode {
+    return (
+      <span
+        className={
+          promo.isActive
+            ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
+            : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+        }
+      >
+        {promo.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
+      </span>
+    );
+  }
+
   if (!branch) {
     return (
       <div className="p-8">
@@ -103,9 +176,15 @@ export function PromotionPageClient() {
           <Link href="/promotions/calculator">
             <Button variant="secondary">หน้าทดลองคำนวณ</Button>
           </Link>
-          {canManage && <Button onClick={() => setCreateOpen(true)}>+ เพิ่มโปรโมชั่น</Button>}
+          {canManage && (
+            <Button className="hidden md:inline-flex" onClick={() => setCreateOpen(true)}>
+              + เพิ่มโปรโมชั่น
+            </Button>
+          )}
         </div>
       </div>
+
+      {canManage && <Fab aria-label="เพิ่มโปรโมชั่น" onClick={() => setCreateOpen(true)} />}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
@@ -165,89 +244,52 @@ export function PromotionPageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ชื่อ</TableHead>
-              <TableHead>ประเภท</TableHead>
-              <TableHead>ผลลัพธ์</TableHead>
-              <TableHead>ลำดับ</TableHead>
-              <TableHead>โควตา</TableHead>
-              <TableHead>สถานะ</TableHead>
-              <TableHead className="text-right">จัดการ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {listQuery.data.map((promo) => (
-              <TableRow key={promo.id}>
-                <TableCell className="font-medium">{promo.name}</TableCell>
-                <TableCell>{PROMOTION_TYPE_LABEL[promo.type]}</TableCell>
-                <TableCell className="font-data tabular-nums">{formatEffect(promo)}</TableCell>
-                <TableCell className="font-data tabular-nums">{promo.priority}</TableCell>
-                <TableCell className="font-data tabular-nums">
-                  {promo.quotaTotal === null ? "ไม่จำกัด" : `${promo.quotaUsed} / ${promo.quotaTotal}`}
-                </TableCell>
-                <TableCell>
-                  <span
-                    className={
-                      promo.isActive
-                        ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
-                        : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
-                    }
-                  >
-                    {promo.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setDetailPromotionId(promo.id)}>
-                      {canManage ? "แก้ไข" : "ดูรายละเอียด"}
-                    </Button>
-                    {canManage &&
-                      (confirmingDeactivateId === promo.id ? (
-                        <>
-                          <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={updateMutation.isPending}
-                            onClick={() =>
-                              updateMutation.mutate({ promotionId: promo.id, input: { isActive: false } })
-                            }
-                          >
-                            ปิดใช้งาน
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
-                            ไม่ใช่
-                          </Button>
-                        </>
-                      ) : promo.isActive ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-rose hover:bg-rose-tint"
-                          onClick={() => setConfirmingDeactivateId(promo.id)}
-                        >
-                          ปิดใช้งาน
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={updateMutation.isPending}
-                          onClick={() =>
-                            updateMutation.mutate({ promotionId: promo.id, input: { isActive: true } })
-                          }
-                        >
-                          เปิดใช้งานอีกครั้ง
-                        </Button>
-                      ))}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <ResponsiveList
+          table={
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ชื่อ</TableHead>
+                  <TableHead>ประเภท</TableHead>
+                  <TableHead>ผลลัพธ์</TableHead>
+                  <TableHead>ลำดับ</TableHead>
+                  <TableHead>โควตา</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead className="text-right">จัดการ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {listQuery.data.map((promo) => (
+                  <TableRow key={promo.id}>
+                    <TableCell className="font-medium">{promo.name}</TableCell>
+                    <TableCell>{PROMOTION_TYPE_LABEL[promo.type]}</TableCell>
+                    <TableCell className="font-data tabular-nums">{formatEffect(promo)}</TableCell>
+                    <TableCell className="font-data tabular-nums">{promo.priority}</TableCell>
+                    <TableCell className="font-data tabular-nums">
+                      {promo.quotaTotal === null ? "ไม่จำกัด" : `${promo.quotaUsed} / ${promo.quotaTotal}`}
+                    </TableCell>
+                    <TableCell>{renderPromoBadge(promo)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">{renderPromoActions(promo)}</div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          }
+          cards={listQuery.data.map((promo) => (
+            <ListCard
+              key={promo.id}
+              title={promo.name}
+              badge={renderPromoBadge(promo)}
+              lines={[
+                `${PROMOTION_TYPE_LABEL[promo.type]} · ${formatEffect(promo)}`,
+                `ลำดับ ${promo.priority} · โควตา ${promo.quotaTotal === null ? "ไม่จำกัด" : `${promo.quotaUsed}/${promo.quotaTotal}`}`,
+              ]}
+              actions={renderPromoActions(promo)}
+            />
+          ))}
+        />
       )}
 
       <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title="เพิ่มโปรโมชั่นใหม่">

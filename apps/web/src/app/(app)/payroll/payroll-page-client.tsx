@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_LEVEL_LABEL } from "@lotus-desk/contracts";
-import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
 import {
   ApiError,
   payrollApi,
@@ -42,40 +42,60 @@ function StaffSummaryTable({
     return <p className="text-sm text-ink-muted">งวดนี้ไม่มีรายการค่ามือ/ทิปเลย</p>;
   }
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>พนักงาน</TableHead>
-          <TableHead>ระดับ</TableHead>
-          <TableHead className="text-right">ใบงาน</TableHead>
-          <TableHead className="text-right">ค่ามือ</TableHead>
-          <TableHead className="text-right">ทิป</TableHead>
-          <TableHead className="text-right">หัก</TableHead>
-          <TableHead className="text-right">รวมสุทธิ</TableHead>
-          <TableHead className="text-right print:hidden">จัดการ</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {summaries.map((s) => (
-          <TableRow key={s.id}>
-            <TableCell>{s.staff.name}</TableCell>
-            <TableCell>{STAFF_LEVEL_LABEL[s.staff.level]}</TableCell>
-            <TableCell className="text-right font-data tabular-nums">{s.jobCount}</TableCell>
-            <TableCell className="text-right font-data tabular-nums">{formatSatang(s.commissionSatang)}</TableCell>
-            <TableCell className="text-right font-data tabular-nums">{formatSatang(s.tipSatang)}</TableCell>
-            <TableCell className="text-right font-data tabular-nums">{formatSatang(s.deductionSatang)}</TableCell>
-            <TableCell className="text-right font-data tabular-nums font-semibold">
-              {formatSatang(s.totalSatang)}
-            </TableCell>
-            <TableCell className="text-right print:hidden">
-              <Button variant="ghost" size="sm" onClick={() => onPrint(s)}>
-                พิมพ์สลิป
-              </Button>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <ResponsiveList
+      table={
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>พนักงาน</TableHead>
+              <TableHead>ระดับ</TableHead>
+              <TableHead className="text-right">ใบงาน</TableHead>
+              <TableHead className="text-right">ค่ามือ</TableHead>
+              <TableHead className="text-right">ทิป</TableHead>
+              <TableHead className="text-right">หัก</TableHead>
+              <TableHead className="text-right">รวมสุทธิ</TableHead>
+              <TableHead className="text-right print:hidden">จัดการ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {summaries.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell>{s.staff.name}</TableCell>
+                <TableCell>{STAFF_LEVEL_LABEL[s.staff.level]}</TableCell>
+                <TableCell className="text-right font-data tabular-nums">{s.jobCount}</TableCell>
+                <TableCell className="text-right font-data tabular-nums">{formatSatang(s.commissionSatang)}</TableCell>
+                <TableCell className="text-right font-data tabular-nums">{formatSatang(s.tipSatang)}</TableCell>
+                <TableCell className="text-right font-data tabular-nums">{formatSatang(s.deductionSatang)}</TableCell>
+                <TableCell className="text-right font-data tabular-nums font-semibold">
+                  {formatSatang(s.totalSatang)}
+                </TableCell>
+                <TableCell className="text-right print:hidden">
+                  <Button variant="ghost" size="sm" onClick={() => onPrint(s)}>
+                    พิมพ์สลิป
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      }
+      cards={summaries.map((s) => (
+        <ListCard
+          key={s.id}
+          title={s.staff.name}
+          lines={[
+            `${STAFF_LEVEL_LABEL[s.staff.level]} · ${s.jobCount} ใบงาน`,
+            `ค่ามือ ${formatSatang(s.commissionSatang)} · ทิป ${formatSatang(s.tipSatang)} · หัก ${formatSatang(s.deductionSatang)}`,
+          ]}
+          badge={<span className="font-data text-sm font-semibold tabular-nums text-ink">{formatSatang(s.totalSatang)}</span>}
+          actions={
+            <Button variant="ghost" size="sm" onClick={() => onPrint(s)}>
+              พิมพ์สลิป
+            </Button>
+          }
+        />
+      ))}
+    />
   );
 }
 
