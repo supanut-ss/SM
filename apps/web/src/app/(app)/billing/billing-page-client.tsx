@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABEL, type PaymentMethod } from "@lotus-desk/contracts";
 import { Button, Input, Label, Select } from "@lotus-desk/ui";
@@ -47,11 +47,20 @@ function randomKey(): string {
 
 const EMPTY_PRODUCT_DRAFT = { description: "", priceBaht: 0, quantity: 1, paymentMethod: "CASH" as PaymentMethod };
 
+const MOBILE_STEP_LABEL: Record<1 | 2 | 3, string> = {
+  1: "เลือกรายการ",
+  2: "ชำระเงิน",
+  3: "ยืนยัน",
+};
+
 /**
- * แคชเชียร์ (T5.6) — ฝั่งซ้าย: ใบงานที่จบงานแล้วแต่ยังไม่ออกบิลของวันนี้ (จาก AppointmentItemController.list
- * ที่ตอนนี้ include billLine มาด้วยแล้ว) ฝั่งขวา: ตะกร้าบิล + คำนวณส่วนลด (เรียก engine เดียวกับหน้าทดลอง
- * คำนวณ T5.4 ผ่าน promotionCalculatorApi ก่อน แล้วค่อยส่ง checkout จริง — ตัวเลขฝั่ง client ใช้แค่แสดงผล
- * ตัดสินใจสุดท้ายอยู่ที่ server เสมอ (ห้าม trust ตัวเลขเงินจาก client ดู CLAUDE.md)
+ * แคชเชียร์ (T5.6) — จอกว้าง (>= md): ฝั่งซ้ายใบงานที่จบงานแล้วแต่ยังไม่ออกบิลของวันนี้ ฝั่งขวาตะกร้าบิล
+ * + คำนวณส่วนลด (เรียก engine เดียวกับหน้าทดลองคำนวณ T5.4 ผ่าน promotionCalculatorApi ก่อน แล้วค่อยส่ง
+ * checkout จริง — ตัวเลขฝั่ง client ใช้แค่แสดงผล ตัดสินใจสุดท้ายอยู่ที่ server เสมอ ดู CLAUDE.md)
+ *
+ * จอแคบ (< md, T10.7): แตกเป็น wizard 3 ขั้น (เลือกรายการ → ชำระเงิน → ยืนยัน) แทนสองคอลัมน์พร้อมกัน
+ * เพราะฟอร์มยาวเกินจะดันปุ่มออกบิลไปไกลเกินจอ — ใช้ฟังก์ชัน render* ชุดเดียวกันกับ desktop ทั้งหมด
+ * (ไม่มี logic ซ้ำ) แค่จัดกลุ่มเข้าขั้นตอนต่างกัน ปุ่มถัดไป/ย้อนกลับ sticky ล่างจอเสมอ
  */
 export function BillingPageClient() {
   const branch = useCurrentBranch();
@@ -73,6 +82,7 @@ export function BillingPageClient() {
   const [payments, setPayments] = useState<PaymentDraft[]>([]);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [receiptBill, setReceiptBill] = useState<Bill | null>(null);
+  const [mobileStep, setMobileStep] = useState<1 | 2 | 3>(1);
 
   const itemsQuery = useQuery({
     queryKey: ["appointment-items", branch?.branchId, dateKey],
@@ -217,6 +227,7 @@ export function BillingPageClient() {
       setMemberId("");
       setCouponCode("");
       resetPreview();
+      setMobileStep(1);
       void queryClient.invalidateQueries({ queryKey: ["appointment-items", branch?.branchId, dateKey] });
       void queryClient.invalidateQueries({ queryKey: ["bills", branch?.branchId] });
     },
@@ -278,6 +289,407 @@ export function BillingPageClient() {
     payments.length > 0 &&
     paymentsDiffSatang === 0;
 
+  // ---- ชิ้นส่วน UI ที่ใช้ร่วมกันทั้ง desktop (สองคอลัมน์) และ wizard มือถือ (ดู docs/DESIGN.md §9.4,
+  // T10.7) — ทุกฟังก์ชันด้านล่างคืน JSX เดิมเป๊ะ ไม่มี logic ใหม่ แค่แยกออกมาให้เรียกซ้ำได้สองที่
+
+  function renderJobList(): ReactNode {
+    return (
+      <>
+        {itemsQuery.isLoading && (
+          <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายการ">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-14 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            ))}
+          </div>
+        )}
+
+        {itemsQuery.isError && (
+          <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
+            {itemsQuery.error instanceof ApiError ? itemsQuery.error.message : "โหลดรายการไม่สำเร็จ กรุณาลองใหม่"}
+            <Button variant="secondary" size="sm" className="ml-3" onClick={() => void itemsQuery.refetch()}>
+              ลองใหม่
+            </Button>
+          </div>
+        )}
+
+        {itemsQuery.isSuccess && readyItems.length === 0 && (
+          <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
+            <p className="text-sm text-ink-muted">
+              ยังไม่มีใบงานที่จบแล้วรอออกบิล — ไปที่กระดานคิวแล้วเปลี่ยนสถานะนัดเป็น &quot;จบงาน&quot; ก่อน
+            </p>
+          </div>
+        )}
+
+        {itemsQuery.isSuccess && readyItems.length > 0 && (
+          <ul className="grid gap-2">
+            {readyItems.map((item) => {
+              const inCart = cartJobIds.includes(item.serviceJob.id);
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleJob(item)}
+                    aria-pressed={inCart}
+                    className={`flex w-full items-center justify-between gap-3 rounded-DEFAULT border px-4 py-3 text-left transition-colors ${
+                      inCart
+                        ? "border-celadon bg-celadon-tint"
+                        : "border-line-strong bg-surface hover:bg-surface-sunk"
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-ink">
+                        {item.serviceVariant.service.name} · {item.serviceVariant.durationMin} นาที
+                      </p>
+                      <p className="text-xs text-ink-muted">
+                        {item.staff.name} · {item.appointment.member?.name ?? "ลูกค้า Walk-in"} ·{" "}
+                        {PAYMENT_METHOD_LABEL[item.serviceJob.paymentMethod!]}
+                      </p>
+                    </div>
+                    <span className="font-data text-sm tabular-nums text-ink">
+                      {formatSatang(item.serviceJob.priceSatang)}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </>
+    );
+  }
+
+  function renderCartList(): ReactNode {
+    return (
+      <div>
+        <h3 className="mb-2 text-sm font-semibold text-ink">รายการในบิล</h3>
+        {cartHasEmptyContent && (
+          <p className="text-sm text-ink-muted">ยังไม่มีรายการ — เลือกใบงานจากด้านบน หรือเพิ่มสินค้าด้านล่าง</p>
+        )}
+        <ul className="grid gap-2">
+          {cartJobs.map((item) => {
+            const isPackage = item.serviceJob.paymentMethod === "PACKAGE";
+            return (
+              <li key={item.id} className="rounded-DEFAULT border border-line-strong bg-surface p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-ink">
+                    {item.serviceVariant.service.name} ({PAYMENT_METHOD_LABEL[item.serviceJob.paymentMethod!]})
+                  </p>
+                  <span className="font-data text-sm tabular-nums text-ink">
+                    {formatSatang(item.serviceJob.priceSatang)}
+                  </span>
+                </div>
+                {/* คอร์สที่จะตัดล็อกไว้ตั้งแต่ตอนเริ่มงานแล้ว (ดู docs/decisions.md ADR-046) — แสดงผลอย่าง
+                    เดียว ไม่ให้เลือกซ้ำตอนออกบิลอีก */}
+                {isPackage && (
+                  <p className="mt-2 text-xs text-ink-muted">
+                    ตัดคอร์ส: {item.serviceJob.memberPackage?.name ?? "เลือกไว้ตอนเริ่มงาน"}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+          {productLines.map((p) => (
+            <li key={p.key} className="flex items-center justify-between gap-2 rounded-DEFAULT border border-line-strong bg-surface p-3">
+              <div>
+                <p className="text-sm text-ink">
+                  {p.description} {p.quantity > 1 ? `x${p.quantity}` : ""} ({PAYMENT_METHOD_LABEL[p.paymentMethod]})
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-data text-sm tabular-nums text-ink">
+                  {formatSatang(Math.round(p.priceBaht * 100) * p.quantity)}
+                </span>
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeProductLine(p.key)}>
+                  ลบ
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  function renderProductForm(): ReactNode {
+    return (
+      <div className="rounded-DEFAULT border border-dashed border-line-strong p-3">
+        <h3 className="mb-2 text-sm font-semibold text-ink">เพิ่มรายการสินค้า (ไม่ผูกคลัง)</h3>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Input
+            aria-label="ชื่อสินค้า"
+            placeholder="ชื่อสินค้า"
+            value={productDraft.description}
+            onChange={(event) => setProductDraft((prev) => ({ ...prev, description: event.target.value }))}
+            className="col-span-2 sm:col-span-1"
+          />
+          <Input
+            aria-label="ราคา (บาท)"
+            type="number"
+            min={0}
+            step={0.01}
+            placeholder="ราคา (บาท)"
+            value={productDraft.priceBaht || ""}
+            onChange={(event) => setProductDraft((prev) => ({ ...prev, priceBaht: Number(event.target.value) }))}
+          />
+          <Input
+            aria-label="จำนวน"
+            type="number"
+            min={1}
+            step={1}
+            value={productDraft.quantity}
+            onChange={(event) => setProductDraft((prev) => ({ ...prev, quantity: Number(event.target.value) }))}
+          />
+          <Select
+            aria-label="แหล่งชำระสินค้า"
+            value={productDraft.paymentMethod}
+            onChange={(event) =>
+              setProductDraft((prev) => ({ ...prev, paymentMethod: event.target.value as PaymentMethod }))
+            }
+          >
+            {PAYMENT_METHODS.filter((m) => m !== "PACKAGE").map((m) => (
+              <option key={m} value={m}>
+                {PAYMENT_METHOD_LABEL[m]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={addProductLine}>
+          + เพิ่มรายการสินค้า
+        </Button>
+      </div>
+    );
+  }
+
+  function renderMemberPicker(): ReactNode {
+    return (
+      <div>
+        <Label htmlFor="member-filter">สมาชิก (ไม่บังคับ ยกเว้นมีรายการตัดคอร์ส)</Label>
+        <div className="mt-1.5 grid gap-2">
+          <Input
+            id="member-filter"
+            placeholder="ค้นหาชื่อ/เบอร์/รหัสสมาชิก..."
+            value={memberFilter}
+            onChange={(event) => setMemberFilter(event.target.value)}
+          />
+          <Select aria-label="เลือกสมาชิก" value={memberId} onChange={(event) => setMemberId(event.target.value)}>
+            <option value="">-- ไม่ระบุสมาชิก (walk-in) --</option>
+            {filteredMembers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} ({m.code}) · {m.phone}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+    );
+  }
+
+  function renderPromotionDetails(): ReactNode {
+    return (
+      <details className="rounded-DEFAULT border border-dashed border-line-strong p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-ink">ตัวเลือกโปรโมชั่น/สมาชิก</summary>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div>
+            <Label htmlFor="coupon-code">รหัสคูปอง</Label>
+            <Input
+              id="coupon-code"
+              value={couponCode}
+              onChange={(event) => {
+                setCouponCode(event.target.value);
+                resetPreview();
+              }}
+            />
+          </div>
+          <div>
+            <Label htmlFor="member-tier">ระดับสมาชิก (tier)</Label>
+            <Input
+              id="member-tier"
+              value={memberTier}
+              onChange={(event) => {
+                setMemberTier(event.target.value);
+                resetPreview();
+              }}
+            />
+          </div>
+          <div>
+            <Label htmlFor="member-birth-month">เดือนเกิด (1-12)</Label>
+            <Input
+              id="member-birth-month"
+              type="number"
+              min={1}
+              max={12}
+              value={memberBirthMonth}
+              onChange={(event) => {
+                setMemberBirthMonth(event.target.value === "" ? "" : Number(event.target.value));
+                resetPreview();
+              }}
+            />
+          </div>
+          <div className="flex items-end gap-2">
+            <input
+              id="first-time"
+              type="checkbox"
+              checked={isFirstTimeCustomer}
+              onChange={(event) => {
+                setIsFirstTimeCustomer(event.target.checked);
+                resetPreview();
+              }}
+              className="h-4 w-4"
+            />
+            <Label htmlFor="first-time">ลูกค้าใหม่ครั้งแรก</Label>
+          </div>
+        </div>
+      </details>
+    );
+  }
+
+  function renderTotals(): ReactNode {
+    return (
+      <div className="grid gap-1 rounded-DEFAULT border border-line-strong bg-surface-sunk p-3 text-sm">
+        <div className="flex justify-between">
+          <span className="text-ink-muted">ยอดรวม</span>
+          <span className="font-data tabular-nums text-ink">{formatSatang(subtotalSatang)}</span>
+        </div>
+        {preview && (
+          <div className="flex justify-between">
+            <span className="text-ink-muted">ส่วนลด{preview.reason ? ` (${preview.reason})` : ""}</span>
+            <span className="font-data tabular-nums text-ink">-{formatSatang(preview.discountSatang)}</span>
+          </div>
+        )}
+        {preview?.couponError && <p className="text-xs text-rose">{preview.couponError}</p>}
+        <div className="flex justify-between font-semibold">
+          <span>ยอดสุทธิ{preview ? "" : " (ยังไม่คำนวณส่วนลด)"}</span>
+          <span className="font-data tabular-nums text-ink">{formatSatang(totalSatang)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  function renderCalculateButton(): ReactNode {
+    return (
+      <Button
+        type="button"
+        variant="secondary"
+        disabled={cartHasEmptyContent || calculateMutation.isPending}
+        onClick={() => calculateMutation.mutate()}
+      >
+        {calculateMutation.isPending ? "กำลังคำนวณ..." : "คำนวณยอด/ส่วนลด"}
+      </Button>
+    );
+  }
+
+  function renderPaymentSection(): ReactNode {
+    if (!preview) return null;
+    return (
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-ink">ช่องทางชำระเงิน</h3>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={autofillPayments}>
+              เติมอัตโนมัติ
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={addPaymentRow}>
+              + เพิ่มช่องทาง
+            </Button>
+          </div>
+        </div>
+
+        {payments.map((p) => (
+          <div key={p.key} className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2">
+            <div>
+              <Label htmlFor={`pay-method-${p.key}`} className="text-[10px]">
+                ช่องทาง
+              </Label>
+              <Select
+                id={`pay-method-${p.key}`}
+                value={p.method}
+                onChange={(event) => updatePaymentRow(p.key, { method: event.target.value as PaymentMethod })}
+              >
+                {PAYMENT_METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {PAYMENT_METHOD_LABEL[m]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor={`pay-amount-${p.key}`} className="text-[10px]">
+                จำนวนเงิน (บาท)
+              </Label>
+              <Input
+                id={`pay-amount-${p.key}`}
+                type="number"
+                min={0}
+                step={0.01}
+                value={p.amountBaht || ""}
+                onChange={(event) => updatePaymentRow(p.key, { amountBaht: Number(event.target.value) })}
+              />
+            </div>
+            <div>
+              {p.method === "CASH" ? (
+                <>
+                  <Label htmlFor={`pay-tendered-${p.key}`} className="text-[10px]">
+                    รับเงินมา (บาท)
+                  </Label>
+                  <Input
+                    id={`pay-tendered-${p.key}`}
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={p.tenderedBaht}
+                    onChange={(event) =>
+                      updatePaymentRow(p.key, {
+                        tenderedBaht: event.target.value === "" ? "" : Number(event.target.value),
+                      })
+                    }
+                  />
+                </>
+              ) : (
+                <div />
+              )}
+            </div>
+            <Button type="button" variant="ghost" size="sm" onClick={() => removePaymentRow(p.key)}>
+              ลบ
+            </Button>
+          </div>
+        ))}
+
+        <div
+          className={`rounded-DEFAULT px-3 py-2 text-sm ${
+            paymentsDiffSatang === 0 ? "bg-celadon-tint text-celadon" : "bg-brass-tint text-brass"
+          }`}
+        >
+          {paymentsDiffSatang === 0
+            ? "ยอดชำระตรงกับยอดสุทธิแล้ว"
+            : paymentsDiffSatang > 0
+              ? `ยังขาดอีก ${formatSatang(paymentsDiffSatang)}`
+              : `เกินยอดสุทธิ ${formatSatang(-paymentsDiffSatang)}`}
+        </div>
+      </div>
+    );
+  }
+
+  function renderCheckoutMessages(): ReactNode {
+    return (
+      <>
+        {checkoutError && (
+          <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+            {checkoutError}
+          </p>
+        )}
+        {packageLinesMissingMember && <p className="text-xs text-brass">มีรายการตัดคอร์สแต่ยังไม่ได้เลือกสมาชิก</p>}
+      </>
+    );
+  }
+
+  function renderCheckoutButton(): ReactNode {
+    return (
+      <Button type="button" disabled={!canCheckout || checkoutMutation.isPending} onClick={() => checkoutMutation.mutate()}>
+        {checkoutMutation.isPending ? "กำลังออกบิล..." : "ออกบิล"}
+      </Button>
+    );
+  }
+
   if (!branch) {
     return (
       <div className="p-8">
@@ -289,7 +701,7 @@ export function BillingPageClient() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="font-display text-2xl font-semibold text-ink">บิล/แคชเชียร์</h1>
         <p className="mt-1 text-sm text-ink-muted">ออกบิลรวมใบงานที่จบแล้วของวันนี้ + สินค้า ที่สาขา {branch.branchName}</p>
@@ -297,375 +709,92 @@ export function BillingPageClient() {
 
       <CashierShiftPanel branchId={branch.branchId} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* ฝั่งซ้าย — ใบงานที่พร้อมออกบิล */}
+      {/* จอกว้าง (>= md): สองคอลัมน์เดิมเป๊ะ ไม่เปลี่ยนแปลง */}
+      <div className="hidden gap-6 md:grid lg:grid-cols-2">
         <section aria-label="ใบงานที่พร้อมออกบิล">
           <h2 className="mb-3 font-display text-lg font-semibold text-ink">พร้อมออกบิลวันนี้</h2>
-
-          {itemsQuery.isLoading && (
-            <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายการ">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="h-14 animate-pulse rounded-DEFAULT bg-surface-sunk" />
-              ))}
-            </div>
-          )}
-
-          {itemsQuery.isError && (
-            <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-              {itemsQuery.error instanceof ApiError ? itemsQuery.error.message : "โหลดรายการไม่สำเร็จ กรุณาลองใหม่"}
-              <Button variant="secondary" size="sm" className="ml-3" onClick={() => void itemsQuery.refetch()}>
-                ลองใหม่
-              </Button>
-            </div>
-          )}
-
-          {itemsQuery.isSuccess && readyItems.length === 0 && (
-            <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-              <p className="text-sm text-ink-muted">
-                ยังไม่มีใบงานที่จบแล้วรอออกบิล — ไปที่กระดานคิวแล้วเปลี่ยนสถานะนัดเป็น &quot;จบงาน&quot; ก่อน
-              </p>
-            </div>
-          )}
-
-          {itemsQuery.isSuccess && readyItems.length > 0 && (
-            <ul className="grid gap-2">
-              {readyItems.map((item) => {
-                const inCart = cartJobIds.includes(item.serviceJob.id);
-                return (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => toggleJob(item)}
-                      aria-pressed={inCart}
-                      className={`flex w-full items-center justify-between gap-3 rounded-DEFAULT border px-4 py-3 text-left transition-colors ${
-                        inCart
-                          ? "border-celadon bg-celadon-tint"
-                          : "border-line-strong bg-surface hover:bg-surface-sunk"
-                      }`}
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-ink">
-                          {item.serviceVariant.service.name} · {item.serviceVariant.durationMin} นาที
-                        </p>
-                        <p className="text-xs text-ink-muted">
-                          {item.staff.name} · {item.appointment.member?.name ?? "ลูกค้า Walk-in"} ·{" "}
-                          {PAYMENT_METHOD_LABEL[item.serviceJob.paymentMethod!]}
-                        </p>
-                      </div>
-                      <span className="font-data text-sm tabular-nums text-ink">
-                        {formatSatang(item.serviceJob.priceSatang)}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {renderJobList()}
         </section>
 
-        {/* ฝั่งขวา — ตะกร้าบิล */}
         <section aria-label="ตะกร้าบิล" className="grid gap-5">
-          <div>
-            <Label htmlFor="member-filter">สมาชิก (ไม่บังคับ ยกเว้นมีรายการตัดคอร์ส)</Label>
-            <div className="mt-1.5 grid gap-2">
-              <Input
-                id="member-filter"
-                placeholder="ค้นหาชื่อ/เบอร์/รหัสสมาชิก..."
-                value={memberFilter}
-                onChange={(event) => setMemberFilter(event.target.value)}
-              />
-              <Select
-                aria-label="เลือกสมาชิก"
-                value={memberId}
-                onChange={(event) => setMemberId(event.target.value)}
-              >
-                <option value="">-- ไม่ระบุสมาชิก (walk-in) --</option>
-                {filteredMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.code}) · {m.phone}
-                  </option>
-                ))}
-              </Select>
-            </div>
+          {renderMemberPicker()}
+          {renderCartList()}
+          {renderProductForm()}
+          {renderPromotionDetails()}
+          {renderTotals()}
+          {renderCalculateButton()}
+          {renderPaymentSection()}
+          {renderCheckoutMessages()}
+          {renderCheckoutButton()}
+        </section>
+      </div>
+
+      {/* จอแคบ (< md, T10.7): wizard 3 ขั้น — เลือกรายการ → ชำระเงิน → ยืนยัน */}
+      <div className="md:hidden">
+        <div className="mb-1 mt-4 flex items-center justify-between text-xs text-ink-muted">
+          <span>{MOBILE_STEP_LABEL[mobileStep]}</span>
+          <span className="font-data tabular-nums">{mobileStep}/3</span>
+        </div>
+        <div className="mb-4 h-1 rounded-DEFAULT bg-surface-sunk">
+          <div
+            className="h-full rounded-DEFAULT bg-celadon transition-[width] duration-150 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none"
+            style={{ width: `${(mobileStep / 3) * 100}%` }}
+          />
+        </div>
+
+        {mobileStep === 1 && (
+          <div className="grid gap-5">
+            <section aria-label="ใบงานที่พร้อมออกบิล">
+              <h2 className="mb-3 font-display text-lg font-semibold text-ink">พร้อมออกบิลวันนี้</h2>
+              {renderJobList()}
+            </section>
+            {renderCartList()}
+            {renderProductForm()}
           </div>
+        )}
 
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-ink">รายการในบิล</h3>
-            {cartHasEmptyContent && <p className="text-sm text-ink-muted">ยังไม่มีรายการ — เลือกใบงานจากฝั่งซ้าย หรือเพิ่มสินค้าด้านล่าง</p>}
-            <ul className="grid gap-2">
-              {cartJobs.map((item) => {
-                const isPackage = item.serviceJob.paymentMethod === "PACKAGE";
-                return (
-                  <li key={item.id} className="rounded-DEFAULT border border-line-strong bg-surface p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm text-ink">
-                        {item.serviceVariant.service.name} ({PAYMENT_METHOD_LABEL[item.serviceJob.paymentMethod!]})
-                      </p>
-                      <span className="font-data text-sm tabular-nums text-ink">
-                        {formatSatang(item.serviceJob.priceSatang)}
-                      </span>
-                    </div>
-                    {/* คอร์สที่จะตัดล็อกไว้ตั้งแต่ตอนเริ่มงานแล้ว (ดู docs/decisions.md ADR-046) — แสดงผลอย่าง
-                        เดียว ไม่ให้เลือกซ้ำตอนออกบิลอีก */}
-                    {isPackage && (
-                      <p className="mt-2 text-xs text-ink-muted">
-                        ตัดคอร์ส: {item.serviceJob.memberPackage?.name ?? "เลือกไว้ตอนเริ่มงาน"}
-                      </p>
-                    )}
-                  </li>
-                );
-              })}
-              {productLines.map((p) => (
-                <li key={p.key} className="flex items-center justify-between gap-2 rounded-DEFAULT border border-line-strong bg-surface p-3">
-                  <div>
-                    <p className="text-sm text-ink">
-                      {p.description} {p.quantity > 1 ? `x${p.quantity}` : ""} ({PAYMENT_METHOD_LABEL[p.paymentMethod]})
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-data text-sm tabular-nums text-ink">
-                      {formatSatang(Math.round(p.priceBaht * 100) * p.quantity)}
-                    </span>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => removeProductLine(p.key)}>
-                      ลบ
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+        {mobileStep === 2 && (
+          <div className="grid gap-5">
+            {renderMemberPicker()}
+            {renderPromotionDetails()}
+            {renderTotals()}
+            {renderCalculateButton()}
+            {renderPaymentSection()}
           </div>
+        )}
 
-          <div className="rounded-DEFAULT border border-dashed border-line-strong p-3">
-            <h3 className="mb-2 text-sm font-semibold text-ink">เพิ่มรายการสินค้า (ไม่ผูกคลัง)</h3>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Input
-                aria-label="ชื่อสินค้า"
-                placeholder="ชื่อสินค้า"
-                value={productDraft.description}
-                onChange={(event) => setProductDraft((prev) => ({ ...prev, description: event.target.value }))}
-                className="col-span-2 sm:col-span-1"
-              />
-              <Input
-                aria-label="ราคา (บาท)"
-                type="number"
-                min={0}
-                step={0.01}
-                placeholder="ราคา (บาท)"
-                value={productDraft.priceBaht || ""}
-                onChange={(event) => setProductDraft((prev) => ({ ...prev, priceBaht: Number(event.target.value) }))}
-              />
-              <Input
-                aria-label="จำนวน"
-                type="number"
-                min={1}
-                step={1}
-                value={productDraft.quantity}
-                onChange={(event) => setProductDraft((prev) => ({ ...prev, quantity: Number(event.target.value) }))}
-              />
-              <Select
-                aria-label="แหล่งชำระสินค้า"
-                value={productDraft.paymentMethod}
-                onChange={(event) =>
-                  setProductDraft((prev) => ({ ...prev, paymentMethod: event.target.value as PaymentMethod }))
-                }
-              >
-                {PAYMENT_METHODS.filter((m) => m !== "PACKAGE").map((m) => (
-                  <option key={m} value={m}>
-                    {PAYMENT_METHOD_LABEL[m]}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={addProductLine}>
-              + เพิ่มรายการสินค้า
-            </Button>
+        {mobileStep === 3 && (
+          <div className="grid gap-5">
+            {renderTotals()}
+            {renderCheckoutMessages()}
+            {renderCheckoutButton()}
           </div>
+        )}
 
-          <details className="rounded-DEFAULT border border-dashed border-line-strong p-3">
-            <summary className="cursor-pointer text-sm font-semibold text-ink">ตัวเลือกโปรโมชั่น/สมาชิก</summary>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div>
-                <Label htmlFor="coupon-code">รหัสคูปอง</Label>
-                <Input
-                  id="coupon-code"
-                  value={couponCode}
-                  onChange={(event) => {
-                    setCouponCode(event.target.value);
-                    resetPreview();
-                  }}
-                />
-              </div>
-              <div>
-                <Label htmlFor="member-tier">ระดับสมาชิก (tier)</Label>
-                <Input
-                  id="member-tier"
-                  value={memberTier}
-                  onChange={(event) => {
-                    setMemberTier(event.target.value);
-                    resetPreview();
-                  }}
-                />
-              </div>
-              <div>
-                <Label htmlFor="member-birth-month">เดือนเกิด (1-12)</Label>
-                <Input
-                  id="member-birth-month"
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={memberBirthMonth}
-                  onChange={(event) => {
-                    setMemberBirthMonth(event.target.value === "" ? "" : Number(event.target.value));
-                    resetPreview();
-                  }}
-                />
-              </div>
-              <div className="flex items-end gap-2">
-                <input
-                  id="first-time"
-                  type="checkbox"
-                  checked={isFirstTimeCustomer}
-                  onChange={(event) => {
-                    setIsFirstTimeCustomer(event.target.checked);
-                    resetPreview();
-                  }}
-                  className="h-4 w-4"
-                />
-                <Label htmlFor="first-time">ลูกค้าใหม่ครั้งแรก</Label>
-              </div>
-            </div>
-          </details>
-
-          <div className="grid gap-1 rounded-DEFAULT border border-line-strong bg-surface-sunk p-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-ink-muted">ยอดรวม</span>
-              <span className="font-data tabular-nums text-ink">{formatSatang(subtotalSatang)}</span>
-            </div>
-            {preview && (
-              <div className="flex justify-between">
-                <span className="text-ink-muted">ส่วนลด{preview.reason ? ` (${preview.reason})` : ""}</span>
-                <span className="font-data tabular-nums text-ink">-{formatSatang(preview.discountSatang)}</span>
-              </div>
-            )}
-            {preview?.couponError && <p className="text-xs text-rose">{preview.couponError}</p>}
-            <div className="flex justify-between font-semibold">
-              <span>ยอดสุทธิ{preview ? "" : " (ยังไม่คำนวณส่วนลด)"}</span>
-              <span className="font-data tabular-nums text-ink">{formatSatang(totalSatang)}</span>
-            </div>
-          </div>
-
+        {/* แถบปุ่มย้อนกลับ/ถัดไป ตรึงล่างจอเสมอ (docs/DESIGN.md §9.4) */}
+        <div className="sticky -bottom-4 -mx-4 mt-5 flex gap-3 border-t border-line bg-paper px-4 pb-4 pt-3">
           <Button
             type="button"
             variant="secondary"
-            disabled={cartHasEmptyContent || calculateMutation.isPending}
-            onClick={() => calculateMutation.mutate()}
+            className="flex-1"
+            disabled={mobileStep === 1}
+            onClick={() => setMobileStep((s) => (s === 3 ? 2 : 1))}
           >
-            {calculateMutation.isPending ? "กำลังคำนวณ..." : "คำนวณยอด/ส่วนลด"}
+            ย้อนกลับ
           </Button>
-
-          {preview && (
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-ink">ช่องทางชำระเงิน</h3>
-                <div className="flex gap-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={autofillPayments}>
-                    เติมอัตโนมัติ
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={addPaymentRow}>
-                    + เพิ่มช่องทาง
-                  </Button>
-                </div>
-              </div>
-
-              {payments.map((p) => (
-                <div key={p.key} className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2">
-                  <div>
-                    <Label htmlFor={`pay-method-${p.key}`} className="text-[10px]">
-                      ช่องทาง
-                    </Label>
-                    <Select
-                      id={`pay-method-${p.key}`}
-                      value={p.method}
-                      onChange={(event) => updatePaymentRow(p.key, { method: event.target.value as PaymentMethod })}
-                    >
-                      {PAYMENT_METHODS.map((m) => (
-                        <option key={m} value={m}>
-                          {PAYMENT_METHOD_LABEL[m]}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor={`pay-amount-${p.key}`} className="text-[10px]">
-                      จำนวนเงิน (บาท)
-                    </Label>
-                    <Input
-                      id={`pay-amount-${p.key}`}
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={p.amountBaht || ""}
-                      onChange={(event) => updatePaymentRow(p.key, { amountBaht: Number(event.target.value) })}
-                    />
-                  </div>
-                  <div>
-                    {p.method === "CASH" ? (
-                      <>
-                        <Label htmlFor={`pay-tendered-${p.key}`} className="text-[10px]">
-                          รับเงินมา (บาท)
-                        </Label>
-                        <Input
-                          id={`pay-tendered-${p.key}`}
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          value={p.tenderedBaht}
-                          onChange={(event) =>
-                            updatePaymentRow(p.key, {
-                              tenderedBaht: event.target.value === "" ? "" : Number(event.target.value),
-                            })
-                          }
-                        />
-                      </>
-                    ) : (
-                      <div />
-                    )}
-                  </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removePaymentRow(p.key)}>
-                    ลบ
-                  </Button>
-                </div>
-              ))}
-
-              <div
-                className={`rounded-DEFAULT px-3 py-2 text-sm ${
-                  paymentsDiffSatang === 0 ? "bg-celadon-tint text-celadon" : "bg-brass-tint text-brass"
-                }`}
-              >
-                {paymentsDiffSatang === 0
-                  ? "ยอดชำระตรงกับยอดสุทธิแล้ว"
-                  : paymentsDiffSatang > 0
-                    ? `ยังขาดอีก ${formatSatang(paymentsDiffSatang)}`
-                    : `เกินยอดสุทธิ ${formatSatang(-paymentsDiffSatang)}`}
-              </div>
-            </div>
+          {mobileStep < 3 ? (
+            <Button
+              type="button"
+              className="flex-[2]"
+              disabled={mobileStep === 1 ? cartHasEmptyContent : preview === null || packageLinesMissingMember}
+              onClick={() => setMobileStep((s) => (s === 1 ? 2 : 3))}
+            >
+              ถัดไป: {MOBILE_STEP_LABEL[mobileStep === 1 ? 2 : 3]}
+            </Button>
+          ) : (
+            <div className="flex-[2]" />
           )}
-
-          {checkoutError && (
-            <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
-              {checkoutError}
-            </p>
-          )}
-          {packageLinesMissingMember && <p className="text-xs text-brass">มีรายการตัดคอร์สแต่ยังไม่ได้เลือกสมาชิก</p>}
-
-          <Button
-            type="button"
-            disabled={!canCheckout || checkoutMutation.isPending}
-            onClick={() => checkoutMutation.mutate()}
-          >
-            {checkoutMutation.isPending ? "กำลังออกบิล..." : "ออกบิล"}
-          </Button>
-        </section>
+        </div>
       </div>
 
       {receiptBill && (
