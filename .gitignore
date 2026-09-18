@@ -31,3 +31,9 @@ pnpm-debug.log*
 
 # prisma
 packages/db/generated/
+
+# playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
