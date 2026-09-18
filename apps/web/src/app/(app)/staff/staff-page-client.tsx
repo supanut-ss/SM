@@ -12,6 +12,7 @@ import {
 } from "@lotus-desk/contracts";
 import {
   Button,
+  Fab,
   ListCard,
   ResponsiveList,
   Select,
@@ -177,9 +178,15 @@ export function StaffPageClient() {
           <Button variant="secondary" onClick={() => router.push("/staff/shifts")}>
             จัดตารางกะ
           </Button>
-          {canManage && <Button onClick={() => setSheetTarget("create")}>+ เพิ่มพนักงาน</Button>}
+          {canManage && (
+            <Button className="hidden md:inline-flex" onClick={() => setSheetTarget("create")}>
+              + เพิ่มพนักงาน
+            </Button>
+          )}
         </div>
       </div>
+
+      {canManage && <Fab aria-label="เพิ่มพนักงาน" onClick={() => setSheetTarget("create")} />}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input

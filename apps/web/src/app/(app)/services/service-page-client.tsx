@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_SKILL_LABEL, type CreateServiceInput, type UpdateServiceInput } from "@lotus-desk/contracts";
 import {
   Button,
+  Fab,
   ListCard,
   ResponsiveList,
   Select,
@@ -209,8 +210,14 @@ export function ServicePageClient() {
           <h1 className="font-display text-2xl font-semibold text-ink">บริการ</h1>
           <p className="mt-1 text-sm text-ink-muted">รายชื่อบริการและตัวเลือกเวลาของสาขา {branch.branchName}</p>
         </div>
-        {canManage && <Button onClick={() => setCreateOpen(true)}>+ เพิ่มบริการ</Button>}
+        {canManage && (
+          <Button className="hidden md:inline-flex" onClick={() => setCreateOpen(true)}>
+            + เพิ่มบริการ
+          </Button>
+        )}
       </div>
+
+      {canManage && <Fab aria-label="เพิ่มบริการ" onClick={() => setCreateOpen(true)} />}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input

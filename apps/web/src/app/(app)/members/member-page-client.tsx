@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateMemberInput, UpdateMemberInput } from "@lotus-desk/contracts";
 import {
   Button,
+  Fab,
   ListCard,
   ResponsiveList,
   Select,
@@ -164,8 +165,14 @@ export function MemberPageClient() {
           <h1 className="font-display text-2xl font-semibold text-ink">สมาชิก</h1>
           <p className="mt-1 text-sm text-ink-muted">รายชื่อสมาชิกของสาขา {branch.branchName}</p>
         </div>
-        {canManage && <Button onClick={() => setSheetTarget("create")}>+ เพิ่มสมาชิก</Button>}
+        {canManage && (
+          <Button className="hidden md:inline-flex" onClick={() => setSheetTarget("create")}>
+            + เพิ่มสมาชิก
+          </Button>
+        )}
       </div>
+
+      {canManage && <Fab aria-label="เพิ่มสมาชิก" onClick={() => setSheetTarget("create")} />}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input

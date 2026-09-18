@@ -1,6 +1,7 @@
 export { cn } from "./lib/cn";
 
 export { Button, type ButtonProps } from "./components/button";
+export { Fab, type FabProps } from "./components/fab";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Select } from "./components/select";

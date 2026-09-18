@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../lib/cn";
 
@@ -38,6 +38,22 @@ const TRANSITION_MS = 160;
 export function Sheet({ open, onClose, title, description, children }: SheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  // ระยะที่ลาก handle ลงมาแล้วถือว่าตั้งใจปิด (จอ < md เท่านั้น — ดู docs/DESIGN.md §9.3)
+  const dragStartY = useRef<number | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
+
+  function handleHandlePointerDown(event: ReactPointerEvent) {
+    dragStartY.current = event.clientY;
+  }
+  function handleHandlePointerMove(event: ReactPointerEvent) {
+    if (dragStartY.current === null) return;
+    setDragOffset(Math.max(0, event.clientY - dragStartY.current));
+  }
+  function handleHandlePointerUp() {
+    if (dragOffset > 80) onClose();
+    dragStartY.current = null;
+    setDragOffset(0);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -77,13 +93,28 @@ export function Sheet({ open, onClose, title, description, children }: SheetProp
         tabIndex={-1}
         inert={!open}
         className={cn(
-          "fixed inset-y-0 right-0 flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-line bg-surface shadow-pop",
+          // จอ < md: เลื่อนจากล่าง สูง 92dvh มุมบนโค้ง (docs/DESIGN.md §9.3) — จอ ≥ md: เลื่อนจากขวาเหมือนเดิม
+          "fixed inset-x-0 bottom-0 flex h-[92dvh] w-full flex-col overflow-hidden rounded-t-lg border-t border-line bg-surface shadow-pop",
+          "md:inset-y-0 md:right-0 md:bottom-auto md:left-auto md:h-full md:w-full md:max-w-md md:rounded-t-none md:border-l md:border-t-0",
           "transition-transform ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none focus:outline-none",
-          open ? "translate-x-0" : "translate-x-full",
+          open ? "translate-x-0 translate-y-0" : "translate-y-full md:translate-y-0 md:translate-x-full",
         )}
-        style={{ transitionDuration: `${TRANSITION_MS}ms` }}
+        style={{
+          transitionDuration: dragOffset ? "0ms" : `${TRANSITION_MS}ms`,
+          transform: dragOffset ? `translateY(${dragOffset}px)` : undefined,
+        }}
       >
-        <div className="flex items-start justify-between border-b border-line px-6 py-4">
+        {/* แถบจับปัดลงเพื่อปิด — เฉพาะจอ < md เท่านั้น (ดู docs/DESIGN.md §9.3) */}
+        <div
+          className="flex shrink-0 justify-center py-2 md:hidden"
+          onPointerDown={handleHandlePointerDown}
+          onPointerMove={handleHandlePointerMove}
+          onPointerUp={handleHandlePointerUp}
+          onPointerCancel={handleHandlePointerUp}
+        >
+          <div className="h-1 w-9 rounded-DEFAULT bg-line-strong" />
+        </div>
+        <div className="flex shrink-0 items-start justify-between border-b border-line px-6 py-4">
           <div>
             <h2 id="sheet-title" className="font-display text-lg font-semibold text-ink">
               {title}
@@ -106,7 +137,7 @@ export function Sheet({ open, onClose, title, description, children }: SheetProp
             </svg>
           </button>
         </div>
-        <div className="flex-1 px-6 py-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
       </div>
     </div>,
     document.body,

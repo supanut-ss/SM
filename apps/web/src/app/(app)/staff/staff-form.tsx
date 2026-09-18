@@ -157,7 +157,9 @@ export function StaffForm({
         </p>
       )}
 
-      <div className="flex justify-end gap-3 border-t border-line pt-4">
+      {/* sticky ชิดล่างของพื้นที่เลื่อนใน Sheet เสมอ (docs/DESIGN.md §9.3) — กันปุ่มบันทึกหลุดจอ
+          บนมือถือที่ฟอร์มยาวเกินจอ ระยะ -mx/-mb ชดเชย padding ของ Sheet (px-6 py-5) ให้ชิดขอบพอดี */}
+      <div className="sticky -bottom-5 -mx-6 -mb-5 flex justify-end gap-3 border-t border-line bg-surface px-6 pb-5 pt-4">
         <Button type="button" variant="secondary" onClick={onCancel}>
           ยกเลิก
         </Button>

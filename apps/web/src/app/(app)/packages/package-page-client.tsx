@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PACKAGE_TYPE_LABEL, type CreatePackageInput, type UpdatePackageInput } from "@lotus-desk/contracts";
 import {
   Button,
+  Fab,
   ListCard,
   ResponsiveList,
   Select,
@@ -171,8 +172,14 @@ export function PackagePageClient() {
           <h1 className="font-display text-2xl font-semibold text-ink">คอร์ส/แพ็กเกจ</h1>
           <p className="mt-1 text-sm text-ink-muted">รายชื่อคอร์ส/แพ็กเกจของสาขา {branch.branchName}</p>
         </div>
-        {canManage && <Button onClick={() => setCreateOpen(true)}>+ เพิ่มคอร์ส/แพ็กเกจ</Button>}
+        {canManage && (
+          <Button className="hidden md:inline-flex" onClick={() => setCreateOpen(true)}>
+            + เพิ่มคอร์ส/แพ็กเกจ
+          </Button>
+        )}
       </div>
+
+      {canManage && <Fab aria-label="เพิ่มคอร์ส/แพ็กเกจ" onClick={() => setCreateOpen(true)} />}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
