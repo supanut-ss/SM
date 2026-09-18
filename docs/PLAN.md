@@ -390,6 +390,27 @@ data        13/1.40  Plex Mono 450 tnum
 
 ---
 
+### M10 — Responsive mobile/tablet UX (9 Task)
+
+> มาจาก ADR-051 (`docs/decisions.md`) — ผู้ใช้ขอออกแบบ mobile UX ใหม่ทั้งระบบ ไม่ใช่แค่ปรับ responsive
+> สเปกเต็มอยู่ที่ `docs/DESIGN-MOBILE.md` (ยุบเข้า `docs/DESIGN.md` §9 เมื่อ T10.1 เสร็จ) ไม่แตะ `apps/api`,
+> `packages/core`, `packages/db` เลยทั้ง milestone — งานอยู่ที่ `apps/web` และ `packages/ui` เท่านั้น
+> **ทำตามลำดับ ห้ามข้าม** T10.1–T10.4 เป็น infra ที่ Task หลังพึ่งพา
+
+| Task | งาน | เกณฑ์ผ่าน |
+|---|---|---|
+| **T10.1** | ยุบเนื้อหา `docs/DESIGN-MOBILE.md` เข้า `docs/DESIGN.md` §9 (breakpoint, nav pattern, component pattern) แล้วลบไฟล์แยกทิ้ง | `docs/DESIGN.md` มีหัวข้อ breakpoint ชัดเจน ไม่มี `docs/DESIGN-MOBILE.md` เหลืออยู่ |
+| **T10.2** ★ | Bottom tab bar: component ใหม่ใน `packages/ui/src/app-shell/`, ต่อเข้า `authenticated-shell.tsx` แทน hamburger+drawer เมื่อ `< md`, ปุ่ม "เพิ่มเติม" เปิด sheet รายการเมนูที่เหลือตามสิทธิ์ | ทดสอบทุกบทบาท: เห็น 4 เมนู+เพิ่มเติมถูกต้องตามสิทธิ์, กดแล้วนำทางถูกหน้า, ผ่านคีย์บอร์ด/screen reader |
+| **T10.3** | `ResponsiveList` component ใน `packages/ui` + migrate หน้า staff, rooms, services, members, packages ไปใช้ | จอ < 768px เห็นการ์ด, ≥ 768px เห็นตารางเดิมไม่เปลี่ยนแปลง |
+| **T10.4** | Sheet full-screen bottom mode + FAB component ต่อเข้าหน้าที่ migrate ใน T10.3 | ฟอร์มเปิด/ปิด/บันทึกได้ครบบนจอ 375px ปุ่มบันทึกกดถึงโดยไม่เลื่อนจอ |
+| **T10.5** ★★ | Lane Board มุมมอง "รายคน" สำหรับ mobile (`/board`) — เพิ่มเป็นโหมดเสริม ไม่แทนที่ grid เดิมบนจอกว้าง | จองนัด/เปลี่ยนสถานะ/เปิดรายละเอียดได้ครบบนจอ 375px โดยไม่ต้อง scroll แนวนอน |
+| **T10.6** | ตารางกะ (staff/shifts) โหมดการ์ดรายวันสำหรับ mobile | เพิ่ม/แก้กะผ่าน sheet ได้ครบบนจอแคบ |
+| **T10.7** ★ | บิล/แคชเชียร์ โหมด wizard 3 ขั้นสำหรับ mobile | ปิดบิลสำเร็จครบ flow บนจอ 375px รวมพิมพ์ใบเสร็จ |
+| **T10.8** | โปรโมชั่น+ทดลองคำนวณ, รายงาน, ค่ามือ, ลงเวลา ปรับตามสเปกที่เหลือทั้งหมด | ทุกหน้าใช้งานได้ครบบนจอ 375px และ 768px โดยไม่มี horizontal scroll ที่ไม่ตั้งใจ |
+| **T10.9** | Playwright e2e เพิ่มชุดทดสอบที่ viewport 375×812 และ 768×1024 สำหรับเส้นทางวิกฤต (จองคิว, ปิดบิล, เพิ่มสมาชิก) | ผ่านทั้งหมดใน CI ทั้งสอง viewport |
+
+---
+
 ## 6. ลำดับและการทำงานขนาน
 
 ```
@@ -398,6 +419,8 @@ M0 ─→ M1 ─→ M2 ─┬─→ M3 ────────────┐
                 └─→ M4 ─────────────┘
 
 M8/หัวข้อ 12 (ส่วนขยายในอนาคต) — แทรกได้หลัง M9 เมื่อร้านต้องการจริง ไม่บล็อกลำดับหลัก
+M10 (mobile/tablet UX) — เริ่มได้ทันที ไม่บล็อกลำดับหลัก (แตะเฉพาะ apps/web + packages/ui)
+แต่ภายใน M10 เอง T10.1–T10.4 ต้องทำก่อน T10.5 เป็นต้นไปเสมอ
 ```
 
 **ทำขนานได้ (คนละ AI session / คนละ branch)**

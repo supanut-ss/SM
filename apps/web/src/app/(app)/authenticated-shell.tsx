@@ -5,7 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   AppShell,
+  BottomTabBar,
   BranchSwitcher,
+  Sheet,
   Sidebar,
   SidebarGroup,
   SidebarLink,
@@ -23,6 +25,11 @@ import { CurrentBranchProvider } from "./current-branch-context";
 
 const SIDEBAR_COLLAPSED_KEY = "lotus-desk-sidebar-collapsed";
 const SIDEBAR_COLLAPSED_EVENT = "lotus-desk-sidebar-collapsed-change";
+
+// 4 เมนูหลักบน bottom tab bar (ดู docs/DESIGN.md §9.2) — เลือกจาก 6 เมนู Basic Package (ADR-050)
+// เพราะเป็น 4 อย่างที่พนักงานต้อนรับสลับไปมาบ่อยที่สุดระหว่างวัน ที่เหลือ (พนักงาน/บริการ/คอร์ส) อยู่ใน
+// "เพิ่มเติม" เรียงตามลำดับที่ต้องการให้ปรากฏบนแถบ ไม่ใช่ลำดับใน NAV_ITEMS
+const BOTTOM_TAB_HREFS = ["/", "/board", "/billing", "/members"];
 
 // จำสถานะย่อเมนูไว้ต่อเครื่อง — ใช้ useSyncExternalStore แพทเทิร์นเดียวกับ ThemeToggle
 // (packages/ui/src/components/theme-toggle.tsx) แทน useEffect+setState เพราะ setState synchronous ใน
@@ -64,14 +71,16 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     getServerSnapshotSidebarCollapsed,
   );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [moreNavOpen, setMoreNavOpen] = useState(false);
   const [cmdkOpen, setCmdkOpen] = useState(false);
 
-  // ปิดลิ้นชักเมนูมือถือทันทีที่เปลี่ยนหน้า — ปรับ state ระหว่าง render (ดูเหตุผลเดียวกับ command-palette.tsx)
-  // แทน useEffect([pathname]) เพื่อกัน react-hooks/set-state-in-effect
+  // ปิดลิ้นชักเมนูมือถือ/sheet "เพิ่มเติม" ทันทีที่เปลี่ยนหน้า — ปรับ state ระหว่าง render (ดูเหตุผล
+  // เดียวกับ command-palette.tsx) แทน useEffect([pathname]) เพื่อกัน react-hooks/set-state-in-effect
   const [lastPathname, setLastPathname] = useState(pathname);
   if (pathname !== lastPathname) {
     setLastPathname(pathname);
     setMobileNavOpen(false);
+    setMoreNavOpen(false);
   }
 
   const branches = me?.branches ?? [];
@@ -104,6 +113,21 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     [visibleNavItems],
   );
 
+  // แถบเมนูล่าง (มือถือ, < md): 4 เมนูหลักตามสิทธิ์จริง — ถ้าบทบาทไม่มีสิทธิ์เห็นเมนูใดใน 4 อย่างนี้
+  // (เช่น พนักงานบริการไม่เห็น "บิล/แคชเชียร์") ก็แค่หายไปจากแถบ ไม่เติมเมนูอื่นมาแทนที่ตำแหน่ง
+  const bottomTabItems = useMemo(
+    () =>
+      BOTTOM_TAB_HREFS.map((href) => visibleNavItems.find((item) => item.href === href)).filter(
+        (item): item is (typeof visibleNavItems)[number] => item !== undefined,
+      ),
+    [visibleNavItems],
+  );
+  const moreNavItems = useMemo(
+    () => visibleNavItems.filter((item) => !BOTTOM_TAB_HREFS.includes(item.href)),
+    [visibleNavItems],
+  );
+  const isMoreActive = moreNavItems.some((item) => item.href === pathname);
+
   if (isLoading || !me) {
     return <div className="flex min-h-dvh items-center justify-center text-ink-muted">กำลังโหลด...</div>;
   }
@@ -115,6 +139,19 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         mobileNavOpen={mobileNavOpen}
         onMobileNavOpen={() => setMobileNavOpen(true)}
         onMobileNavClose={() => setMobileNavOpen(false)}
+        bottomBar={
+          <BottomTabBar
+            as={Link}
+            items={bottomTabItems.map((item) => ({
+              href: item.href,
+              label: item.label,
+              icon: <item.icon />,
+              active: pathname === item.href,
+            }))}
+            moreActive={isMoreActive}
+            onMoreClick={() => setMoreNavOpen(true)}
+          />
+        }
         topbar={
           <Topbar>
             <div className="flex min-w-0 items-center gap-3">
@@ -211,6 +248,23 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       >
         <CurrentBranchProvider branch={currentBranch ?? null}>{children}</CurrentBranchProvider>
       </AppShell>
+
+      <Sheet open={moreNavOpen} onClose={() => setMoreNavOpen(false)} title="เมนูเพิ่มเติม">
+        <nav className="flex flex-col gap-1" aria-label="เมนูเพิ่มเติม">
+          {moreNavItems.map((item) => (
+            <SidebarLink
+              key={item.href}
+              as={Link}
+              href={item.href}
+              active={pathname === item.href}
+              icon={<item.icon />}
+              onClick={() => setMoreNavOpen(false)}
+            >
+              {item.label}
+            </SidebarLink>
+          ))}
+        </nav>
+      </Sheet>
 
       <CommandPalette
         open={cmdkOpen}
