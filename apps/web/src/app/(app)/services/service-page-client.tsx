@@ -3,12 +3,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_SKILL_LABEL, type CreateServiceInput, type UpdateServiceInput } from "@lotus-desk/contracts";
-import { Button, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import {
+  Button,
+  ListCard,
+  ResponsiveList,
+  Select,
+  Sheet,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@lotus-desk/ui";
+import type { ReactNode } from "react";
 import {
   ApiError,
   roomTypeApi,
   serviceApi,
   serviceCategoryApi,
+  type Service,
   type ServiceVariant,
 } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
@@ -115,6 +129,69 @@ export function ServicePageClient() {
     setEditingVariant(null);
   }
 
+  function renderServiceActions(service: Service): ReactNode {
+    return (
+      <>
+        <Button variant="ghost" size="sm" onClick={() => setDetailServiceId(service.id)}>
+          {canManage ? "แก้ไข" : "ดูรายละเอียด"}
+        </Button>
+        {canManage &&
+          (confirmingDeactivateId === service.id ? (
+            <>
+              <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={updateServiceMutation.isPending}
+                onClick={() =>
+                  updateServiceMutation.mutate({ serviceId: service.id, input: { isActive: false } })
+                }
+              >
+                ปิดขาย
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
+                ไม่ใช่
+              </Button>
+            </>
+          ) : service.isActive ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-rose hover:bg-rose-tint"
+              onClick={() => setConfirmingDeactivateId(service.id)}
+            >
+              ปิดขาย
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={updateServiceMutation.isPending}
+              onClick={() =>
+                updateServiceMutation.mutate({ serviceId: service.id, input: { isActive: true } })
+              }
+            >
+              เปิดขายอีกครั้ง
+            </Button>
+          ))}
+      </>
+    );
+  }
+
+  function renderServiceBadge(service: Service): ReactNode {
+    return (
+      <span
+        className={
+          service.isActive
+            ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
+            : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+        }
+      >
+        {service.isActive ? "เปิดขาย" : "ปิดขาย"}
+      </span>
+    );
+  }
+
   if (!branch) {
     return (
       <div className="p-8">
@@ -193,93 +270,50 @@ export function ServicePageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ชื่อบริการ</TableHead>
-              <TableHead>หมวด</TableHead>
-              <TableHead>ตัวเลือกเวลา</TableHead>
-              <TableHead>สถานะ</TableHead>
-              <TableHead className="text-right">จัดการ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {listQuery.data.map((service) => (
-              <TableRow key={service.id}>
-                <TableCell className="font-medium">{service.name}</TableCell>
-                <TableCell>{service.category.name}</TableCell>
-                <TableCell className="font-data tabular-nums">
-                  {service.variants
-                    .map((v) => `${v.durationMin}′ ${formatSatang(v.priceSatang)}`)
-                    .join(" · ")}
-                </TableCell>
-                <TableCell>
-                  <span
-                    className={
-                      service.isActive
-                        ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
-                        : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
-                    }
-                  >
-                    {service.isActive ? "เปิดขาย" : "ปิดขาย"}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setDetailServiceId(service.id)}>
-                      {canManage ? "แก้ไข" : "ดูรายละเอียด"}
-                    </Button>
-                    {canManage &&
-                      (confirmingDeactivateId === service.id ? (
-                        <>
-                          <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={updateServiceMutation.isPending}
-                            onClick={() =>
-                              updateServiceMutation.mutate({
-                                serviceId: service.id,
-                                input: { isActive: false },
-                              })
-                            }
-                          >
-                            ปิดขาย
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
-                            ไม่ใช่
-                          </Button>
-                        </>
-                      ) : service.isActive ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-rose hover:bg-rose-tint"
-                          onClick={() => setConfirmingDeactivateId(service.id)}
-                        >
-                          ปิดขาย
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={updateServiceMutation.isPending}
-                          onClick={() =>
-                            updateServiceMutation.mutate({
-                              serviceId: service.id,
-                              input: { isActive: true },
-                            })
-                          }
-                        >
-                          เปิดขายอีกครั้ง
-                        </Button>
-                      ))}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <ResponsiveList
+          table={
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ชื่อบริการ</TableHead>
+                  <TableHead>หมวด</TableHead>
+                  <TableHead>ตัวเลือกเวลา</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead className="text-right">จัดการ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {listQuery.data.map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell className="font-medium">{service.name}</TableCell>
+                    <TableCell>{service.category.name}</TableCell>
+                    <TableCell className="font-data tabular-nums">
+                      {service.variants
+                        .map((v) => `${v.durationMin}′ ${formatSatang(v.priceSatang)}`)
+                        .join(" · ")}
+                    </TableCell>
+                    <TableCell>{renderServiceBadge(service)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">{renderServiceActions(service)}</div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          }
+          cards={listQuery.data.map((service) => (
+            <ListCard
+              key={service.id}
+              title={service.name}
+              badge={renderServiceBadge(service)}
+              lines={[
+                service.category.name,
+                service.variants.map((v) => `${v.durationMin}′ ${formatSatang(v.priceSatang)}`).join(" · "),
+              ]}
+              actions={renderServiceActions(service)}
+            />
+          ))}
+        />
       )}
 
       <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title="เพิ่มบริการใหม่">

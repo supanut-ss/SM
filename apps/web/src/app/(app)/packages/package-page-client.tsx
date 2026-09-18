@@ -3,8 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PACKAGE_TYPE_LABEL, type CreatePackageInput, type UpdatePackageInput } from "@lotus-desk/contracts";
-import { Button, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
-import { ApiError, packageApi, serviceApi } from "../../../lib/api-client";
+import {
+  Button,
+  ListCard,
+  ResponsiveList,
+  Select,
+  Sheet,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@lotus-desk/ui";
+import type { ReactNode } from "react";
+import { ApiError, packageApi, serviceApi, type Package } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
@@ -75,6 +88,71 @@ export function PackagePageClient() {
     () => listQuery.data?.find((p) => p.id === detailPackageId) ?? null,
     [listQuery.data, detailPackageId],
   );
+
+  function renderPackageActions(pkg: Package): ReactNode {
+    return (
+      <>
+        <Button variant="ghost" size="sm" onClick={() => setDetailPackageId(pkg.id)}>
+          {canManage ? "แก้ไข" : "ดูรายละเอียด"}
+        </Button>
+        {canManage &&
+          (confirmingDeactivateId === pkg.id ? (
+            <>
+              <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={updateMutation.isPending}
+                onClick={() => updateMutation.mutate({ packageId: pkg.id, input: { isActive: false } })}
+              >
+                ปิดขาย
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
+                ไม่ใช่
+              </Button>
+            </>
+          ) : pkg.isActive ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-rose hover:bg-rose-tint"
+              onClick={() => setConfirmingDeactivateId(pkg.id)}
+            >
+              ปิดขาย
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={updateMutation.isPending}
+              onClick={() => updateMutation.mutate({ packageId: pkg.id, input: { isActive: true } })}
+            >
+              เปิดขายอีกครั้ง
+            </Button>
+          ))}
+      </>
+    );
+  }
+
+  function renderPackageBadge(pkg: Package): ReactNode {
+    return (
+      <span
+        className={
+          pkg.isActive
+            ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
+            : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+        }
+      >
+        {pkg.isActive ? "เปิดขาย" : "ปิดขาย"}
+      </span>
+    );
+  }
+
+  function packageMeta(pkg: Package): string {
+    if (pkg.type === "SESSION_COUNT") return `${pkg.sessionCount} ครั้ง · ${pkg.serviceVariant?.service.name}`;
+    if (pkg.type === "VALUE") return `มูลค่า ${formatSatang(pkg.valueSatang ?? 0)}`;
+    return `ไม่จำกัดครั้ง · ${pkg.serviceVariant?.service.name}`;
+  }
 
   if (!branch) {
     return (
@@ -154,89 +232,53 @@ export function PackagePageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ชื่อ</TableHead>
-              <TableHead>ประเภท</TableHead>
-              <TableHead>ราคา</TableHead>
-              <TableHead>เงื่อนไข</TableHead>
-              <TableHead>อายุ</TableHead>
-              <TableHead>สถานะ</TableHead>
-              <TableHead className="text-right">จัดการ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {listQuery.data.map((pkg) => (
-              <TableRow key={pkg.id}>
-                <TableCell className="font-medium">{pkg.name}</TableCell>
-                <TableCell>{PACKAGE_TYPE_LABEL[pkg.type]}</TableCell>
-                <TableCell className="font-data tabular-nums">{formatSatang(pkg.priceSatang)}</TableCell>
-                <TableCell className="font-data tabular-nums text-sm text-ink-muted">
-                  {pkg.type === "SESSION_COUNT" && `${pkg.sessionCount} ครั้ง · ${pkg.serviceVariant?.service.name}`}
-                  {pkg.type === "VALUE" && `มูลค่า ${formatSatang(pkg.valueSatang ?? 0)}`}
-                  {pkg.type === "UNLIMITED_DURATION" && `ไม่จำกัดครั้ง · ${pkg.serviceVariant?.service.name}`}
-                </TableCell>
-                <TableCell className="font-data tabular-nums">{pkg.validDays} วัน</TableCell>
-                <TableCell>
-                  <span
-                    className={
-                      pkg.isActive
-                        ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
-                        : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
-                    }
-                  >
-                    {pkg.isActive ? "เปิดขาย" : "ปิดขาย"}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setDetailPackageId(pkg.id)}>
-                      {canManage ? "แก้ไข" : "ดูรายละเอียด"}
-                    </Button>
-                    {canManage &&
-                      (confirmingDeactivateId === pkg.id ? (
-                        <>
-                          <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={updateMutation.isPending}
-                            onClick={() =>
-                              updateMutation.mutate({ packageId: pkg.id, input: { isActive: false } })
-                            }
-                          >
-                            ปิดขาย
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
-                            ไม่ใช่
-                          </Button>
-                        </>
-                      ) : pkg.isActive ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-rose hover:bg-rose-tint"
-                          onClick={() => setConfirmingDeactivateId(pkg.id)}
-                        >
-                          ปิดขาย
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={updateMutation.isPending}
-                          onClick={() => updateMutation.mutate({ packageId: pkg.id, input: { isActive: true } })}
-                        >
-                          เปิดขายอีกครั้ง
-                        </Button>
-                      ))}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <ResponsiveList
+          table={
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ชื่อ</TableHead>
+                  <TableHead>ประเภท</TableHead>
+                  <TableHead>ราคา</TableHead>
+                  <TableHead>เงื่อนไข</TableHead>
+                  <TableHead>อายุ</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead className="text-right">จัดการ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {listQuery.data.map((pkg) => (
+                  <TableRow key={pkg.id}>
+                    <TableCell className="font-medium">{pkg.name}</TableCell>
+                    <TableCell>{PACKAGE_TYPE_LABEL[pkg.type]}</TableCell>
+                    <TableCell className="font-data tabular-nums">{formatSatang(pkg.priceSatang)}</TableCell>
+                    <TableCell className="font-data tabular-nums text-sm text-ink-muted">
+                      {packageMeta(pkg)}
+                    </TableCell>
+                    <TableCell className="font-data tabular-nums">{pkg.validDays} วัน</TableCell>
+                    <TableCell>{renderPackageBadge(pkg)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">{renderPackageActions(pkg)}</div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          }
+          cards={listQuery.data.map((pkg) => (
+            <ListCard
+              key={pkg.id}
+              title={pkg.name}
+              badge={renderPackageBadge(pkg)}
+              lines={[
+                `${PACKAGE_TYPE_LABEL[pkg.type]} · ${formatSatang(pkg.priceSatang)}`,
+                packageMeta(pkg),
+                `อายุ ${pkg.validDays} วัน`,
+              ]}
+              actions={renderPackageActions(pkg)}
+            />
+          ))}
+        />
       )}
 
       <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title="เพิ่มคอร์ส/แพ็กเกจใหม่">

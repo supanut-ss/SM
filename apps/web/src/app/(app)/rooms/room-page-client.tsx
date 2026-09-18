@@ -3,7 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateRoomInput, UpdateRoomInput } from "@lotus-desk/contracts";
-import { Button, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import {
+  Button,
+  ListCard,
+  ResponsiveList,
+  Select,
+  Sheet,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@lotus-desk/ui";
+import type { ReactNode } from "react";
 import { ApiError, roomApi, roomTypeApi, type Room } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
@@ -67,6 +80,65 @@ export function RoomPageClient() {
       capacity: editingRecord.capacity,
     };
   }, [editingRecord]);
+
+  function renderRoomActions(room: Room): ReactNode {
+    if (!canManage) return null;
+    return (
+      <>
+        <Button variant="ghost" size="sm" onClick={() => setSheetTarget(room)}>
+          แก้ไข
+        </Button>
+        {confirmingDeactivateId === room.id ? (
+          <>
+            <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={updateMutation.isPending}
+              onClick={() => updateMutation.mutate({ roomId: room.id, input: { isActive: false } })}
+            >
+              ปิดใช้งาน
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
+              ไม่ใช่
+            </Button>
+          </>
+        ) : room.isActive ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-rose hover:bg-rose-tint"
+            onClick={() => setConfirmingDeactivateId(room.id)}
+          >
+            ปิดใช้งาน
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={updateMutation.isPending}
+            onClick={() => updateMutation.mutate({ roomId: room.id, input: { isActive: true } })}
+          >
+            เปิดใช้งานอีกครั้ง
+          </Button>
+        )}
+      </>
+    );
+  }
+
+  function renderRoomBadge(room: Room): ReactNode {
+    return (
+      <span
+        className={
+          room.isActive
+            ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
+            : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+        }
+      >
+        {room.isActive ? "พร้อมใช้งาน" : "ปิดใช้งาน"}
+      </span>
+    );
+  }
 
   if (!branch) {
     return (
@@ -151,88 +223,45 @@ export function RoomPageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ชื่อห้อง</TableHead>
-              <TableHead>ประเภทห้อง</TableHead>
-              <TableHead className="text-right">ความจุ</TableHead>
-              <TableHead>สถานะ</TableHead>
-              {canManage && <TableHead className="text-right">จัดการ</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {listQuery.data.map((room) => (
-              <TableRow key={room.id}>
-                <TableCell className="font-medium">{room.name}</TableCell>
-                <TableCell>{room.roomType.name}</TableCell>
-                <TableCell className="text-right font-data tabular-nums">{room.capacity}</TableCell>
-                <TableCell>
-                  <span
-                    className={
-                      room.isActive
-                        ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
-                        : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
-                    }
-                  >
-                    {room.isActive ? "พร้อมใช้งาน" : "ปิดใช้งาน"}
-                  </span>
-                </TableCell>
-                {canManage && (
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setSheetTarget(room)}>
-                        แก้ไข
-                      </Button>
-                      {confirmingDeactivateId === room.id ? (
-                        <>
-                          <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={updateMutation.isPending}
-                            onClick={() =>
-                              updateMutation.mutate({ roomId: room.id, input: { isActive: false } })
-                            }
-                          >
-                            ปิดใช้งาน
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setConfirmingDeactivateId(null)}
-                          >
-                            ไม่ใช่
-                          </Button>
-                        </>
-                      ) : room.isActive ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-rose hover:bg-rose-tint"
-                          onClick={() => setConfirmingDeactivateId(room.id)}
-                        >
-                          ปิดใช้งาน
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={updateMutation.isPending}
-                          onClick={() =>
-                            updateMutation.mutate({ roomId: room.id, input: { isActive: true } })
-                          }
-                        >
-                          เปิดใช้งานอีกครั้ง
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <ResponsiveList
+          table={
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ชื่อห้อง</TableHead>
+                  <TableHead>ประเภทห้อง</TableHead>
+                  <TableHead className="text-right">ความจุ</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  {canManage && <TableHead className="text-right">จัดการ</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {listQuery.data.map((room) => (
+                  <TableRow key={room.id}>
+                    <TableCell className="font-medium">{room.name}</TableCell>
+                    <TableCell>{room.roomType.name}</TableCell>
+                    <TableCell className="text-right font-data tabular-nums">{room.capacity}</TableCell>
+                    <TableCell>{renderRoomBadge(room)}</TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">{renderRoomActions(room)}</div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          }
+          cards={listQuery.data.map((room) => (
+            <ListCard
+              key={room.id}
+              title={room.name}
+              badge={renderRoomBadge(room)}
+              lines={[`${room.roomType.name} · ความจุ ${room.capacity}`]}
+              actions={renderRoomActions(room)}
+            />
+          ))}
+        />
       )}
 
       <Sheet

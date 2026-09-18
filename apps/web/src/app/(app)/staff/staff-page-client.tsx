@@ -10,7 +10,20 @@ import {
   type StaffSkill,
   type UpdateStaffInput,
 } from "@lotus-desk/contracts";
-import { Button, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import {
+  Button,
+  ListCard,
+  ResponsiveList,
+  Select,
+  Sheet,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@lotus-desk/ui";
+import type { ReactNode } from "react";
 import { ApiError, staffApi, type StaffProfile } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
@@ -81,6 +94,67 @@ export function StaffPageClient() {
       note: editingRecord.note ?? "",
     };
   }, [editingRecord]);
+
+  // ใช้ทั้งในเซลล์ "จัดการ" ของตาราง (desktop) และการ์ด (mobile) — จุดเดียวกันเลยพฤติกรรมไม่มีทางเพี้ยน
+  // ระหว่างสองมุมมอง (ดู docs/DESIGN.md §9.3: ResponsiveList รับ node สำเร็จรูปแทนที่จะแยก column config)
+  function renderStaffActions(staff: StaffProfile): ReactNode {
+    if (!canManage) return null;
+    return (
+      <>
+        <Button variant="ghost" size="sm" onClick={() => setSheetTarget(staff)}>
+          แก้ไข
+        </Button>
+        {confirmingDeactivateId === staff.id ? (
+          <>
+            <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={updateMutation.isPending}
+              onClick={() => updateMutation.mutate({ staffId: staff.id, input: { isActive: false } })}
+            >
+              ปิดใช้งาน
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
+              ไม่ใช่
+            </Button>
+          </>
+        ) : staff.isActive ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-rose hover:bg-rose-tint"
+            onClick={() => setConfirmingDeactivateId(staff.id)}
+          >
+            ปิดใช้งาน
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={updateMutation.isPending}
+            onClick={() => updateMutation.mutate({ staffId: staff.id, input: { isActive: true } })}
+          >
+            เปิดใช้งานอีกครั้ง
+          </Button>
+        )}
+      </>
+    );
+  }
+
+  function renderStaffBadge(staff: StaffProfile): ReactNode {
+    return (
+      <span
+        className={
+          staff.isActive
+            ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
+            : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+        }
+      >
+        {staff.isActive ? "กำลังทำงาน" : "ปิดใช้งาน"}
+      </span>
+    );
+  }
 
   if (!branch) {
     return (
@@ -170,92 +244,52 @@ export function StaffPageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ชื่อ</TableHead>
-              <TableHead>เบอร์โทร</TableHead>
-              <TableHead>ระดับ</TableHead>
-              <TableHead>ทักษะ</TableHead>
-              <TableHead>วันเริ่มงาน</TableHead>
-              <TableHead>สถานะ</TableHead>
-              {canManage && <TableHead className="text-right">จัดการ</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {listQuery.data.map((staff) => (
-              <TableRow key={staff.id}>
-                <TableCell className="font-medium">{staff.name}</TableCell>
-                <TableCell className="font-data tabular-nums">{staff.phone ?? "-"}</TableCell>
-                <TableCell>{STAFF_LEVEL_LABEL[staff.level]}</TableCell>
-                <TableCell>{formatSkills(staff.skills)}</TableCell>
-                <TableCell className="font-data tabular-nums">{formatDate(staff.startDate)}</TableCell>
-                <TableCell>
-                  <span
-                    className={
-                      staff.isActive
-                        ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
-                        : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
-                    }
-                  >
-                    {staff.isActive ? "กำลังทำงาน" : "ปิดใช้งาน"}
-                  </span>
-                </TableCell>
-                {canManage && (
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setSheetTarget(staff)}>
-                        แก้ไข
-                      </Button>
-                      {confirmingDeactivateId === staff.id ? (
-                        <>
-                          <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={updateMutation.isPending}
-                            onClick={() =>
-                              updateMutation.mutate({ staffId: staff.id, input: { isActive: false } })
-                            }
-                          >
-                            ปิดใช้งาน
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setConfirmingDeactivateId(null)}
-                          >
-                            ไม่ใช่
-                          </Button>
-                        </>
-                      ) : staff.isActive ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-rose hover:bg-rose-tint"
-                          onClick={() => setConfirmingDeactivateId(staff.id)}
-                        >
-                          ปิดใช้งาน
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={updateMutation.isPending}
-                          onClick={() =>
-                            updateMutation.mutate({ staffId: staff.id, input: { isActive: true } })
-                          }
-                        >
-                          เปิดใช้งานอีกครั้ง
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <ResponsiveList
+          table={
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ชื่อ</TableHead>
+                  <TableHead>เบอร์โทร</TableHead>
+                  <TableHead>ระดับ</TableHead>
+                  <TableHead>ทักษะ</TableHead>
+                  <TableHead>วันเริ่มงาน</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  {canManage && <TableHead className="text-right">จัดการ</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {listQuery.data.map((staff) => (
+                  <TableRow key={staff.id}>
+                    <TableCell className="font-medium">{staff.name}</TableCell>
+                    <TableCell className="font-data tabular-nums">{staff.phone ?? "-"}</TableCell>
+                    <TableCell>{STAFF_LEVEL_LABEL[staff.level]}</TableCell>
+                    <TableCell>{formatSkills(staff.skills)}</TableCell>
+                    <TableCell className="font-data tabular-nums">{formatDate(staff.startDate)}</TableCell>
+                    <TableCell>{renderStaffBadge(staff)}</TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">{renderStaffActions(staff)}</div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          }
+          cards={listQuery.data.map((staff) => (
+            <ListCard
+              key={staff.id}
+              title={staff.name}
+              badge={renderStaffBadge(staff)}
+              lines={[
+                `${STAFF_LEVEL_LABEL[staff.level]} · ${formatSkills(staff.skills)}`,
+                staff.phone ?? "-",
+              ]}
+              actions={renderStaffActions(staff)}
+            />
+          ))}
+        />
       )}
 
       <Sheet

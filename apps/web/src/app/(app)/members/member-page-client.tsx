@@ -5,7 +5,20 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateMemberInput, UpdateMemberInput } from "@lotus-desk/contracts";
-import { Button, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import {
+  Button,
+  ListCard,
+  ResponsiveList,
+  Select,
+  Sheet,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@lotus-desk/ui";
+import type { ReactNode } from "react";
 import { ApiError, memberApi, type Member } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
@@ -72,6 +85,67 @@ export function MemberPageClient() {
     if (!editingRecord) return undefined;
     return { name: editingRecord.name, phone: editingRecord.phone, note: editingRecord.note ?? "" };
   }, [editingRecord]);
+
+  function renderMemberActions(member: Member): ReactNode {
+    if (!canManage) return null;
+    return (
+      <>
+        <Button variant="ghost" size="sm" onClick={() => setSheetTarget(member)}>
+          แก้ไข
+        </Button>
+        {member.mergedIntoId ? null : confirmingDeactivateId === member.id ? (
+          <>
+            <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={updateMutation.isPending}
+              onClick={() => updateMutation.mutate({ memberId: member.id, input: { isActive: false } })}
+            >
+              ปิดใช้งาน
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
+              ไม่ใช่
+            </Button>
+          </>
+        ) : member.isActive ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-rose hover:bg-rose-tint"
+            onClick={() => setConfirmingDeactivateId(member.id)}
+          >
+            ปิดใช้งาน
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={updateMutation.isPending}
+            onClick={() => updateMutation.mutate({ memberId: member.id, input: { isActive: true } })}
+          >
+            เปิดใช้งานอีกครั้ง
+          </Button>
+        )}
+      </>
+    );
+  }
+
+  function renderMemberBadge(member: Member): ReactNode {
+    return (
+      <span
+        className={
+          member.mergedIntoId
+            ? "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+            : member.isActive
+              ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
+              : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+        }
+      >
+        {member.mergedIntoId ? "รวมเข้าสมาชิกอื่นแล้ว" : member.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}
+      </span>
+    );
+  }
 
   if (!branch) {
     return (
@@ -166,99 +240,64 @@ export function MemberPageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>รหัสสมาชิก</TableHead>
-              <TableHead>ชื่อ</TableHead>
-              <TableHead>เบอร์โทร</TableHead>
-              <TableHead>สถานะ</TableHead>
-              <TableHead>โปรไฟล์</TableHead>
-              {canManage && <TableHead className="text-right">จัดการ</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {listQuery.data.map((member) => (
-              <TableRow key={member.id}>
-                <TableCell className="font-data tabular-nums">{member.code}</TableCell>
-                <TableCell className="font-medium">{member.name}</TableCell>
-                <TableCell className="font-data tabular-nums">{member.phone}</TableCell>
-                <TableCell>
-                  <span
-                    className={
-                      member.mergedIntoId
-                        ? "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
-                        : member.isActive
-                          ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
-                          : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
-                    }
-                  >
-                    {member.mergedIntoId ? "รวมเข้าสมาชิกอื่นแล้ว" : member.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}
-                  </span>
-                </TableCell>
-                <TableCell>
+        <ResponsiveList
+          table={
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>รหัสสมาชิก</TableHead>
+                  <TableHead>ชื่อ</TableHead>
+                  <TableHead>เบอร์โทร</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead>โปรไฟล์</TableHead>
+                  {canManage && <TableHead className="text-right">จัดการ</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {listQuery.data.map((member) => (
+                  <TableRow key={member.id}>
+                    <TableCell className="font-data tabular-nums">{member.code}</TableCell>
+                    <TableCell className="font-medium">{member.name}</TableCell>
+                    <TableCell className="font-data tabular-nums">{member.phone}</TableCell>
+                    <TableCell>{renderMemberBadge(member)}</TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/members/${member.id}`}
+                        className="text-sm font-medium text-celadon hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
+                      >
+                        ดูโปรไฟล์
+                      </Link>
+                    </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">{renderMemberActions(member)}</div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          }
+          cards={listQuery.data.map((member) => (
+            <ListCard
+              key={member.id}
+              title={member.name}
+              badge={renderMemberBadge(member)}
+              lines={[member.code, member.phone]}
+              actions={
+                <>
                   <Link
                     href={`/members/${member.id}`}
                     className="text-sm font-medium text-celadon hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
                   >
                     ดูโปรไฟล์
                   </Link>
-                </TableCell>
-                {canManage && (
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setSheetTarget(member)}>
-                        แก้ไข
-                      </Button>
-                      {member.mergedIntoId ? null : confirmingDeactivateId === member.id ? (
-                        <>
-                          <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={updateMutation.isPending}
-                            onClick={() =>
-                              updateMutation.mutate({ memberId: member.id, input: { isActive: false } })
-                            }
-                          >
-                            ปิดใช้งาน
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setConfirmingDeactivateId(null)}
-                          >
-                            ไม่ใช่
-                          </Button>
-                        </>
-                      ) : member.isActive ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-rose hover:bg-rose-tint"
-                          onClick={() => setConfirmingDeactivateId(member.id)}
-                        >
-                          ปิดใช้งาน
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={updateMutation.isPending}
-                          onClick={() =>
-                            updateMutation.mutate({ memberId: member.id, input: { isActive: true } })
-                          }
-                        >
-                          เปิดใช้งานอีกครั้ง
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                  {renderMemberActions(member)}
+                </>
+              }
+            />
+          ))}
+        />
       )}
 
       <Sheet
