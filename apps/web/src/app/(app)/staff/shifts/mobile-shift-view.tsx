@@ -161,7 +161,7 @@ export function AssignShiftSheetBody({
   onPick: (templateId: string) => void;
 }) {
   if (templates.length === 0) {
-    return <p className="text-sm text-ink-muted">ยังไม่มีแม่แบบกะที่เปิดใช้งาน — ไปสร้างที่ &ldquo;จัดการแม่แบบกะ&rdquo; ก่อน</p>;
+    return <p className="text-pretty text-sm text-ink-muted">ยังไม่มีแม่แบบกะที่เปิดใช้งาน — ไปสร้างที่ &ldquo;จัดการแม่แบบกะ&rdquo; ก่อน</p>;
   }
   return (
     <div className="grid gap-2">
@@ -172,8 +172,8 @@ export function AssignShiftSheetBody({
           onClick={() => onPick(t.id)}
           className="rounded-DEFAULT border border-line-strong p-3 text-left hover:border-celadon"
         >
-          <p className="text-sm font-medium text-ink">{t.name}</p>
-          <p className="font-data tabular-nums text-xs text-ink-muted">
+          <p className="text-pretty text-sm font-medium text-ink">{t.name}</p>
+          <p className="text-pretty font-data tabular-nums text-xs text-ink-muted">
             {minToTimeString(t.startMin)}-{minToTimeString(t.endMin)}
           </p>
         </button>

@@ -44,16 +44,16 @@ export default function StyleGuidePage() {
   return (
     <div className="mx-auto max-w-5xl space-y-12 p-8">
       <header>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">
+        <h1 className="text-balance font-display text-3xl font-semibold text-ink">
           Style Guide
         </h1>
-        <p className="mt-1 text-sm text-ink-muted">
+        <p className="text-pretty mt-1 text-sm text-ink-muted">
           Design token, component, และ badge สถานะทั้งหมดของ Lotus Desk — ดู docs/DESIGN.md
         </p>
       </header>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-ink">สี (Color tokens)</h2>
+        <h2 className="text-balance mb-4 text-lg font-semibold text-ink">สี (Color tokens)</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {COLOR_TOKENS.map((token) => (
             <div key={token.name} className="overflow-hidden rounded-lg border border-line">
@@ -65,24 +65,24 @@ export default function StyleGuidePage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-ink">ตัวอักษร (Typography)</h2>
+        <h2 className="text-balance mb-4 text-lg font-semibold text-ink">ตัวอักษร (Typography)</h2>
         <div className="space-y-3 rounded-lg border border-line bg-surface p-6">
-          <p className="font-display text-[28px] font-semibold leading-[1.2] tracking-[-0.01em] text-ink">
+          <p className="text-pretty font-display text-[28px] font-semibold leading-[1.2] text-ink">
             display-lg — ชื่อหน้า
           </p>
-          <p className="font-display text-[34px] font-semibold leading-[1.1] tabular-nums text-ink">
+          <p className="text-pretty font-display text-[34px] font-semibold leading-[1.1] tabular-nums text-ink">
             ฿12,450 — kpi
           </p>
-          <p className="font-display text-[17px] font-semibold leading-[1.4] text-ink">h2 — หัวข้อรอง</p>
-          <p className="text-sm leading-[1.55] text-ink">body — ข้อความปกติที่ใช้ทั่วไป</p>
-          <p className="text-sm font-semibold leading-[1.55] text-ink">body-strong — ข้อความเน้น</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">label — ป้ายกำกับ</p>
-          <p className="font-data text-[13px] tabular-nums text-ink">data — 14:30 · ฿1,250 · #A0912</p>
+          <p className="text-pretty font-display text-[17px] font-semibold leading-[1.4] text-ink">h2 — หัวข้อรอง</p>
+          <p className="text-pretty text-sm leading-[1.55] text-ink">body — ข้อความปกติที่ใช้ทั่วไป</p>
+          <p className="text-pretty text-sm font-semibold leading-[1.55] text-ink">body-strong — ข้อความเน้น</p>
+          <p className="text-pretty text-xs font-medium uppercase text-ink-muted">label — ป้ายกำกับ</p>
+          <p className="text-pretty font-data text-[13px] tabular-nums text-ink">data — 14:30 · ฿1,250 · #A0912</p>
         </div>
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-ink">ปุ่ม (Buttons)</h2>
+        <h2 className="text-balance mb-4 text-lg font-semibold text-ink">ปุ่ม (Buttons)</h2>
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary">บันทึกการจอง</Button>
           <Button variant="secondary">ยกเลิก</Button>
@@ -101,7 +101,7 @@ export default function StyleGuidePage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-ink">ฟอร์ม (Form)</h2>
+        <h2 className="text-balance mb-4 text-lg font-semibold text-ink">ฟอร์ม (Form)</h2>
         <div className="grid max-w-md gap-4 rounded-lg border border-line bg-surface p-6">
           <div className="grid gap-1.5">
             <Label htmlFor="sg-name">ชื่อลูกค้า</Label>
@@ -118,7 +118,7 @@ export default function StyleGuidePage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-ink">ตาราง (Table)</h2>
+        <h2 className="text-balance mb-4 text-lg font-semibold text-ink">ตาราง (Table)</h2>
         <Table>
           <TableHeader>
             <TableRow>
@@ -146,10 +146,10 @@ export default function StyleGuidePage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-ink">กำลังโหลด (Skeleton)</h2>
+        <h2 className="text-balance mb-4 text-lg font-semibold text-ink">กำลังโหลด (Skeleton)</h2>
         <div className="space-y-6 rounded-lg border border-line bg-surface p-6">
           <div>
-            <p className="mb-2 text-xs font-medium text-ink-muted">รายการ (row/line)</p>
+            <p className="text-pretty mb-2 text-xs font-medium text-ink-muted">รายการ (row/line)</p>
             <SkeletonGroup label="ตัวอย่าง: กำลังโหลดรายการ">
               {[0, 1, 2].map((i) => (
                 <Skeleton key={i} className="h-10" />
@@ -157,7 +157,7 @@ export default function StyleGuidePage() {
             </SkeletonGroup>
           </div>
           <div>
-            <p className="mb-2 text-xs font-medium text-ink-muted">การ์ด (card)</p>
+            <p className="text-pretty mb-2 text-xs font-medium text-ink-muted">การ์ด (card)</p>
             <SkeletonGroup label="ตัวอย่าง: กำลังโหลดการ์ด">
               {[0, 1].map((i) => (
                 <Skeleton key={i} className="h-14" />
@@ -165,7 +165,7 @@ export default function StyleGuidePage() {
             </SkeletonGroup>
           </div>
           <div>
-            <p className="mb-2 text-xs font-medium text-ink-muted">KPI (grid tile)</p>
+            <p className="text-pretty mb-2 text-xs font-medium text-ink-muted">KPI (grid tile)</p>
             <SkeletonGroup label="ตัวอย่าง: กำลังโหลด KPI" className="grid grid-cols-3 gap-3 space-y-0">
               {[0, 1, 2].map((i) => (
                 <Skeleton key={i} className="h-16" />
@@ -176,7 +176,7 @@ export default function StyleGuidePage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-ink">ว่างเปล่า (Empty state)</h2>
+        <h2 className="text-balance mb-4 text-lg font-semibold text-ink">ว่างเปล่า (Empty state)</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <EmptyState title="ยังไม่มีสมาชิกในสาขานี้" action={<Button>+ เพิ่มสมาชิกแรก</Button>} />
           <EmptyState title="ไม่มีข้อมูลในช่วงที่เลือก" description="ลองขยายช่วงวันที่ให้กว้างขึ้น" />
@@ -184,7 +184,7 @@ export default function StyleGuidePage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-ink">Badge สถานะ (7 สถานะ)</h2>
+        <h2 className="text-balance mb-4 text-lg font-semibold text-ink">Badge สถานะ (7 สถานะ)</h2>
         <div className="flex flex-wrap gap-3 rounded-lg border border-line bg-surface p-6">
           {APPOINTMENT_STATUSES.map((status) => (
             <StatusBadge key={status} status={status} />

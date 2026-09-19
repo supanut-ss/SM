@@ -54,24 +54,24 @@ export function PackageEditForm({
       <div className="grid gap-1.5">
         <Label htmlFor="edit-package-name">ชื่อคอร์ส/แพ็กเกจ</Label>
         <Input id="edit-package-name" {...register("name")} />
-        {errors.name && <p className="text-xs text-rose">{errors.name.message}</p>}
+        {errors.name && <p className="text-pretty text-xs text-rose">{errors.name.message}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor="edit-package-price">ราคา (บาท)</Label>
           <Input id="edit-package-price" type="number" min={0} step={1} {...register("priceBaht")} />
-          {errors.priceBaht && <p className="text-xs text-rose">{errors.priceBaht.message}</p>}
+          {errors.priceBaht && <p className="text-pretty text-xs text-rose">{errors.priceBaht.message}</p>}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="edit-package-valid-days">อายุการใช้งาน (วัน)</Label>
           <Input id="edit-package-valid-days" type="number" min={1} step={1} {...register("validDays")} />
-          {errors.validDays && <p className="text-xs text-rose">{errors.validDays.message}</p>}
+          {errors.validDays && <p className="text-pretty text-xs text-rose">{errors.validDays.message}</p>}
         </div>
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

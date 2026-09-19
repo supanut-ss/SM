@@ -43,7 +43,7 @@ export function QueueSection({ branchId }: { branchId: string }) {
   return (
     <section aria-label="กระดานคิวย่อ" className="rounded-DEFAULT border border-line-strong bg-surface p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold text-ink">กระดานคิวย่อ</h2>
+        <h2 className="text-balance font-display text-lg font-semibold text-ink">กระดานคิวย่อ</h2>
         <Link href="/board">
           <Button variant="ghost" size="sm">
             ดูกระดานคิวเต็ม →

@@ -62,7 +62,7 @@ export function StaffUtilizationSection({
       aria-label="ตารางชั่วโมงทำงานและค่ามือพนักงาน"
       className="rounded-DEFAULT border border-line-strong bg-surface p-4 lg:col-span-2"
     >
-      <h2 className="mb-3 font-display text-lg font-semibold text-ink">ชั่วโมงทำงานและค่ามือต่อพนักงาน</h2>
+      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">ชั่วโมงทำงานและค่ามือต่อพนักงาน</h2>
 
       {query.isLoading && (
         <SkeletonGroup label="กำลังโหลดตารางพนักงาน">

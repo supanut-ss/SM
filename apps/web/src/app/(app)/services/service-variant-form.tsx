@@ -54,12 +54,12 @@ export function ServiceVariantForm({
         <div className="grid gap-1.5">
           <Label htmlFor="variant-duration">ระยะเวลา (นาที)</Label>
           <Input id="variant-duration" type="number" min={1} step={1} {...register("durationMin")} />
-          {errors.durationMin && <p className="text-xs text-rose">{errors.durationMin.message}</p>}
+          {errors.durationMin && <p className="text-pretty text-xs text-rose">{errors.durationMin.message}</p>}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="variant-price">ราคา (บาท)</Label>
           <Input id="variant-price" type="number" min={0} step={1} {...register("priceBaht")} />
-          {errors.priceBaht && <p className="text-xs text-rose">{errors.priceBaht.message}</p>}
+          {errors.priceBaht && <p className="text-pretty text-xs text-rose">{errors.priceBaht.message}</p>}
         </div>
       </div>
 
@@ -104,7 +104,7 @@ export function ServiceVariantForm({
           </div>
         </div>
         {(errors.commissionJuniorBaht || errors.commissionSeniorBaht || errors.commissionMasterBaht) && (
-          <p className="text-xs text-rose">
+          <p className="text-pretty text-xs text-rose">
             {errors.commissionJuniorBaht?.message ??
               errors.commissionSeniorBaht?.message ??
               errors.commissionMasterBaht?.message}
@@ -122,7 +122,7 @@ export function ServiceVariantForm({
             step={1}
             {...register("bufferBeforeMin")}
           />
-          {errors.bufferBeforeMin && <p className="text-xs text-rose">{errors.bufferBeforeMin.message}</p>}
+          {errors.bufferBeforeMin && <p className="text-pretty text-xs text-rose">{errors.bufferBeforeMin.message}</p>}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="variant-buffer-after">buffer หลังบริการ (นาที)</Label>
@@ -133,7 +133,7 @@ export function ServiceVariantForm({
             step={1}
             {...register("bufferAfterMin")}
           />
-          {errors.bufferAfterMin && <p className="text-xs text-rose">{errors.bufferAfterMin.message}</p>}
+          {errors.bufferAfterMin && <p className="text-pretty text-xs text-rose">{errors.bufferAfterMin.message}</p>}
         </div>
       </div>
 
@@ -146,13 +146,13 @@ export function ServiceVariantForm({
             </option>
           ))}
         </Select>
-        {errors.requiredSkill && <p className="text-xs text-rose">{errors.requiredSkill.message}</p>}
+        {errors.requiredSkill && <p className="text-pretty text-xs text-rose">{errors.requiredSkill.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="variant-room-type">ประเภทห้องที่ต้องใช้</Label>
         {roomTypes.length === 0 ? (
-          <p className="text-xs text-brass">สาขานี้ยังไม่มีประเภทห้องเลย — ติดต่อผู้ดูแลระบบก่อน</p>
+          <p className="text-pretty text-xs text-brass">สาขานี้ยังไม่มีประเภทห้องเลย — ติดต่อผู้ดูแลระบบก่อน</p>
         ) : (
           <Select id="variant-room-type" {...register("requiredRoomTypeId")} defaultValue="">
             <option value="" disabled>
@@ -166,12 +166,12 @@ export function ServiceVariantForm({
           </Select>
         )}
         {errors.requiredRoomTypeId && (
-          <p className="text-xs text-rose">{errors.requiredRoomTypeId.message}</p>
+          <p className="text-pretty text-xs text-rose">{errors.requiredRoomTypeId.message}</p>
         )}
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

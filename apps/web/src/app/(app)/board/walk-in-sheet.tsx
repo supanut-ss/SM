@@ -71,11 +71,11 @@ export function WalkInSheet({
     <Sheet open={open} onClose={handleClose} title="จองด่วนจากคิวหมุน">
       {!created && (
         <div className="grid gap-4">
-          <p className="text-sm text-ink-muted">
+          <p className="text-pretty text-sm text-ink-muted">
             เลือกบริการ — ระบบจะเลือกพนักงานและห้องที่ว่างให้เองจากคิวหมุน แล้วเช็คอินให้ทันที
           </p>
           {error && (
-            <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+            <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
               {error}
             </p>
           )}
@@ -83,7 +83,7 @@ export function WalkInSheet({
             <Skeleton className="h-9 w-full" role="status" aria-label="กำลังโหลด" />
           )}
           {servicesQuery.isSuccess && servicesQuery.data.length === 0 && (
-            <p className="text-sm text-ink-muted">ยังไม่มีบริการที่เปิดขายในสาขานี้</p>
+            <p className="text-pretty text-sm text-ink-muted">ยังไม่มีบริการที่เปิดขายในสาขานี้</p>
           )}
           <div className="grid gap-2">
             {(servicesQuery.data ?? []).flatMap((service) =>
@@ -113,7 +113,7 @@ export function WalkInSheet({
             id="walk-in-print-ticket"
             className="grid gap-2 rounded-DEFAULT border border-line p-4 print:border-none print:p-0"
           >
-            <p className="text-center font-display text-lg font-semibold text-ink">ใบคิว</p>
+            <p className="text-pretty text-center font-display text-lg font-semibold text-ink">ใบคิว</p>
             <TicketRow
               label="ลูกค้า"
               value={created.appointment.member?.name ?? "ลูกค้า Walk-in"}

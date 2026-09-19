@@ -48,9 +48,9 @@ export function Payslip({
           className="grid gap-3 rounded-DEFAULT border border-line bg-surface p-5 text-sm text-ink print:border-none"
         >
           <div className="text-center">
-            <p className="font-display text-base font-semibold">{branchName}</p>
-            <p className="text-ink-muted">สลิปค่ามือ</p>
-            <p className="mt-1 text-xs text-ink-muted">
+            <p className="text-pretty font-display text-base font-semibold">{branchName}</p>
+            <p className="text-pretty text-ink-muted">สลิปค่ามือ</p>
+            <p className="text-pretty mt-1 text-xs text-ink-muted">
               งวด {formatDate(period.periodStart)} – {formatDate(period.periodEnd)}
             </p>
           </div>

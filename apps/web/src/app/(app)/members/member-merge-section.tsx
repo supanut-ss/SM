@@ -55,7 +55,7 @@ export function MemberMergeSection({
     return (
       <div className="grid gap-2 border-t border-line pt-4">
         <span className="text-sm font-medium text-ink">รวมสมาชิกซ้ำ</span>
-        <p className="rounded-DEFAULT bg-surface-sunk px-3 py-2 text-sm text-ink-muted">
+        <p className="text-pretty rounded-DEFAULT bg-surface-sunk px-3 py-2 text-sm text-ink-muted">
           สมาชิกนี้ถูกรวมเข้ากับ{" "}
           {primaryQuery.isLoading
             ? "..."
@@ -73,7 +73,7 @@ export function MemberMergeSection({
   return (
     <div className="grid gap-3 border-t border-line pt-4">
       <span className="text-sm font-medium text-ink">รวมสมาชิกซ้ำ</span>
-      <p className="text-xs text-ink-muted">
+      <p className="text-pretty text-xs text-ink-muted">
         ใช้เมื่อพบว่าสมาชิกคนนี้ถูกสร้างซ้ำโดยไม่ตั้งใจ — ประวัติความยินยอมจะย้ายไปรวมกับสมาชิกหลักที่เลือก
         แล้วสมาชิกนี้จะถูกปิดใช้งาน
       </p>
@@ -91,7 +91,7 @@ export function MemberMergeSection({
             <Skeleton className="h-4 w-24" role="status" aria-label="กำลังค้นหา" />
           )}
           {debouncedQuery && searchQuery.isSuccess && candidates.length === 0 && (
-            <p className="text-xs text-ink-muted">ไม่พบสมาชิกที่ตรงกับ &ldquo;{debouncedQuery}&rdquo;</p>
+            <p className="text-pretty text-xs text-ink-muted">ไม่พบสมาชิกที่ตรงกับ &ldquo;{debouncedQuery}&rdquo;</p>
           )}
           {candidates.length > 0 && (
             <ul className="grid gap-1 rounded-DEFAULT border border-line p-1">
@@ -135,13 +135,13 @@ export function MemberMergeSection({
 
       {selected && confirming && (
         <div className="grid gap-3 rounded-DEFAULT border border-rose bg-rose-tint p-3">
-          <p className="text-sm text-rose">
+          <p className="text-pretty text-sm text-rose">
             ยืนยันรวม &ldquo;{member.name}&rdquo; ({member.code}) เข้ากับ &ldquo;{selected.name}&rdquo; (
             {selected.code})? สมาชิก &ldquo;{member.name}&rdquo; จะถูกปิดใช้งาน
             และประวัติความยินยอมทั้งหมดจะย้ายไปที่ &ldquo;{selected.name}&rdquo; — ย้อนกลับด้วยหน้านี้ไม่ได้
           </p>
           {mergeMutation.isError && (
-            <p role="alert" className="text-sm text-rose">
+            <p role="alert" className="text-pretty text-sm text-rose">
               {mergeMutation.error instanceof ApiError
                 ? mergeMutation.error.message
                 : "รวมสมาชิกไม่สำเร็จ กรุณาลองใหม่"}

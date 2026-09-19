@@ -336,10 +336,10 @@ export function BillingPageClient() {
                     }`}
                   >
                     <div>
-                      <p className="text-sm font-medium text-ink">
+                      <p className="text-pretty text-sm font-medium text-ink">
                         {item.serviceVariant.service.name} · {item.serviceVariant.durationMin} นาที
                       </p>
-                      <p className="text-xs text-ink-muted">
+                      <p className="text-pretty text-xs text-ink-muted">
                         {item.staff.name} · {item.appointment.member?.name ?? "ลูกค้า Walk-in"} ·{" "}
                         {PAYMENT_METHOD_LABEL[item.serviceJob.paymentMethod!]}
                       </p>
@@ -360,9 +360,9 @@ export function BillingPageClient() {
   function renderCartList(): ReactNode {
     return (
       <div>
-        <h3 className="mb-2 text-sm font-semibold text-ink">รายการในบิล</h3>
+        <h3 className="text-balance mb-2 text-sm font-semibold text-ink">รายการในบิล</h3>
         {cartHasEmptyContent && (
-          <p className="text-sm text-ink-muted">ยังไม่มีรายการ — เลือกใบงานจากด้านบน หรือเพิ่มสินค้าด้านล่าง</p>
+          <p className="text-pretty text-sm text-ink-muted">ยังไม่มีรายการ — เลือกใบงานจากด้านบน หรือเพิ่มสินค้าด้านล่าง</p>
         )}
         <ul className="grid gap-2">
           {cartJobs.map((item) => {
@@ -370,7 +370,7 @@ export function BillingPageClient() {
             return (
               <li key={item.id} className="rounded-DEFAULT border border-line-strong bg-surface p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-ink">
+                  <p className="text-pretty text-sm text-ink">
                     {item.serviceVariant.service.name} ({PAYMENT_METHOD_LABEL[item.serviceJob.paymentMethod!]})
                   </p>
                   <span className="font-data text-sm tabular-nums text-ink">
@@ -380,7 +380,7 @@ export function BillingPageClient() {
                 {/* คอร์สที่จะตัดล็อกไว้ตั้งแต่ตอนเริ่มงานแล้ว (ดู docs/decisions.md ADR-046) — แสดงผลอย่าง
                     เดียว ไม่ให้เลือกซ้ำตอนออกบิลอีก */}
                 {isPackage && (
-                  <p className="mt-2 text-xs text-ink-muted">
+                  <p className="text-pretty mt-2 text-xs text-ink-muted">
                     ตัดคอร์ส: {item.serviceJob.memberPackage?.name ?? "เลือกไว้ตอนเริ่มงาน"}
                   </p>
                 )}
@@ -390,7 +390,7 @@ export function BillingPageClient() {
           {productLines.map((p) => (
             <li key={p.key} className="flex items-center justify-between gap-2 rounded-DEFAULT border border-line-strong bg-surface p-3">
               <div>
-                <p className="text-sm text-ink">
+                <p className="text-pretty text-sm text-ink">
                   {p.description} {p.quantity > 1 ? `x${p.quantity}` : ""} ({PAYMENT_METHOD_LABEL[p.paymentMethod]})
                 </p>
               </div>
@@ -412,7 +412,7 @@ export function BillingPageClient() {
   function renderProductForm(): ReactNode {
     return (
       <div className="rounded-DEFAULT border border-dashed border-line-strong p-3">
-        <h3 className="mb-2 text-sm font-semibold text-ink">เพิ่มรายการสินค้า (ไม่ผูกคลัง)</h3>
+        <h3 className="text-balance mb-2 text-sm font-semibold text-ink">เพิ่มรายการสินค้า (ไม่ผูกคลัง)</h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Input
             aria-label="ชื่อสินค้า"
@@ -555,7 +555,7 @@ export function BillingPageClient() {
             <span className="font-data tabular-nums text-ink">-{formatSatang(preview.discountSatang)}</span>
           </div>
         )}
-        {preview?.couponError && <p className="text-xs text-rose">{preview.couponError}</p>}
+        {preview?.couponError && <p className="text-pretty text-xs text-rose">{preview.couponError}</p>}
         <div className="flex justify-between font-semibold">
           <span>ยอดสุทธิ{preview ? "" : " (ยังไม่คำนวณส่วนลด)"}</span>
           <span className="font-data tabular-nums text-ink">{formatSatang(totalSatang)}</span>
@@ -582,7 +582,7 @@ export function BillingPageClient() {
     return (
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink">ช่องทางชำระเงิน</h3>
+          <h3 className="text-balance text-sm font-semibold text-ink">ช่องทางชำระเงิน</h3>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={autofillPayments}>
               เติมอัตโนมัติ
@@ -672,11 +672,11 @@ export function BillingPageClient() {
     return (
       <>
         {checkoutError && (
-          <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+          <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
             {checkoutError}
           </p>
         )}
-        {packageLinesMissingMember && <p className="text-xs text-brass">มีรายการตัดคอร์สแต่ยังไม่ได้เลือกสมาชิก</p>}
+        {packageLinesMissingMember && <p className="text-pretty text-xs text-brass">มีรายการตัดคอร์สแต่ยังไม่ได้เลือกสมาชิก</p>}
       </>
     );
   }
@@ -692,7 +692,7 @@ export function BillingPageClient() {
   if (!branch) {
     return (
       <div className="p-8">
-        <p className="rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
@@ -702,8 +702,8 @@ export function BillingPageClient() {
   return (
     <div className="p-4 md:p-8">
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-semibold text-ink">บิล/แคชเชียร์</h1>
-        <p className="mt-1 text-sm text-ink-muted">ออกบิลรวมใบงานที่จบแล้วของวันนี้ + สินค้า ที่สาขา {branch.branchName}</p>
+        <h1 className="text-balance font-display text-2xl font-semibold text-ink">บิล/แคชเชียร์</h1>
+        <p className="text-pretty mt-1 text-sm text-ink-muted">ออกบิลรวมใบงานที่จบแล้วของวันนี้ + สินค้า ที่สาขา {branch.branchName}</p>
       </div>
 
       <CashierShiftPanel branchId={branch.branchId} />
@@ -711,7 +711,7 @@ export function BillingPageClient() {
       {/* จอกว้าง (>= md): สองคอลัมน์เดิมเป๊ะ ไม่เปลี่ยนแปลง */}
       <div className="hidden gap-6 md:grid lg:grid-cols-2">
         <section aria-label="ใบงานที่พร้อมออกบิล">
-          <h2 className="mb-3 font-display text-lg font-semibold text-ink">พร้อมออกบิลวันนี้</h2>
+          <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">พร้อมออกบิลวันนี้</h2>
           {renderJobList()}
         </section>
 
@@ -736,15 +736,15 @@ export function BillingPageClient() {
         </div>
         <div className="mb-4 h-1 rounded-DEFAULT bg-surface-sunk">
           <div
-            className="h-full rounded-DEFAULT bg-celadon transition-[width] duration-150 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none"
-            style={{ width: `${(mobileStep / 3) * 100}%` }}
+            className="h-full origin-left rounded-DEFAULT bg-celadon transition-transform duration-150 ease-out motion-reduce:transition-none"
+            style={{ transform: `scaleX(${mobileStep / 3})` }}
           />
         </div>
 
         {mobileStep === 1 && (
           <div className="grid gap-5">
             <section aria-label="ใบงานที่พร้อมออกบิล">
-              <h2 className="mb-3 font-display text-lg font-semibold text-ink">พร้อมออกบิลวันนี้</h2>
+              <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">พร้อมออกบิลวันนี้</h2>
               {renderJobList()}
             </section>
             {renderCartList()}
@@ -798,7 +798,7 @@ export function BillingPageClient() {
 
       {receiptBill && (
         <div className="mt-8 border-t border-line pt-6">
-          <h2 className="mb-3 font-display text-lg font-semibold text-ink">
+          <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">
             ออกบิลสำเร็จ — {receiptBill.billNumber}
           </h2>
           <Receipt bill={receiptBill} onClose={() => setReceiptBill(null)} />

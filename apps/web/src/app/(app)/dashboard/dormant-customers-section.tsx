@@ -23,7 +23,7 @@ export function DormantCustomersSection({ branchId }: { branchId: string }) {
 
   return (
     <section aria-label="ลูกค้าที่หายไปเกิน 60 วัน" className="rounded-DEFAULT border border-line-strong bg-surface p-4">
-      <h2 className="mb-3 font-display text-lg font-semibold text-ink">ลูกค้าที่หายไปเกิน 60 วัน</h2>
+      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">ลูกค้าที่หายไปเกิน 60 วัน</h2>
 
       {query.isLoading && (
         <SkeletonGroup label="กำลังโหลดลูกค้าที่หายไป">
@@ -55,12 +55,12 @@ export function DormantCustomersSection({ branchId }: { branchId: string }) {
                 className="flex items-center justify-between gap-3 rounded-DEFAULT border border-line-strong bg-surface px-4 py-3 transition-colors hover:bg-surface-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
               >
                 <div>
-                  <p className="text-sm font-medium text-ink">{row.member.name}</p>
-                  <p className="font-data text-xs tabular-nums text-ink-muted">{row.member.phone}</p>
+                  <p className="text-pretty text-sm font-medium text-ink">{row.member.name}</p>
+                  <p className="text-pretty font-data text-xs tabular-nums text-ink-muted">{row.member.phone}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-medium text-brass">หายไป {row.daysSinceLastVisit} วัน</p>
-                  <p className="text-xs text-ink-faint">มาล่าสุด {formatDateThai(row.lastVisitAt)}</p>
+                  <p className="text-pretty text-xs font-medium text-brass">หายไป {row.daysSinceLastVisit} วัน</p>
+                  <p className="text-pretty text-xs text-ink-faint">มาล่าสุด {formatDateThai(row.lastVisitAt)}</p>
                 </div>
               </Link>
             </li>

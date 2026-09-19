@@ -49,23 +49,23 @@ export function ServiceEditForm({
             </option>
           ))}
         </Select>
-        {errors.categoryId && <p className="text-xs text-rose">{errors.categoryId.message}</p>}
+        {errors.categoryId && <p className="text-pretty text-xs text-rose">{errors.categoryId.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="edit-service-name">ชื่อบริการ</Label>
         <Input id="edit-service-name" {...register("name")} />
-        {errors.name && <p className="text-xs text-rose">{errors.name.message}</p>}
+        {errors.name && <p className="text-pretty text-xs text-rose">{errors.name.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="edit-service-description">คำอธิบาย (ไม่บังคับ)</Label>
         <Textarea id="edit-service-description" {...register("description")} rows={2} />
-        {errors.description && <p className="text-xs text-rose">{errors.description.message}</p>}
+        {errors.description && <p className="text-pretty text-xs text-rose">{errors.description.message}</p>}
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

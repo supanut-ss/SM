@@ -52,13 +52,13 @@ export function RoomForm({
       <div className="grid gap-1.5">
         <Label htmlFor="room-name">ชื่อห้อง</Label>
         <Input id="room-name" {...register("name")} placeholder="เช่น ห้อง 1" />
-        {errors.name && <p className="text-xs text-rose">{errors.name.message}</p>}
+        {errors.name && <p className="text-pretty text-xs text-rose">{errors.name.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="room-type">ประเภทห้อง</Label>
         {roomTypes.length === 0 ? (
-          <p className="text-xs text-brass">
+          <p className="text-pretty text-xs text-brass">
             สาขานี้ยังไม่มีประเภทห้องเลย — ติดต่อผู้ดูแลระบบเพื่อเพิ่มประเภทห้องก่อน
           </p>
         ) : (
@@ -73,17 +73,17 @@ export function RoomForm({
             ))}
           </Select>
         )}
-        {errors.roomTypeId && <p className="text-xs text-rose">{errors.roomTypeId.message}</p>}
+        {errors.roomTypeId && <p className="text-pretty text-xs text-rose">{errors.roomTypeId.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="room-capacity">ความจุ (จำนวนลูกค้าพร้อมกัน)</Label>
         <Input id="room-capacity" type="number" min={1} step={1} {...register("capacity")} />
-        {errors.capacity && <p className="text-xs text-rose">{errors.capacity.message}</p>}
+        {errors.capacity && <p className="text-pretty text-xs text-rose">{errors.capacity.message}</p>}
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

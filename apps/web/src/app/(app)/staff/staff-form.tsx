@@ -65,14 +65,14 @@ export function StaffForm({
         <Label htmlFor="staff-name">ชื่อพนักงาน</Label>
         <Input id="staff-name" {...register("name")} placeholder="เช่น คุณสมชาย ใจดี" />
         {errors.name && (
-          <p className="text-xs text-rose">{errors.name.message}</p>
+          <p className="text-pretty text-xs text-rose">{errors.name.message}</p>
         )}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="staff-phone">เบอร์โทร (ถ้ามี)</Label>
         <Input id="staff-phone" {...register("phone")} placeholder="0812345678" inputMode="numeric" />
-        {errors.phone && <p className="text-xs text-rose">{errors.phone.message}</p>}
+        {errors.phone && <p className="text-pretty text-xs text-rose">{errors.phone.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
@@ -87,7 +87,7 @@ export function StaffForm({
             </option>
           ))}
         </Select>
-        {errors.level && <p className="text-xs text-rose">{errors.level.message}</p>}
+        {errors.level && <p className="text-pretty text-xs text-rose">{errors.level.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
@@ -122,7 +122,7 @@ export function StaffForm({
             </div>
           )}
         />
-        {errors.skills && <p className="text-xs text-rose">{errors.skills.message}</p>}
+        {errors.skills && <p className="text-pretty text-xs text-rose">{errors.skills.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
@@ -148,11 +148,11 @@ export function StaffForm({
       <div className="grid gap-1.5">
         <Label htmlFor="staff-note">บันทึกเพิ่มเติม (ถ้ามี)</Label>
         <Textarea id="staff-note" rows={3} {...register("note")} />
-        {errors.note && <p className="text-xs text-rose">{errors.note.message}</p>}
+        {errors.note && <p className="text-pretty text-xs text-rose">{errors.note.message}</p>}
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

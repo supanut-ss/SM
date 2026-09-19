@@ -50,7 +50,7 @@ export function AppShell({
       <aside
         className={cn(
           "z-40 w-60 shrink-0 border-r border-line bg-surface",
-          "md:sticky md:inset-y-auto md:top-0 md:h-dvh md:translate-x-0 md:transition-[width] md:duration-200",
+          "md:sticky md:inset-y-auto md:top-0 md:h-dvh md:translate-x-0",
           bottomBar
             ? "hidden md:block"
             : cn(

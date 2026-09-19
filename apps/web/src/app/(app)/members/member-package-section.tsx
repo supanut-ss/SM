@@ -134,7 +134,7 @@ export function MemberPackageSection({ branchId, memberId }: { branchId: string;
       </div>
 
       {error && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {error}
         </p>
       )}
@@ -148,7 +148,7 @@ export function MemberPackageSection({ branchId, memberId }: { branchId: string;
             <Skeleton className="h-9 w-full" role="status" aria-label="กำลังโหลด" />
           )}
           {catalogQuery.isSuccess && activePackages.length === 0 && (
-            <p className="text-xs text-brass">สาขานี้ยังไม่มีคอร์ส/แพ็กเกจที่เปิดขายเลย</p>
+            <p className="text-pretty text-xs text-brass">สาขานี้ยังไม่มีคอร์ส/แพ็กเกจที่เปิดขายเลย</p>
           )}
           {activePackages.length > 0 && (
             <Select
@@ -185,7 +185,7 @@ export function MemberPackageSection({ branchId, memberId }: { branchId: string;
         <Skeleton className="h-4 w-24" role="status" aria-label="กำลังโหลด" />
       )}
       {memberPackagesQuery.isSuccess && memberPackagesQuery.data.length === 0 && (
-        <p className="text-xs text-ink-muted">สมาชิกคนนี้ยังไม่มีคอร์ส/แพ็กเกจเลย</p>
+        <p className="text-pretty text-xs text-ink-muted">สมาชิกคนนี้ยังไม่มีคอร์ส/แพ็กเกจเลย</p>
       )}
 
       <div className="grid gap-2">
@@ -195,8 +195,8 @@ export function MemberPackageSection({ branchId, memberId }: { branchId: string;
             <div key={pkg.id} className="rounded-DEFAULT border border-line p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="grid gap-1">
-                  <p className="text-sm font-medium text-ink">{pkg.name}</p>
-                  <p className="font-data tabular-nums text-xs text-ink-muted">{formatBalance(pkg)}</p>
+                  <p className="text-pretty text-sm font-medium text-ink">{pkg.name}</p>
+                  <p className="text-pretty font-data tabular-nums text-xs text-ink-muted">{formatBalance(pkg)}</p>
                   <div className="flex flex-wrap gap-1.5">
                     <span
                       className={
@@ -287,7 +287,7 @@ export function MemberPackageSection({ branchId, memberId }: { branchId: string;
                     โอนทั้งใบให้สมาชิก (โอนบางส่วนไม่ได้)
                   </Label>
                   {otherMembers.length === 0 ? (
-                    <p className="text-xs text-ink-muted">ไม่มีสมาชิกอื่นในสาขานี้ให้โอนไป</p>
+                    <p className="text-pretty text-xs text-ink-muted">ไม่มีสมาชิกอื่นในสาขานี้ให้โอนไป</p>
                   ) : (
                     <Select
                       id={`mp-transfer-to-${pkg.id}`}
@@ -355,7 +355,7 @@ function MemberPackageLedgerHistory({
 
   return (
     <li>
-      <p className="font-medium text-ink">{name}</p>
+      <p className="text-pretty font-medium text-ink">{name}</p>
       <ul className="ml-3 grid gap-0.5">
         {detailQuery.data.ledgerEntries.map((entry) => (
           <li key={entry.id} className="font-data tabular-nums">

@@ -25,7 +25,7 @@ export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCel
   return (
     <th
       className={cn(
-        "h-10 px-3 text-left text-xs font-medium uppercase tracking-wide text-ink-muted",
+        "h-10 px-3 text-left text-xs font-medium uppercase text-ink-muted",
         className,
       )}
       {...props}

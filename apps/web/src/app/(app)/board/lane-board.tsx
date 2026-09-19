@@ -95,6 +95,8 @@ export function LaneBoard({
   }, [items, rowKeyOf]);
 
   const shouldVirtualize = rows.length > VIRTUALIZE_THRESHOLD;
+  // TanStack Virtual returns callback-based state that React Compiler cannot memoize safely.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
@@ -424,7 +426,7 @@ export function LaneBoard({
           </div>
         </div>
       </div>
-      <p className="border-t border-line bg-surface-sunk px-3 py-1 text-[11px] text-ink-faint">
+      <p className="text-pretty border-t border-line bg-surface-sunk px-3 py-1 text-[11px] text-ink-faint">
         วันที่ {dateKey} — ลูกศรเลือกนัด, Enter เปิดรายละเอียด, Shift+ลูกศรซ้าย/ขวาเลื่อนเวลา
       </p>
     </div>

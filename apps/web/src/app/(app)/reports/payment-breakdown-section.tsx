@@ -51,7 +51,7 @@ export function PaymentBreakdownSection({
       aria-label="สัดส่วนช่องทางชำระ"
       className="rounded-DEFAULT border border-line-strong bg-surface p-4"
     >
-      <h2 className="mb-3 font-display text-lg font-semibold text-ink">สัดส่วนช่องทางชำระ</h2>
+      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">สัดส่วนช่องทางชำระ</h2>
 
       {query.isLoading && (
         <Skeleton className="h-64" role="status" aria-busy="true" aria-label="กำลังโหลดสัดส่วนช่องทางชำระ" />

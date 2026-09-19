@@ -57,7 +57,7 @@ export function BillHistory({ branchId }: { branchId: string }) {
 
   return (
     <div>
-      <h2 className="mb-3 font-display text-lg font-semibold text-ink">ประวัติบิล</h2>
+      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">ประวัติบิล</h2>
 
       {listQuery.isLoading && (
         <SkeletonGroup label="กำลังโหลดประวัติบิล">
@@ -78,7 +78,7 @@ export function BillHistory({ branchId }: { branchId: string }) {
 
       {listQuery.isSuccess && listQuery.data.length === 0 && (
         <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-sm text-ink-muted">ยังไม่มีบิลในสาขานี้ — ออกบิลแรกจากรายการด้านบน</p>
+          <p className="text-pretty text-sm text-ink-muted">ยังไม่มีบิลในสาขานี้ — ออกบิลแรกจากรายการด้านบน</p>
         </div>
       )}
 
@@ -168,7 +168,7 @@ export function BillHistory({ branchId }: { branchId: string }) {
             />
           </div>
           {cancelError && (
-            <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+            <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
               {cancelError}
             </p>
           )}

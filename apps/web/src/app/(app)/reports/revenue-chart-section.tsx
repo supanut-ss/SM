@@ -42,7 +42,7 @@ export function RevenueChartSection({
       aria-label="กราฟรายได้และเงินเข้า"
       className="rounded-DEFAULT border border-line-strong bg-surface p-4"
     >
-      <h2 className="mb-3 font-display text-lg font-semibold text-ink">รายได้รับรู้ vs เงินเข้าจริง</h2>
+      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">รายได้รับรู้ vs เงินเข้าจริง</h2>
 
       {query.isLoading && (
         <Skeleton className="h-64" role="status" aria-busy="true" aria-label="กำลังโหลดกราฟรายได้" />

@@ -52,7 +52,7 @@ export function PromotionEditForm({
       <div className="grid gap-1.5">
         <Label htmlFor="edit-promo-name">ชื่อโปรโมชั่น</Label>
         <Input id="edit-promo-name" {...register("name", { required: "กรุณากรอกชื่อโปรโมชั่น" })} />
-        {errors.name && <p className="text-xs text-rose">{errors.name.message}</p>}
+        {errors.name && <p className="text-pretty text-xs text-rose">{errors.name.message}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -67,7 +67,7 @@ export function PromotionEditForm({
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

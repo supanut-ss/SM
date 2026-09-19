@@ -71,7 +71,7 @@ export function ShiftTemplateForm({
           {...register("name", { required: "กรุณากรอกชื่อกะ" })}
           placeholder="เช่น เช้า"
         />
-        {errors.name && <p className="text-xs text-rose">{errors.name.message}</p>}
+        {errors.name && <p className="text-pretty text-xs text-rose">{errors.name.message}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -86,7 +86,7 @@ export function ShiftTemplateForm({
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

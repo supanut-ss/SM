@@ -39,7 +39,7 @@ function StaffSummaryTable({
   onPrint: (summary: PayrollPeriodStaffSummary) => void;
 }) {
   if (summaries.length === 0) {
-    return <p className="text-sm text-ink-muted">งวดนี้ไม่มีรายการค่ามือ/ทิปเลย</p>;
+    return <p className="text-pretty text-sm text-ink-muted">งวดนี้ไม่มีรายการค่ามือ/ทิปเลย</p>;
   }
   return (
     <ResponsiveList
@@ -127,10 +127,10 @@ function ClosedPeriodRow({
     <li className="rounded-DEFAULT border border-line-strong bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-ink">
+          <p className="text-pretty text-sm font-medium text-ink">
             {formatDate(period.periodStart)} – {formatDate(period.periodEnd)}
           </p>
-          <p className="text-xs text-ink-muted">ปิดงวดเมื่อ {formatDate(period.closedAt)}</p>
+          <p className="text-pretty text-xs text-ink-muted">ปิดงวดเมื่อ {formatDate(period.closedAt)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={onToggleExpand}>
@@ -256,7 +256,7 @@ export function PayrollPageClient() {
   if (!branch) {
     return (
       <div className="p-8">
-        <p className="rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
@@ -266,8 +266,8 @@ export function PayrollPageClient() {
   return (
     <div className="p-8">
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-semibold text-ink">ค่ามือ</h1>
-        <p className="mt-1 text-sm text-ink-muted">เปิด/ปิดงวดจ่าย สรุปค่ามือ+ทิปต่อพนักงาน ที่สาขา {branch.branchName}</p>
+        <h1 className="text-balance font-display text-2xl font-semibold text-ink">ค่ามือ</h1>
+        <p className="text-pretty mt-1 text-sm text-ink-muted">เปิด/ปิดงวดจ่าย สรุปค่ามือ+ทิปต่อพนักงาน ที่สาขา {branch.branchName}</p>
       </div>
 
       {/* การ์ดงวดปัจจุบัน */}
@@ -289,13 +289,13 @@ export function PayrollPageClient() {
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-ink">งวดจ่ายปัจจุบัน</h2>
+                <h2 className="text-balance text-sm font-semibold text-ink">งวดจ่ายปัจจุบัน</h2>
                 {current === null && (
-                  <p className="text-xs text-ink-muted">
+                  <p className="text-pretty text-xs text-ink-muted">
                     ยังไม่มีงวดจ่ายที่เปิดอยู่{canManage ? " — กด \"เปิดงวดใหม่\" เพื่อเริ่ม" : ""}
                   </p>
                 )}
-                {current && <p className="text-xs text-celadon">เปิดงวดอยู่ — เริ่มเมื่อ {formatDate(current.periodStart)}</p>}
+                {current && <p className="text-pretty text-xs text-celadon">เปิดงวดอยู่ — เริ่มเมื่อ {formatDate(current.periodStart)}</p>}
               </div>
               <div className="flex gap-2">
                 {canManage && current === null && (
@@ -317,19 +317,19 @@ export function PayrollPageClient() {
             </div>
 
             {openError && (
-              <p role="alert" className="mt-3 rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+              <p role="alert" className="text-pretty mt-3 rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
                 {openError}
               </p>
             )}
             {closeError && (
-              <p role="alert" className="mt-3 rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+              <p role="alert" className="text-pretty mt-3 rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
                 {closeError}
               </p>
             )}
 
             {closedResult && (
               <div className="mt-4 border-t border-line pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-celadon">
+                <h3 className="text-balance mb-2 text-sm font-semibold text-celadon">
                   ปิดงวดสำเร็จ — สรุปค่ามือของงวดนี้
                 </h3>
                 <StaffSummaryTable
@@ -344,7 +344,7 @@ export function PayrollPageClient() {
 
       {/* ประวัติงวดที่ปิดแล้ว */}
       <section aria-label="ประวัติงวดจ่าย">
-        <h2 className="mb-3 font-display text-lg font-semibold text-ink">ประวัติงวดจ่าย</h2>
+        <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">ประวัติงวดจ่าย</h2>
 
         {listQuery.isLoading && (
           <SkeletonGroup label="กำลังโหลดประวัติงวดจ่าย">

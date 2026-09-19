@@ -89,7 +89,7 @@ export function PackageForm({
           onChange={(event) => setValues({ ...values, name: event.target.value })}
           placeholder="เช่น คอร์สนวดไทย 10 ครั้ง"
         />
-        {fieldErrors.name && <p className="text-xs text-rose">{fieldErrors.name}</p>}
+        {fieldErrors.name && <p className="text-pretty text-xs text-rose">{fieldErrors.name}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -103,7 +103,7 @@ export function PackageForm({
             value={values.priceBaht}
             onChange={(event) => setValues({ ...values, priceBaht: Number(event.target.value) })}
           />
-          {fieldErrors.priceBaht && <p className="text-xs text-rose">{fieldErrors.priceBaht}</p>}
+          {fieldErrors.priceBaht && <p className="text-pretty text-xs text-rose">{fieldErrors.priceBaht}</p>}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="package-valid-days">อายุการใช้งาน (วัน)</Label>
@@ -115,7 +115,7 @@ export function PackageForm({
             value={values.validDays}
             onChange={(event) => setValues({ ...values, validDays: Number(event.target.value) })}
           />
-          {fieldErrors.validDays && <p className="text-xs text-rose">{fieldErrors.validDays}</p>}
+          {fieldErrors.validDays && <p className="text-pretty text-xs text-rose">{fieldErrors.validDays}</p>}
         </div>
       </div>
 
@@ -130,8 +130,8 @@ export function PackageForm({
             value={values.valueBaht}
             onChange={(event) => setValues({ ...values, valueBaht: Number(event.target.value) })}
           />
-          <p className="text-xs text-ink-muted">ใช้ตัดยอดข้ามบริการได้ ไม่ผูกกับบริการใดบริการหนึ่ง</p>
-          {fieldErrors.valueBaht && <p className="text-xs text-rose">{fieldErrors.valueBaht}</p>}
+          <p className="text-pretty text-xs text-ink-muted">ใช้ตัดยอดข้ามบริการได้ ไม่ผูกกับบริการใดบริการหนึ่ง</p>
+          {fieldErrors.valueBaht && <p className="text-pretty text-xs text-rose">{fieldErrors.valueBaht}</p>}
         </div>
       )}
 
@@ -139,7 +139,7 @@ export function PackageForm({
         <div className="grid gap-1.5">
           <Label htmlFor="package-service-variant">บริการที่ผูกไว้</Label>
           {serviceVariants.length === 0 ? (
-            <p className="text-xs text-brass">สาขานี้ยังไม่มีบริการเลย — เพิ่มบริการก่อนสร้างคอร์สประเภทนี้</p>
+            <p className="text-pretty text-xs text-brass">สาขานี้ยังไม่มีบริการเลย — เพิ่มบริการก่อนสร้างคอร์สประเภทนี้</p>
           ) : (
             <Select
               id="package-service-variant"
@@ -156,7 +156,7 @@ export function PackageForm({
               ))}
             </Select>
           )}
-          {fieldErrors.serviceVariantId && <p className="text-xs text-rose">{fieldErrors.serviceVariantId}</p>}
+          {fieldErrors.serviceVariantId && <p className="text-pretty text-xs text-rose">{fieldErrors.serviceVariantId}</p>}
         </div>
       )}
 
@@ -171,12 +171,12 @@ export function PackageForm({
             value={values.sessionCount}
             onChange={(event) => setValues({ ...values, sessionCount: Number(event.target.value) })}
           />
-          {fieldErrors.sessionCount && <p className="text-xs text-rose">{fieldErrors.sessionCount}</p>}
+          {fieldErrors.sessionCount && <p className="text-pretty text-xs text-rose">{fieldErrors.sessionCount}</p>}
         </div>
       )}
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

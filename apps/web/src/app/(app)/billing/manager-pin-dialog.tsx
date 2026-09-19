@@ -79,7 +79,7 @@ export function ManagerPinDialog({
             <Skeleton className="h-9 w-full" role="status" aria-label="กำลังโหลด" />
           )}
           {usersQuery.isSuccess && approvers.length === 0 && (
-            <p className="text-xs text-brass">สาขานี้ยังไม่มีผู้จัดการหรือเจ้าของร้านที่ใช้งานอยู่</p>
+            <p className="text-pretty text-xs text-brass">สาขานี้ยังไม่มีผู้จัดการหรือเจ้าของร้านที่ใช้งานอยู่</p>
           )}
           {approvers.length > 0 && (
             <Select
@@ -115,7 +115,7 @@ export function ManagerPinDialog({
         </div>
 
         {error && (
-          <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+          <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
             {error}
           </p>
         )}

@@ -75,24 +75,24 @@ export function MemberForm({
       <div className="grid gap-1.5">
         <Label htmlFor="member-name">ชื่อสมาชิก</Label>
         <Input id="member-name" {...register("name")} placeholder="เช่น สมหญิง ใจดี" />
-        {errors.name && <p className="text-xs text-rose">{errors.name.message}</p>}
+        {errors.name && <p className="text-pretty text-xs text-rose">{errors.name.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="member-phone">เบอร์โทร</Label>
         <Input id="member-phone" {...register("phone")} placeholder="0812345678" />
-        {errors.phone && <p className="text-xs text-rose">{errors.phone.message}</p>}
+        {errors.phone && <p className="text-pretty text-xs text-rose">{errors.phone.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="member-note">บันทึก (ไม่บังคับ)</Label>
         <Textarea id="member-note" {...register("note")} rows={2} />
-        {errors.note && <p className="text-xs text-rose">{errors.note.message}</p>}
+        {errors.note && <p className="text-pretty text-xs text-rose">{errors.note.message}</p>}
       </div>
 
       {duplicateConflict && (
         <div className="rounded-DEFAULT bg-brass-tint px-3 py-2.5 text-sm text-brass">
-          <p className="mb-2">{duplicateConflict.message}</p>
+          <p className="text-pretty mb-2">{duplicateConflict.message}</p>
           <Button
             type="button"
             variant="secondary"
@@ -106,7 +106,7 @@ export function MemberForm({
       )}
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

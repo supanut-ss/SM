@@ -51,12 +51,12 @@ export function CouponSection({ branchId, promotionId }: { branchId: string; pro
           </Button>
         )}
       </div>
-      <p className="text-xs text-ink-muted">
+      <p className="text-pretty text-xs text-ink-muted">
         ถ้าโปรฯ นี้มีคูปองอย่างน้อย 1 ใบ จะใช้ได้เฉพาะตอนกรอกรหัสคูปองที่ตรงเท่านั้น (ไม่ใช่โปรฯ อัตโนมัติอีกต่อไป)
       </p>
 
       {error && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {error}
         </p>
       )}
@@ -93,7 +93,7 @@ export function CouponSection({ branchId, promotionId }: { branchId: string; pro
         <Skeleton className="h-4 w-24" role="status" aria-label="กำลังโหลด" />
       )}
       {couponsQuery.isSuccess && couponsQuery.data.length === 0 && (
-        <p className="text-xs text-ink-muted">ยังไม่มีคูปองผูกกับโปรฯ นี้ (ใช้ได้อัตโนมัติถ้าเข้าเงื่อนไข)</p>
+        <p className="text-pretty text-xs text-ink-muted">ยังไม่มีคูปองผูกกับโปรฯ นี้ (ใช้ได้อัตโนมัติถ้าเข้าเงื่อนไข)</p>
       )}
 
       <div className="grid gap-2">

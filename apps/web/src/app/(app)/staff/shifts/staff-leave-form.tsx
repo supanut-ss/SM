@@ -59,7 +59,7 @@ export function StaffLeaveForm({
             </option>
           ))}
         </Select>
-        {errors.staffId && <p className="text-xs text-rose">{errors.staffId.message}</p>}
+        {errors.staffId && <p className="text-pretty text-xs text-rose">{errors.staffId.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
@@ -90,7 +90,7 @@ export function StaffLeaveForm({
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

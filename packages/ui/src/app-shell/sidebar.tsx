@@ -20,7 +20,7 @@ export function SidebarGroup({ label, collapsed, children }: SidebarGroupProps) 
   return (
     <div className="flex flex-col gap-0.5">
       {!collapsed && (
-        <span className="px-2.5 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-ink-faint">
+        <span className="px-2.5 pb-1 text-[10.5px] font-semibold uppercase text-ink-faint">
           {label}
         </span>
       )}

@@ -9,8 +9,8 @@ import { formatSatang } from "../../../lib/format-money";
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-DEFAULT bg-surface-sunk p-3">
-      <p className="text-xs text-ink-muted">{label}</p>
-      <p className="mt-1 font-data text-lg tabular-nums text-ink">{value}</p>
+      <p className="text-pretty text-xs text-ink-muted">{label}</p>
+      <p className="text-pretty mt-1 font-data text-lg tabular-nums text-ink">{value}</p>
     </div>
   );
 }
@@ -36,7 +36,7 @@ export function KpiSection({ branchId }: { branchId: string }) {
   return (
     <section aria-label="KPI วันนี้" className="rounded-DEFAULT border border-line-strong bg-surface p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold text-ink">KPI วันนี้</h2>
+        <h2 className="text-balance font-display text-lg font-semibold text-ink">KPI วันนี้</h2>
         <Link href="/billing">
           <Button variant="ghost" size="sm">
             ดูบิลวันนี้ →

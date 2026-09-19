@@ -131,7 +131,7 @@ export function RoomPageClient() {
   if (!branch) {
     return (
       <div className="p-8">
-        <p className="rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
@@ -142,8 +142,8 @@ export function RoomPageClient() {
     <div className="p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink">ห้อง/เตียง</h1>
-          <p className="mt-1 text-sm text-ink-muted">รายชื่อห้อง/เตียงให้บริการของสาขา {branch.branchName}</p>
+          <h1 className="text-balance font-display text-2xl font-semibold text-ink">ห้อง/เตียง</h1>
+          <p className="text-pretty mt-1 text-sm text-ink-muted">รายชื่อห้อง/เตียงให้บริการของสาขา {branch.branchName}</p>
         </div>
         {canManage && (
           <Button className="hidden md:inline-flex" onClick={() => setSheetTarget("create")}>

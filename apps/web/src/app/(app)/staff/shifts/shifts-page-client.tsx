@@ -138,7 +138,7 @@ export function ShiftsPageClient() {
   if (!branch) {
     return (
       <div className="p-8">
-        <p className="rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
@@ -149,8 +149,8 @@ export function ShiftsPageClient() {
     <div className="p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink">ตารางกะ</h1>
-          <p className="mt-1 text-sm text-ink-muted">ตารางกะรายสัปดาห์ของสาขา {branch.branchName}</p>
+          <h1 className="text-balance font-display text-2xl font-semibold text-ink">ตารางกะ</h1>
+          <p className="text-pretty mt-1 text-sm text-ink-muted">ตารางกะรายสัปดาห์ของสาขา {branch.branchName}</p>
         </div>
         {canManage && (
           <Button variant="secondary" onClick={() => setActiveSheet({ type: "templates", formTarget: null })}>
@@ -202,7 +202,7 @@ export function ShiftsPageClient() {
       )}
 
       {assignError && (
-        <p role="alert" className="mb-4 rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
+        <p role="alert" className="text-pretty mb-4 rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
           {assignError}
         </p>
       )}
@@ -456,7 +456,7 @@ export function ShiftsPageClient() {
               </Button>
             )}
             {(templatesQuery.data ?? []).length === 0 && (
-              <p className="text-sm text-ink-muted">ยังไม่มีแม่แบบกะในสาขานี้</p>
+              <p className="text-pretty text-sm text-ink-muted">ยังไม่มีแม่แบบกะในสาขานี้</p>
             )}
             {(templatesQuery.data ?? []).map((template) => (
               <div
@@ -464,8 +464,8 @@ export function ShiftsPageClient() {
                 className="flex items-center justify-between rounded-DEFAULT border border-line p-3"
               >
                 <div>
-                  <p className="text-sm font-medium text-ink">{template.name}</p>
-                  <p className="font-data tabular-nums text-xs text-ink-muted">
+                  <p className="text-pretty text-sm font-medium text-ink">{template.name}</p>
+                  <p className="text-pretty font-data tabular-nums text-xs text-ink-muted">
                     {minToTimeString(template.startMin)}-{minToTimeString(template.endMin)}
                   </p>
                   <span

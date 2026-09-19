@@ -87,7 +87,7 @@ export function MemberConsentSection({ branchId, memberId }: { branchId: string;
           <div key={type} className="rounded-DEFAULT border border-line p-3">
             <div className="flex items-center justify-between gap-3">
               <div className="grid gap-1">
-                <p className="text-sm text-ink">{CONSENT_TYPE_LABEL[type]}</p>
+                <p className="text-pretty text-sm text-ink">{CONSENT_TYPE_LABEL[type]}</p>
                 <span
                   className={
                     granted
@@ -140,7 +140,7 @@ export function MemberConsentSection({ branchId, memberId }: { branchId: string;
                       placeholder="v1"
                     />
                     {formErrors.textVersion && (
-                      <p className="text-xs text-rose">{formErrors.textVersion.message}</p>
+                      <p className="text-pretty text-xs text-rose">{formErrors.textVersion.message}</p>
                     )}
                   </div>
                 </div>
@@ -163,7 +163,7 @@ export function MemberConsentSection({ branchId, memberId }: { branchId: string;
       })}
 
       {error && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {error}
         </p>
       )}

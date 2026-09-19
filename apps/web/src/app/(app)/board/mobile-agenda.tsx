@@ -113,7 +113,7 @@ export function MobileAgenda({
       {/* timeline แนวตั้งของแถวที่เลือก */}
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {activeItems.length === 0 && (
-          <p className="pt-6 text-center text-sm text-ink-muted">ยังไม่มีนัดของ{rows.find((r) => r.id === activeRowId)?.label ?? "คนนี้"}วันนี้</p>
+          <p className="text-pretty pt-6 text-center text-sm text-ink-muted">ยังไม่มีนัดของ{rows.find((r) => r.id === activeRowId)?.label ?? "คนนี้"}วันนี้</p>
         )}
         <div className="flex flex-col gap-3">
           {activeItems.map((item) => {

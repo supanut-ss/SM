@@ -54,7 +54,7 @@ export function CommandPalette({ open, onOpen, onClose, items, onNavigate }: Com
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-ink/35 pt-[14vh] backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-ink/35 pt-[14vh]"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -97,7 +97,7 @@ export function CommandPalette({ open, onOpen, onClose, items, onNavigate }: Com
         </form>
         <div className="overflow-y-auto p-2">
           {filtered.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-ink-muted">ไม่พบเมนูที่ตรงกับ &quot;{query}&quot;</p>
+            <p className="text-pretty px-3 py-6 text-center text-sm text-ink-muted">ไม่พบเมนูที่ตรงกับ &quot;{query}&quot;</p>
           )}
           {filtered.map((item) => (
             <button

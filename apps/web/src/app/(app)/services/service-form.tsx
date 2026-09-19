@@ -68,7 +68,7 @@ export function ServiceForm({
       <div className="grid gap-1.5">
         <Label htmlFor="service-category">หมวดบริการ</Label>
         {categories.length === 0 ? (
-          <p className="text-xs text-brass">
+          <p className="text-pretty text-xs text-brass">
             สาขานี้ยังไม่มีหมวดบริการเลย — ติดต่อผู้ดูแลระบบเพื่อเพิ่มหมวดบริการก่อน
           </p>
         ) : (
@@ -83,19 +83,19 @@ export function ServiceForm({
             ))}
           </Select>
         )}
-        {errors.categoryId && <p className="text-xs text-rose">{errors.categoryId.message}</p>}
+        {errors.categoryId && <p className="text-pretty text-xs text-rose">{errors.categoryId.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="service-name">ชื่อบริการ</Label>
         <Input id="service-name" {...register("name")} placeholder="เช่น นวดไทย" />
-        {errors.name && <p className="text-xs text-rose">{errors.name.message}</p>}
+        {errors.name && <p className="text-pretty text-xs text-rose">{errors.name.message}</p>}
       </div>
 
       <div className="grid gap-1.5">
         <Label htmlFor="service-description">คำอธิบาย (ไม่บังคับ)</Label>
         <Textarea id="service-description" {...register("description")} rows={2} />
-        {errors.description && <p className="text-xs text-rose">{errors.description.message}</p>}
+        {errors.description && <p className="text-pretty text-xs text-rose">{errors.description.message}</p>}
       </div>
 
       <div className="grid gap-3 border-t border-line pt-4">
@@ -110,7 +110,7 @@ export function ServiceForm({
             + เพิ่มตัวเลือกเวลา
           </Button>
         </div>
-        {variantsRootError && <p className="text-xs text-rose">{variantsRootError}</p>}
+        {variantsRootError && <p className="text-pretty text-xs text-rose">{variantsRootError}</p>}
 
         {fields.map((field, index) => {
           const variantErrors = errors.variants?.[index];
@@ -142,7 +142,7 @@ export function ServiceForm({
                     {...register(`variants.${index}.durationMin`)}
                   />
                   {variantErrors?.durationMin && (
-                    <p className="text-xs text-rose">{variantErrors.durationMin.message}</p>
+                    <p className="text-pretty text-xs text-rose">{variantErrors.durationMin.message}</p>
                   )}
                 </div>
                 <div className="grid gap-1.5">
@@ -155,7 +155,7 @@ export function ServiceForm({
                     {...register(`variants.${index}.priceBaht`)}
                   />
                   {variantErrors?.priceBaht && (
-                    <p className="text-xs text-rose">{variantErrors.priceBaht.message}</p>
+                    <p className="text-pretty text-xs text-rose">{variantErrors.priceBaht.message}</p>
                   )}
                 </div>
               </div>
@@ -248,7 +248,7 @@ export function ServiceForm({
               <div className="grid gap-1.5">
                 <Label htmlFor={`variant-${index}-room-type`}>ประเภทห้องที่ต้องใช้</Label>
                 {roomTypes.length === 0 ? (
-                  <p className="text-xs text-brass">สาขานี้ยังไม่มีประเภทห้องเลย</p>
+                  <p className="text-pretty text-xs text-brass">สาขานี้ยังไม่มีประเภทห้องเลย</p>
                 ) : (
                   <Select
                     id={`variant-${index}-room-type`}
@@ -266,7 +266,7 @@ export function ServiceForm({
                   </Select>
                 )}
                 {variantErrors?.requiredRoomTypeId && (
-                  <p className="text-xs text-rose">{variantErrors.requiredRoomTypeId.message}</p>
+                  <p className="text-pretty text-xs text-rose">{variantErrors.requiredRoomTypeId.message}</p>
                 )}
               </div>
             </div>
@@ -275,7 +275,7 @@ export function ServiceForm({
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

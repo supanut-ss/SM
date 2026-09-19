@@ -105,7 +105,7 @@ export function PromotionForm({
           onChange={(event) => setValues({ ...values, name: event.target.value })}
           placeholder="เช่น ลด 20% วันธรรมดา"
         />
-        {fieldErrors.name && <p className="text-xs text-rose">{fieldErrors.name}</p>}
+        {fieldErrors.name && <p className="text-pretty text-xs text-rose">{fieldErrors.name}</p>}
       </div>
 
       {values.type === "PERCENT_OFF" && (
@@ -120,7 +120,7 @@ export function PromotionForm({
             value={values.percentOff}
             onChange={(event) => setValues({ ...values, percentOff: Number(event.target.value) })}
           />
-          {fieldErrors.percentOff && <p className="text-xs text-rose">{fieldErrors.percentOff}</p>}
+          {fieldErrors.percentOff && <p className="text-pretty text-xs text-rose">{fieldErrors.percentOff}</p>}
         </div>
       )}
       {values.type === "AMOUNT_OFF" && (
@@ -134,7 +134,7 @@ export function PromotionForm({
             value={values.amountOffBaht}
             onChange={(event) => setValues({ ...values, amountOffBaht: Number(event.target.value) })}
           />
-          {fieldErrors.amountOffBaht && <p className="text-xs text-rose">{fieldErrors.amountOffBaht}</p>}
+          {fieldErrors.amountOffBaht && <p className="text-pretty text-xs text-rose">{fieldErrors.amountOffBaht}</p>}
         </div>
       )}
       {values.type === "FIXED_PRICE" && (
@@ -148,8 +148,8 @@ export function PromotionForm({
             value={values.fixedPriceBaht}
             onChange={(event) => setValues({ ...values, fixedPriceBaht: Number(event.target.value) })}
           />
-          <p className="text-xs text-ink-muted">ใช้ได้กับรายการเดียวในตะกร้าเท่านั้น</p>
-          {fieldErrors.fixedPriceBaht && <p className="text-xs text-rose">{fieldErrors.fixedPriceBaht}</p>}
+          <p className="text-pretty text-xs text-ink-muted">ใช้ได้กับรายการเดียวในตะกร้าเท่านั้น</p>
+          {fieldErrors.fixedPriceBaht && <p className="text-pretty text-xs text-rose">{fieldErrors.fixedPriceBaht}</p>}
         </div>
       )}
       {values.type === "BUY_X_GET_Y" && (
@@ -189,7 +189,7 @@ export function PromotionForm({
             value={values.bonusMinutes}
             onChange={(event) => setValues({ ...values, bonusMinutes: Number(event.target.value) })}
           />
-          <p className="text-xs text-ink-muted">ไม่ใช่ส่วนลดเป็นเงิน — มักแพ้โปรฯ อื่นที่ลดเป็นเงินถ้าเข้าเงื่อนไขพร้อมกัน</p>
+          <p className="text-pretty text-xs text-ink-muted">ไม่ใช่ส่วนลดเป็นเงิน — มักแพ้โปรฯ อื่นที่ลดเป็นเงินถ้าเข้าเงื่อนไขพร้อมกัน</p>
         </div>
       )}
 
@@ -340,7 +340,7 @@ export function PromotionForm({
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {formError}
         </p>
       )}

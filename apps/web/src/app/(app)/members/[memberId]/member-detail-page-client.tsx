@@ -68,7 +68,7 @@ export function MemberDetailPageClient({ memberId }: { memberId: string }) {
   if (!branch) {
     return (
       <div className="p-8">
-        <p className="rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
@@ -94,7 +94,7 @@ export function MemberDetailPageClient({ memberId }: { memberId: string }) {
 
       {memberQuery.isError && memberQuery.error instanceof ApiError && memberQuery.error.status === 404 && (
         <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-sm text-ink-muted">ไม่พบสมาชิกนี้ — อาจถูกลบหรือรหัสไม่ถูกต้อง</p>
+          <p className="text-pretty text-sm text-ink-muted">ไม่พบสมาชิกนี้ — อาจถูกลบหรือรหัสไม่ถูกต้อง</p>
           <Link
             href="/members"
             className="mt-4 inline-flex text-sm font-medium text-celadon hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
@@ -118,7 +118,7 @@ export function MemberDetailPageClient({ memberId }: { memberId: string }) {
           <div className="flex items-start justify-between gap-4 border-b border-line pb-4">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="font-display text-2xl font-semibold text-ink">{member.name}</h1>
+                <h1 className="text-balance font-display text-2xl font-semibold text-ink">{member.name}</h1>
                 <span
                   className={
                     member.mergedIntoId
@@ -131,10 +131,10 @@ export function MemberDetailPageClient({ memberId }: { memberId: string }) {
                   {member.mergedIntoId ? "รวมเข้าสมาชิกอื่นแล้ว" : member.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}
                 </span>
               </div>
-              <p className="mt-1 font-data text-sm tabular-nums text-ink-muted">
+              <p className="text-pretty mt-1 font-data text-sm tabular-nums text-ink-muted">
                 {member.code} · {member.phone}
               </p>
-              {member.note && <p className="mt-2 text-sm text-ink-muted">{member.note}</p>}
+              {member.note && <p className="text-pretty mt-2 text-sm text-ink-muted">{member.note}</p>}
             </div>
             {canManage && <Button onClick={() => setEditOpen(true)}>แก้ไขข้อมูล</Button>}
           </div>
@@ -143,7 +143,7 @@ export function MemberDetailPageClient({ memberId }: { memberId: string }) {
           <MemberPackageSection branchId={branch.branchId} memberId={member.id} />
 
           <section aria-label="ประวัติการซื้อ" className="grid gap-3">
-            <h2 className="font-display text-lg font-semibold text-ink">ประวัติการซื้อ</h2>
+            <h2 className="text-balance font-display text-lg font-semibold text-ink">ประวัติการซื้อ</h2>
 
             {billsQuery.isLoading && (
               <SkeletonGroup label="กำลังโหลดประวัติการซื้อ">
@@ -166,7 +166,7 @@ export function MemberDetailPageClient({ memberId }: { memberId: string }) {
 
             {billsQuery.isSuccess && billsQuery.data.length === 0 && (
               <div className="rounded-lg border border-dashed border-line-strong p-6 text-center">
-                <p className="text-sm text-ink-muted">สมาชิกคนนี้ยังไม่มีประวัติการซื้อ</p>
+                <p className="text-pretty text-sm text-ink-muted">สมาชิกคนนี้ยังไม่มีประวัติการซื้อ</p>
               </div>
             )}
 

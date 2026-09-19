@@ -183,7 +183,7 @@ export function ServicePageClient() {
   if (!branch) {
     return (
       <div className="p-8">
-        <p className="rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
@@ -194,8 +194,8 @@ export function ServicePageClient() {
     <div className="p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink">บริการ</h1>
-          <p className="mt-1 text-sm text-ink-muted">รายชื่อบริการและตัวเลือกเวลาของสาขา {branch.branchName}</p>
+          <h1 className="text-balance font-display text-2xl font-semibold text-ink">บริการ</h1>
+          <p className="text-pretty mt-1 text-sm text-ink-muted">รายชื่อบริการและตัวเลือกเวลาของสาขา {branch.branchName}</p>
         </div>
         {canManage && (
           <Button className="hidden md:inline-flex" onClick={() => setCreateOpen(true)}>
@@ -376,15 +376,15 @@ export function ServicePageClient() {
                   <div key={variant.id} className="rounded-DEFAULT border border-line p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="grid gap-1 text-sm">
-                        <p className="font-data tabular-nums text-ink">
+                        <p className="text-pretty font-data tabular-nums text-ink">
                           {variant.durationMin} นาที — {formatSatang(variant.priceSatang)}
                         </p>
-                        <p className="text-xs text-ink-muted">
+                        <p className="text-pretty text-xs text-ink-muted">
                           ค่ามือ: จูเนียร์ {formatSatang(variant.commissionJuniorSatang)} · ซีเนียร์{" "}
                           {formatSatang(variant.commissionSeniorSatang)} · มาสเตอร์{" "}
                           {formatSatang(variant.commissionMasterSatang)}
                         </p>
-                        <p className="text-xs text-ink-muted">
+                        <p className="text-pretty text-xs text-ink-muted">
                           ทักษะ: {STAFF_SKILL_LABEL[variant.requiredSkill]} · ห้อง:{" "}
                           {roomTypeNameById.get(variant.requiredRoomTypeId) ?? "-"}
                           {(variant.bufferBeforeMin > 0 || variant.bufferAfterMin > 0) &&

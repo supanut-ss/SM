@@ -185,7 +185,7 @@ export function AttendancePageClient() {
   if (!branch) {
     return (
       <div className="p-8">
-        <p className="rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
@@ -196,8 +196,8 @@ export function AttendancePageClient() {
     <div className="p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink">ลงเวลาเข้า-ออกงาน</h1>
-          <p className="mt-1 text-sm text-ink-muted">
+          <h1 className="text-balance font-display text-2xl font-semibold text-ink">ลงเวลาเข้า-ออกงาน</h1>
+          <p className="text-pretty mt-1 text-sm text-ink-muted">
             รายชื่อพนักงานทำงานวันนี้ของสาขา {branch.branchName} — แคชเชียร์/ผู้จัดการลงเวลาแทนพนักงานได้เลย ไม่ต้องใช้ PIN
           </p>
         </div>
@@ -295,7 +295,7 @@ export function AttendancePageClient() {
       )}
 
       {(clockInMutation.isError || clockOutMutation.isError) && (
-        <p role="alert" className="mt-4 rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+        <p role="alert" className="text-pretty mt-4 rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
           {clockInMutation.error instanceof ApiError
             ? clockInMutation.error.message
             : clockOutMutation.error instanceof ApiError

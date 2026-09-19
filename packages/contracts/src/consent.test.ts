@@ -35,7 +35,7 @@ describe("createMemberConsentSchema", () => {
   });
 
   it("rejects a missing textVersion", () => {
-    const { textVersion, ...rest } = base;
+    const { textVersion: _textVersion, ...rest } = base;
     const result = createMemberConsentSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });

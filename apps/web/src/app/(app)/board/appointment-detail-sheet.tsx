@@ -158,7 +158,7 @@ export function AppointmentDetailSheet({
               </div>
 
               {errorMessage && (
-                <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+                <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
                   {errorMessage}
                 </p>
               )}
@@ -181,7 +181,7 @@ export function AppointmentDetailSheet({
                     ))}
                   </Select>
                   {!memberId && (
-                    <p className="text-xs text-ink-faint">นัดนี้ไม่มีสมาชิกผูกอยู่ จ่ายด้วยคอร์สไม่ได้</p>
+                    <p className="text-pretty text-xs text-ink-faint">นัดนี้ไม่มีสมาชิกผูกอยู่ จ่ายด้วยคอร์สไม่ได้</p>
                   )}
 
                   {paymentMethod === "PACKAGE" && (
@@ -190,7 +190,7 @@ export function AppointmentDetailSheet({
                         <Skeleton className="h-8 w-full" role="status" aria-label="กำลังโหลดคอร์สของสมาชิก" />
                       )}
                       {memberPackagesQuery.isError && (
-                        <p className="text-xs text-rose">
+                        <p className="text-pretty text-xs text-rose">
                           โหลดคอร์สของสมาชิกไม่สำเร็จ —{" "}
                           <button
                             type="button"
@@ -202,7 +202,7 @@ export function AppointmentDetailSheet({
                         </p>
                       )}
                       {memberPackagesQuery.isSuccess && eligiblePackages.length === 0 && (
-                        <p className="text-xs text-brass">สมาชิกคนนี้ไม่มีคอร์สที่ใช้กับบริการนี้ได้</p>
+                        <p className="text-pretty text-xs text-brass">สมาชิกคนนี้ไม่มีคอร์สที่ใช้กับบริการนี้ได้</p>
                       )}
                       {memberPackagesQuery.isSuccess && eligiblePackages.length > 0 && (
                         <Select

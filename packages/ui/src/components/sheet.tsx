@@ -96,7 +96,7 @@ export function Sheet({ open, onClose, title, description, children }: SheetProp
           // จอ < md: เลื่อนจากล่าง สูง 92dvh มุมบนโค้ง (docs/DESIGN.md §9.3) — จอ ≥ md: เลื่อนจากขวาเหมือนเดิม
           "fixed inset-x-0 bottom-0 flex h-[92dvh] w-full flex-col overflow-hidden rounded-t-lg border-t border-line bg-surface shadow-pop",
           "md:inset-y-0 md:right-0 md:bottom-auto md:left-auto md:h-full md:w-full md:max-w-md md:rounded-t-none md:border-l md:border-t-0",
-          "transition-transform ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none focus:outline-none",
+          "transition-transform duration-200 ease-out motion-reduce:transition-none focus:outline-none",
           open ? "translate-x-0 translate-y-0" : "translate-y-full md:translate-y-0 md:translate-x-full",
         )}
         style={{
@@ -116,10 +116,10 @@ export function Sheet({ open, onClose, title, description, children }: SheetProp
         </div>
         <div className="flex shrink-0 items-start justify-between border-b border-line px-6 py-4">
           <div>
-            <h2 id="sheet-title" className="font-display text-lg font-semibold text-ink">
+            <h2 id="sheet-title" className="text-balance font-display text-lg font-semibold text-ink">
               {title}
             </h2>
-            {description && <p className="mt-1 text-sm text-ink-muted">{description}</p>}
+            {description && <p className="text-pretty mt-1 text-sm text-ink-muted">{description}</p>}
           </div>
           <button
             type="button"

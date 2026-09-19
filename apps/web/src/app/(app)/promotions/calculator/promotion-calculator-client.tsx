@@ -88,7 +88,7 @@ export function PromotionCalculatorClient() {
   if (!branch) {
     return (
       <div className="p-8">
-        <p className="rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
@@ -102,8 +102,8 @@ export function PromotionCalculatorClient() {
           <Link href="/promotions" className="text-sm text-ink-muted underline-offset-2 hover:underline">
             ← กลับไปหน้าโปรโมชั่น
           </Link>
-          <h1 className="mt-2 font-display text-2xl font-semibold text-ink">ทดลองคำนวณโปรโมชั่น</h1>
-          <p className="mt-1 text-sm text-ink-muted">
+          <h1 className="text-balance mt-2 font-display text-2xl font-semibold text-ink">ทดลองคำนวณโปรโมชั่น</h1>
+          <p className="text-pretty mt-1 text-sm text-ink-muted">
             ใส่ตะกร้าจำลองแล้วดูว่าโปรฯ ไหนจับ ลดเท่าไร เพราะอะไร — ไม่มีการบันทึกอะไรลงระบบจริง
           </p>
         </div>
@@ -117,10 +117,10 @@ export function PromotionCalculatorClient() {
           </div>
 
           {allVariants.length === 0 && (
-            <p className="text-xs text-brass">สาขานี้ยังไม่มีบริการที่เปิดขายเลย — เพิ่มบริการก่อน</p>
+            <p className="text-pretty text-xs text-brass">สาขานี้ยังไม่มีบริการที่เปิดขายเลย — เพิ่มบริการก่อน</p>
           )}
           {cart.length === 0 && allVariants.length > 0 && (
-            <p className="text-xs text-ink-muted">ยังไม่มีรายการในตะกร้าจำลอง</p>
+            <p className="text-pretty text-xs text-ink-muted">ยังไม่มีรายการในตะกร้าจำลอง</p>
           )}
 
           {cart.map((line, index) => (
@@ -225,7 +225,7 @@ export function PromotionCalculatorClient() {
         </div>
 
         {error && (
-          <p role="alert" className="rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+          <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
             {error}
           </p>
         )}
@@ -241,26 +241,26 @@ export function PromotionCalculatorClient() {
       <div className="grid gap-4">
         <span className="text-sm font-medium text-ink">ผลลัพธ์</span>
 
-        {!result && <p className="text-sm text-ink-muted">กรอกตะกร้าจำลองแล้วกดคำนวณเพื่อดูผล</p>}
+        {!result && <p className="text-pretty text-sm text-ink-muted">กรอกตะกร้าจำลองแล้วกดคำนวณเพื่อดูผล</p>}
 
         {result && (
           <div className="grid gap-4">
             {result.couponError && (
-              <p className="rounded-DEFAULT bg-brass-tint px-3 py-2 text-sm text-brass">{result.couponError}</p>
+              <p className="text-pretty rounded-DEFAULT bg-brass-tint px-3 py-2 text-sm text-brass">{result.couponError}</p>
             )}
 
             {result.applied ? (
               <div className="rounded-DEFAULT border border-celadon bg-celadon-tint p-4">
-                <p className="text-xs font-medium text-celadon">โปรฯ ที่ระบบเลือกให้</p>
-                <p className="mt-1 text-lg font-semibold text-ink">{result.applied.promotionName}</p>
-                <p className="font-data tabular-nums text-sm text-ink">
+                <p className="text-pretty text-xs font-medium text-celadon">โปรฯ ที่ระบบเลือกให้</p>
+                <p className="text-pretty mt-1 text-lg font-semibold text-ink">{result.applied.promotionName}</p>
+                <p className="text-pretty font-data tabular-nums text-sm text-ink">
                   {result.applied.discountSatang > 0 && `ลด ${formatSatang(result.applied.discountSatang)}`}
                   {result.applied.bonusMinutes > 0 && `แถม ${result.applied.bonusMinutes} นาที`}
                 </p>
-                <p className="mt-1 text-xs text-ink-muted">{result.applied.reason}</p>
+                <p className="text-pretty mt-1 text-xs text-ink-muted">{result.applied.reason}</p>
               </div>
             ) : (
-              <p className="rounded-DEFAULT border border-dashed border-line-strong p-4 text-sm text-ink-muted">
+              <p className="text-pretty rounded-DEFAULT border border-dashed border-line-strong p-4 text-sm text-ink-muted">
                 ไม่มีโปรโมชั่นที่ใช้ได้กับตะกร้านี้
               </p>
             )}
@@ -270,8 +270,8 @@ export function PromotionCalculatorClient() {
                 <span className="text-xs font-medium text-ink-muted">โปรฯ ที่ไม่ถูกเลือก (เพราะอะไร)</span>
                 {result.rejected.map((r) => (
                   <div key={r.promotionId} className="rounded-DEFAULT border border-line p-3">
-                    <p className="text-sm text-ink">{r.promotionName}</p>
-                    <p className="text-xs text-ink-muted">{r.reason}</p>
+                    <p className="text-pretty text-sm text-ink">{r.promotionName}</p>
+                    <p className="text-pretty text-xs text-ink-muted">{r.reason}</p>
                   </div>
                 ))}
               </div>

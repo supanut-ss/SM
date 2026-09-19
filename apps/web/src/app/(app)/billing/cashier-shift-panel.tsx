@@ -84,15 +84,15 @@ export function CashierShiftPanel({ branchId }: { branchId: string }) {
     <div className="mb-6 rounded-DEFAULT border border-line-strong bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink">รอบกะแคชเชียร์</h2>
+          <h2 className="text-balance text-sm font-semibold text-ink">รอบกะแคชเชียร์</h2>
           {currentQuery.isLoading && (
             <Skeleton className="h-4 w-32" role="status" aria-label="กำลังโหลด" />
           )}
           {currentQuery.isSuccess && current === null && (
-            <p className="text-xs text-ink-muted">ยังไม่มีรอบกะเปิดอยู่</p>
+            <p className="text-pretty text-xs text-ink-muted">ยังไม่มีรอบกะเปิดอยู่</p>
           )}
           {current && (
-            <p className="text-xs text-celadon">เปิดรอบกะอยู่ — เปิดเมื่อ {formatDateTime(current.openedAt)}</p>
+            <p className="text-pretty text-xs text-celadon">เปิดรอบกะอยู่ — เปิดเมื่อ {formatDateTime(current.openedAt)}</p>
           )}
         </div>
         <div className="flex gap-2">
@@ -156,7 +156,7 @@ export function CashierShiftPanel({ branchId }: { branchId: string }) {
             </Button>
           </div>
           {closeError && (
-            <p role="alert" className="col-span-full rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+            <p role="alert" className="text-pretty col-span-full rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
               {closeError}
             </p>
           )}

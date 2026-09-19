@@ -13,8 +13,8 @@ export function EmptyState({ title, description, action, className, ...props }: 
       className={cn("rounded-lg border border-dashed border-line-strong p-8 text-center", className)}
       {...props}
     >
-      <p className="text-sm text-ink-muted">{title}</p>
-      {description && <p className="mt-1 text-xs text-ink-faint">{description}</p>}
+      <p className="text-pretty text-sm text-ink-muted">{title}</p>
+      {description && <p className="text-pretty mt-1 text-xs text-ink-faint">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );

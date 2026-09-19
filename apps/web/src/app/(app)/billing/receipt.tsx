@@ -64,8 +64,8 @@ export function Receipt({ bill, onClose }: { bill: Bill; onClose: () => void }) 
         className="mx-auto grid gap-2 rounded-DEFAULT border border-line bg-surface p-4 font-data text-xs text-ink print:border-none print:p-0"
         style={{ width: paperWidth === "58" ? "58mm" : "80mm" }}
       >
-        <p className="text-center font-display text-sm font-semibold">Lotus Desk</p>
-        <p className="text-center text-ink-muted">ใบเสร็จรับเงิน</p>
+        <p className="text-pretty text-center font-display text-sm font-semibold">Lotus Desk</p>
+        <p className="text-pretty text-center text-ink-muted">ใบเสร็จรับเงิน</p>
         <div className="flex justify-between">
           <span>เลขที่บิล</span>
           <span>{bill.billNumber}</span>
@@ -76,7 +76,7 @@ export function Receipt({ bill, onClose }: { bill: Bill; onClose: () => void }) 
         </div>
 
         {bill.status === "CANCELLED" && (
-          <p className="text-center font-semibold text-rose">** บิลนี้ถูกยกเลิกแล้ว **</p>
+          <p className="text-pretty text-center font-semibold text-rose">** บิลนี้ถูกยกเลิกแล้ว **</p>
         )}
 
         <div className="grid gap-1 border-t border-dashed border-line-strong pt-2">
@@ -123,7 +123,7 @@ export function Receipt({ bill, onClose }: { bill: Bill; onClose: () => void }) 
           )}
         </div>
 
-        <p className="mt-2 text-center text-ink-muted">ขอบคุณที่ใช้บริการ</p>
+        <p className="text-pretty mt-2 text-center text-ink-muted">ขอบคุณที่ใช้บริการ</p>
       </div>
 
       <style>{`
