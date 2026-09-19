@@ -16,8 +16,8 @@ const buttonVariants = cva(
         destructive: "bg-rose-solid text-white hover:brightness-110",
       },
       size: {
-        sm: "h-8 px-3",
-        md: "h-9 px-4",
+        sm: "h-11 px-3 lg:h-8",
+        md: "h-11 px-4 lg:h-9",
         lg: "h-11 px-5 text-base",
       },
     },

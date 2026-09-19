@@ -20,7 +20,8 @@ function formatDateThai(iso: string): string {
 
 function formatBalance(pkg: ExpiringCoursePackage): string {
   if (pkg.type === "SESSION_COUNT") return `เหลือ ${pkg.balance} / ${pkg.sessionCount} ครั้ง`;
-  if (pkg.type === "VALUE") return `เหลือ ${formatSatang(pkg.balance)} / ${formatSatang(pkg.valueSatang ?? 0)}`;
+  if (pkg.type === "VALUE")
+    return `เหลือ ${formatSatang(pkg.balance)} / ${formatSatang(pkg.valueSatang ?? 0)}`;
   return "ไม่จำกัดจำนวนครั้ง";
 }
 
@@ -36,8 +37,13 @@ export function ExpiringCoursesSection({ branchId }: { branchId: string }) {
   const [now] = useState(() => Date.now());
 
   return (
-    <section aria-label="คอร์สใกล้หมดอายุ" className="rounded-DEFAULT border border-line-strong bg-surface p-4">
-      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">คอร์สใกล้หมดอายุ</h2>
+    <section
+      aria-label="คอร์สใกล้หมดอายุ"
+      className="rounded-DEFAULT border border-line-strong bg-surface p-4 sm:p-5"
+    >
+      <h2 className="text-balance mb-4 font-display text-lg font-semibold text-ink">
+        คอร์สใกล้หมดอายุ
+      </h2>
 
       {query.isLoading && (
         <SkeletonGroup label="กำลังโหลดคอร์สใกล้หมดอายุ">
@@ -49,8 +55,15 @@ export function ExpiringCoursesSection({ branchId }: { branchId: string }) {
 
       {query.isError && (
         <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-          {query.error instanceof ApiError ? query.error.message : "โหลดคอร์สใกล้หมดอายุไม่สำเร็จ กรุณาลองใหม่"}
-          <Button variant="secondary" size="sm" className="ml-3" onClick={() => void query.refetch()}>
+          {query.error instanceof ApiError
+            ? query.error.message
+            : "โหลดคอร์สใกล้หมดอายุไม่สำเร็จ กรุณาลองใหม่"}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="ml-3"
+            onClick={() => void query.refetch()}
+          >
             ลองใหม่
           </Button>
         </div>
@@ -61,26 +74,30 @@ export function ExpiringCoursesSection({ branchId }: { branchId: string }) {
       )}
 
       {query.isSuccess && query.data.length > 0 && (
-        <ul className="grid gap-2">
+        <ul className="grid gap-3">
           {query.data.map((pkg) => {
             const daysLeft = Math.ceil((new Date(pkg.expiresAt).getTime() - now) / MS_PER_DAY);
             return (
               <li key={pkg.id}>
                 <Link
                   href={`/members/${pkg.memberId}`}
-                  className="flex items-center justify-between gap-3 rounded-DEFAULT border border-line-strong bg-surface px-4 py-3 transition-colors hover:bg-surface-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
+                  className="flex items-start justify-between gap-3 rounded-DEFAULT border border-line-strong bg-surface px-4 py-3 transition-colors hover:bg-surface-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
                 >
                   <div>
-                    <p className="text-pretty text-sm font-medium text-ink">
+                    <p className="text-pretty text-sm font-medium leading-6 text-ink">
                       {pkg.member.name} · {pkg.name}
                     </p>
-                    <p className="text-pretty font-data text-xs tabular-nums text-ink-muted">{formatBalance(pkg)}</p>
+                    <p className="text-pretty font-data text-xs tabular-nums text-ink-muted">
+                      {formatBalance(pkg)}
+                    </p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <p className="text-pretty text-xs font-medium text-brass">
                       {daysLeft <= 0 ? "หมดอายุวันนี้" : `เหลืออีก ${daysLeft} วัน`}
                     </p>
-                    <p className="text-pretty text-xs text-ink-faint">{formatDateThai(pkg.expiresAt)}</p>
+                    <p className="text-pretty text-xs text-ink-faint">
+                      {formatDateThai(pkg.expiresAt)}
+                    </p>
                   </div>
                 </Link>
               </li>

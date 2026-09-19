@@ -2,7 +2,18 @@
 
 import type { UseQueryResult } from "@tanstack/react-query";
 import { STAFF_LEVEL_LABEL, type StaffLevel } from "@lotus-desk/contracts";
-import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
+import {
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Skeleton,
+  SkeletonGroup,
+  EmptyState,
+} from "@lotus-desk/ui";
 import { ApiError, type StaffUtilizationReport } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 
@@ -60,9 +71,11 @@ export function StaffUtilizationSection({
   return (
     <section
       aria-label="ตารางชั่วโมงทำงานและค่ามือพนักงาน"
-      className="rounded-DEFAULT border border-line-strong bg-surface p-4 lg:col-span-2"
+      className="rounded-DEFAULT border border-line-strong bg-surface p-4 sm:p-5 lg:col-span-2"
     >
-      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">ชั่วโมงทำงานและค่ามือต่อพนักงาน</h2>
+      <h2 className="text-balance mb-4 font-display text-lg font-semibold text-ink">
+        ชั่วโมงทำงานและค่ามือต่อพนักงาน
+      </h2>
 
       {query.isLoading && (
         <SkeletonGroup label="กำลังโหลดตารางพนักงาน">
@@ -74,8 +87,15 @@ export function StaffUtilizationSection({
 
       {query.isError && (
         <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-          {query.error instanceof ApiError ? query.error.message : "โหลดตารางพนักงานไม่สำเร็จ กรุณาลองใหม่"}
-          <Button variant="secondary" size="sm" className="ml-3" onClick={() => void query.refetch()}>
+          {query.error instanceof ApiError
+            ? query.error.message
+            : "โหลดตารางพนักงานไม่สำเร็จ กรุณาลองใหม่"}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="ml-3"
+            onClick={() => void query.refetch()}
+          >
             ลองใหม่
           </Button>
         </div>

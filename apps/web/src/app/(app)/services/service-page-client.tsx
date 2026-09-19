@@ -182,7 +182,7 @@ export function ServicePageClient() {
 
   if (!branch) {
     return (
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
@@ -191,7 +191,7 @@ export function ServicePageClient() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-balance font-display text-2xl font-semibold text-ink">บริการ</h1>
@@ -213,7 +213,7 @@ export function ServicePageClient() {
           onChange={(event) => setSearchInput(event.target.value)}
           placeholder="ค้นหาชื่อบริการ..."
           aria-label="ค้นหาบริการ"
-          className="h-9 w-64 rounded-DEFAULT border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
+          className="h-11 w-64 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
         />
         <Select
           aria-label="กรองตามสถานะ"

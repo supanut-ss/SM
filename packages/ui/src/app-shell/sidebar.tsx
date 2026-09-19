@@ -54,7 +54,7 @@ export function SidebarLink({
       aria-current={active ? "page" : undefined}
       title={collapsed ? (title ?? fallbackTitle) : title}
       className={cn(
-        "flex items-center gap-2.5 rounded-DEFAULT border-l-[3px] border-transparent px-2.5 py-2 text-sm font-medium text-ink-muted transition-colors duration-150",
+        "flex min-h-11 items-center gap-2.5 rounded-DEFAULT border-l-[3px] border-transparent px-2.5 py-2 text-sm font-medium text-ink-muted transition-colors duration-150 lg:min-h-0",
         "hover:bg-surface-sunk hover:text-ink",
         active && "border-celadon-solid bg-celadon-tint text-celadon-hover",
         collapsed && "justify-center px-2",

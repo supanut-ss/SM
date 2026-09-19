@@ -41,8 +41,11 @@ export function QueueSection({ branchId }: { branchId: string }) {
   const preview = sortedQueue.slice(0, QUEUE_PREVIEW_COUNT);
 
   return (
-    <section aria-label="กระดานคิวย่อ" className="rounded-DEFAULT border border-line-strong bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section
+      aria-label="กระดานคิวย่อ"
+      className="rounded-DEFAULT border border-line-strong bg-surface p-4 sm:p-5"
+    >
+      <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-balance font-display text-lg font-semibold text-ink">กระดานคิวย่อ</h2>
         <Link href="/board">
           <Button variant="ghost" size="sm">
@@ -91,17 +94,17 @@ export function QueueSection({ branchId }: { branchId: string }) {
       )}
 
       {!isLoading && !isError && sortedQueue.length > 0 && (
-        <ol className="grid gap-1.5">
+        <ol className="grid gap-2">
           {preview.map((entry, i) => {
             const working = workingStaffIds.has(entry.staffId);
             return (
               <li
                 key={entry.id}
-                className="flex items-center justify-between gap-3 rounded-DEFAULT border border-line px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-DEFAULT border border-line px-3 py-2.5"
               >
                 <div className="flex items-center gap-2">
                   <span className="font-data w-5 tabular-nums text-ink-faint">{i + 1}</span>
-                  <span className="text-sm text-ink">{entry.staff.name}</span>
+                  <span className="text-sm leading-6 text-ink">{entry.staff.name}</span>
                 </div>
                 {working && (
                   <span className="inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon">

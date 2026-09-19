@@ -49,18 +49,32 @@ export function PaymentBreakdownSection({
   return (
     <section
       aria-label="สัดส่วนช่องทางชำระ"
-      className="rounded-DEFAULT border border-line-strong bg-surface p-4"
+      className="rounded-DEFAULT border border-line-strong bg-surface p-4 sm:p-5"
     >
-      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">สัดส่วนช่องทางชำระ</h2>
+      <h2 className="text-balance mb-4 font-display text-lg font-semibold text-ink">
+        สัดส่วนช่องทางชำระ
+      </h2>
 
       {query.isLoading && (
-        <Skeleton className="h-64" role="status" aria-busy="true" aria-label="กำลังโหลดสัดส่วนช่องทางชำระ" />
+        <Skeleton
+          className="h-64"
+          role="status"
+          aria-busy="true"
+          aria-label="กำลังโหลดสัดส่วนช่องทางชำระ"
+        />
       )}
 
       {query.isError && (
         <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-          {query.error instanceof ApiError ? query.error.message : "โหลดสัดส่วนช่องทางชำระไม่สำเร็จ กรุณาลองใหม่"}
-          <Button variant="secondary" size="sm" className="ml-3" onClick={() => void query.refetch()}>
+          {query.error instanceof ApiError
+            ? query.error.message
+            : "โหลดสัดส่วนช่องทางชำระไม่สำเร็จ กรุณาลองใหม่"}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="ml-3"
+            onClick={() => void query.refetch()}
+          >
             ลองใหม่
           </Button>
         </div>
@@ -75,10 +89,17 @@ export function PaymentBreakdownSection({
       )}
 
       {query.isSuccess && hasData && (
-        <div className="h-64 w-full">
+        <div className="h-72 w-full sm:h-64">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={2}>
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={50}
+                outerRadius={90}
+                paddingAngle={2}
+              >
                 {chartData.map((row) => (
                   <Cell key={row.method} fill={PAYMENT_METHOD_COLOR[row.method]} />
                 ))}

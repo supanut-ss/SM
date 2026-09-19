@@ -77,9 +77,10 @@ export function ReportsPageClient() {
 
   if (!branch) {
     return (
-      <div className="p-8">
-        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
-          บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
+      <div className="p-4 sm:p-6 lg:p-8">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm leading-6 text-brass">
+          บัญชีนี้ยังไม่ได้ผูกกับสาขาใด —
+          ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
     );
@@ -114,7 +115,12 @@ export function ReportsPageClient() {
         </div>
         <div>
           <Label htmlFor={`${idPrefix}-staff`}>พนักงาน</Label>
-          <Select id={`${idPrefix}-staff`} value={staffId} onChange={(e) => setStaffId(e.target.value)} className="mt-1">
+          <Select
+            id={`${idPrefix}-staff`}
+            value={staffId}
+            onChange={(e) => setStaffId(e.target.value)}
+            className="mt-1"
+          >
             <option value="">พนักงานทั้งหมด</option>
             {staffListQuery.data?.map((staff) => (
               <option key={staff.id} value={staff.id}>
@@ -128,39 +134,55 @@ export function ReportsPageClient() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-2xl">
           <h1 className="text-balance font-display text-2xl font-semibold text-ink">รายงาน</h1>
-          <p className="text-pretty mt-1 text-sm text-ink-muted">ยอดขาย ช่องทางชำระ และชั่วโมงทำงานของสาขา {branch.branchName}</p>
+          <p className="text-pretty mt-2 text-sm leading-6 text-ink-muted">
+            ยอดขาย ช่องทางชำระ และชั่วโมงทำงานของสาขา {branch.branchName}
+          </p>
         </div>
-        <Button variant="secondary" onClick={handleExportXlsx} disabled={!canExport || isExporting}>
+        <Button
+          onClick={handleExportXlsx}
+          disabled={!canExport || isExporting}
+          className="w-full sm:w-auto"
+        >
           {isExporting ? "กำลังสร้างไฟล์..." : "ส่งออก Excel"}
         </Button>
       </div>
 
       {/* จอกว้าง (>= md): ตัวกรองแบบแถวเดิม */}
-      <div className="mb-6 hidden flex-wrap items-end gap-4 rounded-DEFAULT border border-line-strong bg-surface p-4 md:flex">
+      <div className="mb-6 hidden grid-cols-3 gap-4 rounded-DEFAULT border border-line-strong bg-surface p-5 md:grid">
         {renderFilterFields("reports")}
       </div>
 
       {/* จอแคบ (< md, T10.8): พับตัวกรองเป็นปุ่มเดียว เปิด Sheet แทนแถวฟอร์มยาว */}
       <div className="mb-6 md:hidden">
-        <Button variant="secondary" onClick={() => setMobileFilterOpen(true)} className="w-full justify-between">
-          <span>
+        <Button
+          variant="secondary"
+          onClick={() => setMobileFilterOpen(true)}
+          className="w-full min-w-0 justify-between overflow-hidden"
+        >
+          <span className="min-w-0 truncate text-left">
             ตัวกรอง — {from} ถึง {to}
-            {staffId && staffListQuery.data ? ` · ${staffListQuery.data.find((s) => s.id === staffId)?.name}` : ""}
+            {staffId && staffListQuery.data
+              ? ` · ${staffListQuery.data.find((s) => s.id === staffId)?.name}`
+              : ""}
           </span>
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <RevenueChartSection query={dailySummaryQuery} />
         <PaymentBreakdownSection query={dailySummaryQuery} />
         <StaffUtilizationSection query={staffUtilizationQuery} />
       </div>
 
-      <Sheet open={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} title="ตัวกรองรายงาน">
+      <Sheet
+        open={mobileFilterOpen}
+        onClose={() => setMobileFilterOpen(false)}
+        title="ตัวกรองรายงาน"
+      >
         <div className="grid gap-4">{renderFilterFields("reports-mobile")}</div>
       </Sheet>
     </div>

@@ -40,18 +40,32 @@ export function RevenueChartSection({
   return (
     <section
       aria-label="กราฟรายได้และเงินเข้า"
-      className="rounded-DEFAULT border border-line-strong bg-surface p-4"
+      className="rounded-DEFAULT border border-line-strong bg-surface p-4 sm:p-5"
     >
-      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">รายได้รับรู้ vs เงินเข้าจริง</h2>
+      <h2 className="text-balance mb-4 font-display text-lg font-semibold text-ink">
+        รายได้รับรู้ vs เงินเข้าจริง
+      </h2>
 
       {query.isLoading && (
-        <Skeleton className="h-64" role="status" aria-busy="true" aria-label="กำลังโหลดกราฟรายได้" />
+        <Skeleton
+          className="h-64"
+          role="status"
+          aria-busy="true"
+          aria-label="กำลังโหลดกราฟรายได้"
+        />
       )}
 
       {query.isError && (
         <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-          {query.error instanceof ApiError ? query.error.message : "โหลดกราฟรายได้ไม่สำเร็จ กรุณาลองใหม่"}
-          <Button variant="secondary" size="sm" className="ml-3" onClick={() => void query.refetch()}>
+          {query.error instanceof ApiError
+            ? query.error.message
+            : "โหลดกราฟรายได้ไม่สำเร็จ กรุณาลองใหม่"}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="ml-3"
+            onClick={() => void query.refetch()}
+          >
             ลองใหม่
           </Button>
         </div>
@@ -66,7 +80,7 @@ export function RevenueChartSection({
       )}
 
       {query.isSuccess && days.length > 0 && (
-        <div className="h-64 w-full">
+        <div className="h-72 w-full sm:h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid stroke="var(--line)" strokeDasharray="3 3" />
@@ -94,8 +108,20 @@ export function RevenueChartSection({
                 }}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: "var(--ink-muted)" }} />
-              <Line type="monotone" dataKey="รายได้รับรู้" stroke="var(--celadon)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="เงินเข้าจริง" stroke="var(--indigo)" strokeWidth={2} dot={false} />
+              <Line
+                type="monotone"
+                dataKey="รายได้รับรู้"
+                stroke="var(--celadon)"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="เงินเข้าจริง"
+                stroke="var(--indigo)"
+                strokeWidth={2}
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>

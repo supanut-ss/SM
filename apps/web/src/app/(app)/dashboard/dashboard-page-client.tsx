@@ -16,22 +16,25 @@ export function DashboardPageClient() {
 
   if (!branch) {
     return (
-      <div className="p-8">
-        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
-          บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
+      <div className="p-4 sm:p-6 lg:p-8">
+        <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm leading-6 text-brass">
+          บัญชีนี้ยังไม่ได้ผูกกับสาขาใด —
+          ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-8 max-w-2xl">
         <h1 className="text-balance font-display text-2xl font-semibold text-ink">แดชบอร์ด</h1>
-        <p className="text-pretty mt-1 text-sm text-ink-muted">ภาพรวมวันนี้ของสาขา {branch.branchName}</p>
+        <p className="text-pretty mt-2 text-sm leading-6 text-ink-muted">
+          ภาพรวมวันนี้ของสาขา {branch.branchName}
+        </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <KpiSection branchId={branch.branchId} />
         <QueueSection branchId={branch.branchId} />
         <ExpiringCoursesSection branchId={branch.branchId} />

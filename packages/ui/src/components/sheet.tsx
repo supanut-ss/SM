@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../lib/cn";
 
@@ -33,14 +33,22 @@ const TRANSITION_MS = 160;
  *
  * a11y ระดับพื้นฐาน: role="dialog" + aria-modal, ย้าย focus เข้าแผงตอนเปิดและคืน focus ให้ trigger
  * ตอนปิด, Escape ปิดได้, คลิก overlay ปิดได้, inert ตอนปิดกันคีย์บอร์ด/screen reader หลงเข้าไปในแผงที่
- * มองไม่เห็น — ยังไม่ทำ focus trap แบบวนครบ (คีย์บอร์ดใช้งานได้ปกติเพราะแผงอยู่ท้าย DOM ตาม tab order)
+ * มองไม่เห็น และกัก focus ไว้ในแผงจนกว่าจะปิด
  */
 export function Sheet({ open, onClose, title, description, children }: SheetProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  const titleId = useId();
+  const descriptionId = useId();
   // ระยะที่ลาก handle ลงมาแล้วถือว่าตั้งใจปิด (จอ < md เท่านั้น — ดู docs/DESIGN.md §9.3)
   const dragStartY = useRef<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   function handleHandlePointerDown(event: ReactPointerEvent) {
     dragStartY.current = event.clientY;
@@ -58,24 +66,77 @@ export function Sheet({ open, onClose, title, description, children }: SheetProp
   useEffect(() => {
     if (!open) return;
     previouslyFocused.current = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const backgroundState = Array.from(document.body.children)
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== rootRef.current)
+      .map((element) => ({
+        element,
+        inert: element.inert,
+        ariaHidden: element.getAttribute("aria-hidden"),
+      }));
+    backgroundState.forEach(({ element }) => {
+      element.inert = true;
+      element.setAttribute("aria-hidden", "true");
+    });
     // รอ 1 frame ให้เล่น transition ที่ตำแหน่งเริ่มต้นก่อน ค่อยย้าย focus
     const raf = requestAnimationFrame(() => panelRef.current?.focus());
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !panelRef.current) return;
+
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panelRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!panelRef.current.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       cancelAnimationFrame(raf);
       document.removeEventListener("keydown", handleKeyDown);
-      previouslyFocused.current?.focus();
+      document.body.style.overflow = previousOverflow;
+      backgroundState.forEach(({ element, inert, ariaHidden }) => {
+        element.inert = inert;
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+      });
+      if (previouslyFocused.current?.isConnected) previouslyFocused.current.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className={cn("fixed inset-0 z-50", !open && "pointer-events-none")}>
+    <div
+      ref={rootRef}
+      aria-hidden={open ? undefined : true}
+      className={cn("fixed inset-0 z-50", !open && "pointer-events-none")}
+    >
       <div
         aria-hidden
         onClick={open ? onClose : undefined}
@@ -89,7 +150,8 @@ export function Sheet({ open, onClose, title, description, children }: SheetProp
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="sheet-title"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         inert={!open}
         className={cn(
@@ -116,16 +178,16 @@ export function Sheet({ open, onClose, title, description, children }: SheetProp
         </div>
         <div className="flex shrink-0 items-start justify-between border-b border-line px-6 py-4">
           <div>
-            <h2 id="sheet-title" className="text-balance font-display text-lg font-semibold text-ink">
+            <h2 id={titleId} className="text-balance font-display text-lg font-semibold text-ink">
               {title}
             </h2>
-            {description && <p className="text-pretty mt-1 text-sm text-ink-muted">{description}</p>}
+            {description && <p id={descriptionId} className="text-pretty mt-1 text-sm text-ink-muted">{description}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="ปิด"
-            className="rounded-DEFAULT p-1.5 text-ink-muted hover:bg-surface-sunk hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-DEFAULT text-ink-muted hover:bg-surface-sunk hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:size-8"
           >
             <svg viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden>
               <path

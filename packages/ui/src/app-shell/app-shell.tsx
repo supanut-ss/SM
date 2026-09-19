@@ -69,7 +69,7 @@ export function AppShell({
               type="button"
               onClick={onMobileNavOpen}
               aria-label="เปิดเมนู"
-              className="-ml-1.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-DEFAULT text-ink hover:bg-surface-sunk md:hidden"
+              className="-ml-1.5 inline-flex size-11 shrink-0 items-center justify-center rounded-DEFAULT text-ink hover:bg-surface-sunk md:hidden"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-5 w-5">
                 <path d="M3 6h18M3 12h18M3 18h18" />

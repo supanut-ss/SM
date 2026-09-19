@@ -9,7 +9,7 @@ import { formatSatang } from "../../../lib/format-money";
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-DEFAULT bg-surface-sunk p-3">
-      <p className="text-pretty text-xs text-ink-muted">{label}</p>
+      <p className="text-pretty text-xs leading-5 text-ink-muted">{label}</p>
       <p className="text-pretty mt-1 font-data text-lg tabular-nums text-ink">{value}</p>
     </div>
   );
@@ -34,8 +34,11 @@ export function KpiSection({ branchId }: { branchId: string }) {
       data.noShowCount !== 0);
 
   return (
-    <section aria-label="KPI วันนี้" className="rounded-DEFAULT border border-line-strong bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section
+      aria-label="KPI วันนี้"
+      className="rounded-DEFAULT border border-line-strong bg-surface p-4 sm:p-5"
+    >
+      <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-balance font-display text-lg font-semibold text-ink">KPI วันนี้</h2>
         <Link href="/billing">
           <Button variant="ghost" size="sm">
@@ -57,15 +60,26 @@ export function KpiSection({ branchId }: { branchId: string }) {
 
       {todayQuery.isError && (
         <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-          {todayQuery.error instanceof ApiError ? todayQuery.error.message : "โหลด KPI วันนี้ไม่สำเร็จ กรุณาลองใหม่"}
-          <Button variant="secondary" size="sm" className="ml-3" onClick={() => void todayQuery.refetch()}>
+          {todayQuery.error instanceof ApiError
+            ? todayQuery.error.message
+            : "โหลด KPI วันนี้ไม่สำเร็จ กรุณาลองใหม่"}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="ml-3"
+            onClick={() => void todayQuery.refetch()}
+          >
             ลองใหม่
           </Button>
         </div>
       )}
 
       {todayQuery.isSuccess && !hasActivity && (
-        <EmptyState className="p-6" title="ยังไม่มีความเคลื่อนไหวในวันนี้" description="ยอดจะขึ้นอัตโนมัติเมื่อมีบิลแรกของวันนี้" />
+        <EmptyState
+          className="p-6"
+          title="ยังไม่มีความเคลื่อนไหวในวันนี้"
+          description="ยอดจะขึ้นอัตโนมัติเมื่อมีบิลแรกของวันนี้"
+        />
       )}
 
       {todayQuery.isSuccess && data && hasActivity && (
@@ -76,12 +90,18 @@ export function KpiSection({ branchId }: { branchId: string }) {
             label="คอร์สขายได้"
             value={`${data.courseSoldCount.toLocaleString("th-TH")} ใบ (${formatSatang(data.courseSoldValueSatang)})`}
           />
-          <StatTile label="คอร์สที่ถูกตัดใช้" value={`${data.courseUsedCount.toLocaleString("th-TH")} ครั้ง`} />
+          <StatTile
+            label="คอร์สที่ถูกตัดใช้"
+            value={`${data.courseUsedCount.toLocaleString("th-TH")} ครั้ง`}
+          />
           <StatTile
             label="ลูกค้าใหม่ / ลูกค้าเก่า"
             value={`${data.newCustomerCount.toLocaleString("th-TH")} / ${data.returningCustomerCount.toLocaleString("th-TH")}`}
           />
-          <StatTile label="ไม่มาตามนัด (No-show)" value={`${data.noShowCount.toLocaleString("th-TH")} ครั้ง`} />
+          <StatTile
+            label="ไม่มาตามนัด (No-show)"
+            value={`${data.noShowCount.toLocaleString("th-TH")} ครั้ง`}
+          />
         </div>
       )}
     </section>

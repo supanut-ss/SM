@@ -138,7 +138,7 @@ function ClosedPeriodRow({
           </Button>
           <a
             href={xlsxDownloadHref(branchId, period.id)}
-            className="inline-flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-DEFAULT border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors duration-150 hover:bg-surface-sunk"
+            className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-DEFAULT border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors duration-150 hover:bg-surface-sunk lg:h-8"
           >
             ดาวน์โหลด Excel
           </a>
@@ -255,7 +255,7 @@ export function PayrollPageClient() {
 
   if (!branch) {
     return (
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <p className="text-pretty rounded-DEFAULT bg-brass-tint px-4 py-3 text-sm text-brass">
           บัญชีนี้ยังไม่ได้ผูกกับสาขาใด — ติดต่อผู้จัดการหรือเจ้าของร้านเพื่อขอเพิ่มสิทธิ์การเข้าถึงสาขา
         </p>
@@ -264,7 +264,7 @@ export function PayrollPageClient() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
         <h1 className="text-balance font-display text-2xl font-semibold text-ink">ค่ามือ</h1>
         <p className="text-pretty mt-1 text-sm text-ink-muted">เปิด/ปิดงวดจ่าย สรุปค่ามือ+ทิปต่อพนักงาน ที่สาขา {branch.branchName}</p>

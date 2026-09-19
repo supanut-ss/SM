@@ -72,6 +72,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [moreNavOpen, setMoreNavOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [cmdkOpen, setCmdkOpen] = useState(false);
 
   // ปิดลิ้นชักเมนูมือถือ/sheet "เพิ่มเติม" ทันทีที่เปลี่ยนหน้า — ปรับ state ระหว่าง render (ดูเหตุผล
@@ -81,6 +82,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     setLastPathname(pathname);
     setMobileNavOpen(false);
     setMoreNavOpen(false);
+    setAccountMenuOpen(false);
   }
 
   const branches = me?.branches ?? [];
@@ -149,23 +151,39 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
               active: pathname === item.href,
             }))}
             moreActive={isMoreActive}
-            onMoreClick={() => setMoreNavOpen(true)}
+            onMoreClick={() => {
+              setAccountMenuOpen(false);
+              setMoreNavOpen(true);
+            }}
           />
         }
         topbar={
           <Topbar>
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="font-display text-base font-semibold text-ink md:hidden">Lotus Desk</span>
+            <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
+              <span
+                aria-hidden="true"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-celadon-solid text-white md:hidden"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="size-4">
+                  <path d="M12 21c-4-2.2-7-5.6-7-10a7 7 0 0 1 14 0c0 4.4-3 7.8-7 10Z" />
+                  <path d="M12 11v10" />
+                </svg>
+              </span>
               {branches.length > 0 && currentBranch && (
                 <BranchSwitcher
                   branches={branches.map((b) => ({ id: b.branchId, name: b.branchName }))}
                   value={currentBranch.branchId}
                   onChange={setBranchId}
+                  className="min-w-0 flex-1 md:w-44 md:flex-none"
                 />
               )}
               <button
                 type="button"
-                onClick={() => setCmdkOpen(true)}
+                onClick={() => {
+                  setMoreNavOpen(false);
+                  setAccountMenuOpen(false);
+                  setCmdkOpen(true);
+                }}
                 className="hidden items-center gap-2 rounded-DEFAULT border border-line px-2.5 py-1.5 text-xs text-ink-faint transition-colors hover:border-line-strong hover:text-ink-muted sm:flex"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-3.5 w-3.5 shrink-0">
@@ -178,13 +196,28 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
                 </span>
               </button>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="hidden items-center gap-3 md:flex">
               <span className="hidden text-sm text-ink-muted sm:inline">
                 {me.name} ({currentBranch?.roleName ?? "-"})
               </span>
               <ThemeToggle />
               <LogoutButton />
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMoreNavOpen(false);
+                setAccountMenuOpen(true);
+              }}
+              aria-label="เปิดเมนูบัญชี"
+              aria-expanded={accountMenuOpen}
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-DEFAULT text-ink-muted hover:bg-surface-sunk hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 md:hidden"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
+                <circle cx="12" cy="8" r="3.5" />
+                <path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6" />
+              </svg>
+            </button>
           </Topbar>
         }
         sidebar={
@@ -266,9 +299,26 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         </nav>
       </Sheet>
 
+      <Sheet open={accountMenuOpen} onClose={() => setAccountMenuOpen(false)} title="บัญชีและการแสดงผล">
+        <div className="grid gap-5">
+          <div className="rounded-DEFAULT border border-line bg-surface-sunk px-4 py-3">
+            <p className="font-medium text-ink">{me.name}</p>
+            <p className="mt-1 text-sm text-ink-muted">{currentBranch?.roleName ?? "ไม่ระบุบทบาท"}</p>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <ThemeToggle />
+            <LogoutButton />
+          </div>
+        </div>
+      </Sheet>
+
       <CommandPalette
         open={cmdkOpen}
-        onOpen={() => setCmdkOpen(true)}
+        onOpen={() => {
+          setMoreNavOpen(false);
+          setAccountMenuOpen(false);
+          setCmdkOpen(true);
+        }}
         onClose={() => setCmdkOpen(false)}
         items={visibleNavItems}
         onNavigate={(href) => {
