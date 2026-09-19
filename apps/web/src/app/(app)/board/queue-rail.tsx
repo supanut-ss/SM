@@ -18,6 +18,8 @@ export function QueueRail({
   notInQueue = [],
   onJoinQueue,
   isJoining = false,
+  errorMessage,
+  onRetry,
 }: {
   queue: StaffQueueEntry[];
   items: AppointmentItem[];
@@ -25,6 +27,8 @@ export function QueueRail({
   notInQueue?: StaffProfile[];
   onJoinQueue?: (staffId: string) => void;
   isJoining?: boolean;
+  errorMessage?: string | null;
+  onRetry?: () => void;
 }) {
   const workingStaffIds = new Set(
     items.filter((i) => i.status === "IN_SERVICE").map((i) => i.staffId),
@@ -32,8 +36,28 @@ export function QueueRail({
   const sorted = [...queue].sort((a, b) => a.position - b.position);
 
   return (
-    <div className="flex w-16 shrink-0 flex-col gap-1 overflow-y-auto border-r border-line bg-surface-sunk p-1">
+    <aside
+      aria-label="คิวหมุน"
+      className="flex w-20 shrink-0 flex-col gap-1 overflow-y-auto border-r border-line bg-surface-sunk p-1"
+    >
       <span className="mb-1 text-center text-[10px] font-medium text-ink-muted">คิวหมุน</span>
+      {errorMessage && (
+        <div
+          role="alert"
+          className="rounded-DEFAULT bg-rose-tint px-1 py-2 text-center text-[10px] text-rose"
+        >
+          <span className="line-clamp-2" title={errorMessage}>
+            โหลดคิวไม่สำเร็จ
+          </span>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-1 min-h-6 rounded-DEFAULT px-1 font-medium underline underline-offset-2 hover:text-rose-solid"
+          >
+            ลองใหม่
+          </button>
+        </div>
+      )}
       {sorted.length === 0 && (
         <span className="px-1 text-center text-[10px] text-ink-faint">ยังไม่มีใครเข้าคิว</span>
       )}
@@ -46,7 +70,7 @@ export function QueueRail({
             onClick={() => onSelectStaff?.(entry.staffId)}
             title={working ? `${entry.staff.name} — กำลังบริการอยู่` : entry.staff.name}
             className={cn(
-              "flex flex-col items-center rounded-DEFAULT border border-line bg-surface px-1 py-1.5 text-[10px] hover:border-celadon",
+              "flex min-h-11 flex-col items-center justify-center rounded-DEFAULT border border-line bg-surface px-1 py-1.5 text-[10px] hover:border-celadon",
               working && "opacity-40",
             )}
           >
@@ -70,16 +94,18 @@ export function QueueRail({
               disabled={isJoining}
               onClick={() => onJoinQueue?.(staff.id)}
               title={`ให้ ${staff.name} เข้าคิว`}
-              className="flex flex-col items-center gap-0.5 rounded-DEFAULT border border-dashed border-line-strong bg-surface px-1 py-1.5 text-[10px] text-ink-faint hover:border-celadon hover:text-celadon-hover disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-DEFAULT border border-dashed border-line-strong bg-surface px-1 py-1.5 text-[10px] text-ink-faint hover:border-celadon hover:text-celadon-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span aria-hidden="true" className="text-xs leading-none">
                 +
               </span>
-              <span className="line-clamp-2 max-w-full text-center leading-tight">{staff.name}</span>
+              <span className="line-clamp-2 max-w-full text-center leading-tight">
+                {staff.name}
+              </span>
             </button>
           ))}
         </>
       )}
-    </div>
+    </aside>
   );
 }

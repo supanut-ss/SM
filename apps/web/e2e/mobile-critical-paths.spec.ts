@@ -105,6 +105,7 @@ test.describe("เส้นทางวิกฤตบนจอแคบ/แท�
   test("ปิดบิลด้วยรายการสินค้า", async ({ page }) => {
     await login(page);
     await page.goto("/billing");
+    await page.locator("summary").filter({ hasText: "เพิ่มรายการสินค้า", visible: true }).click();
 
     await visible(page, 'input[placeholder="ชื่อสินค้า"]').fill(`ครีมทดสอบ e2e ${Date.now()}`);
     await visible(page, 'input[placeholder="ราคา (บาท)"]').fill("50");

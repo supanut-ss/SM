@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BILL_STATUS_LABEL } from "@lotus-desk/contracts";
-import { Button, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, Label, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, EmptyState, ErrorState, Label, ListCard, ResponsiveList, Sheet, Skeleton, SkeletonGroup, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from "@lotus-desk/ui";
 import { ApiError, billApi, type Bill } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 import { ManagerPinDialog } from "./manager-pin-dialog";
@@ -56,8 +56,16 @@ export function BillHistory({ branchId }: { branchId: string }) {
   });
 
   return (
-    <div>
-      <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">ประวัติบิล</h2>
+    <details className="group rounded-lg border border-line bg-surface p-4 sm:p-5">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon">
+        <span>
+          <span className="block font-display text-lg font-semibold text-ink">ประวัติบิล</span>
+          <span className="text-sm text-ink-muted">ค้นหาใบเสร็จหรือจัดการบิลย้อนหลัง</span>
+        </span>
+        <span aria-hidden="true" className="text-xl text-ink-muted transition-transform group-open:rotate-45 motion-reduce:transition-none">+</span>
+      </summary>
+
+      <div className="mt-4 border-t border-line pt-4">
 
       {listQuery.isLoading && (
         <SkeletonGroup label="กำลังโหลดประวัติบิล">
@@ -68,22 +76,21 @@ export function BillHistory({ branchId }: { branchId: string }) {
       )}
 
       {listQuery.isError && (
-        <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-          {listQuery.error instanceof ApiError ? listQuery.error.message : "โหลดประวัติบิลไม่สำเร็จ กรุณาลองใหม่"}
-          <Button variant="secondary" size="sm" className="ml-3" onClick={() => void listQuery.refetch()}>
-            ลองใหม่
-          </Button>
-        </div>
+        <ErrorState
+          compact
+          title="โหลดประวัติบิลไม่สำเร็จ"
+          description={listQuery.error instanceof ApiError ? listQuery.error.message : "ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง"}
+          action={<Button variant="secondary" size="sm" onClick={() => void listQuery.refetch()}>ลองใหม่</Button>}
+        />
       )}
 
       {listQuery.isSuccess && listQuery.data.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-pretty text-sm text-ink-muted">ยังไม่มีบิลในสาขานี้ — ออกบิลแรกจากรายการด้านบน</p>
-        </div>
+        <EmptyState title="ยังไม่มีประวัติบิล" description="ออกบิลแรกจากรายการพร้อมออกบิลด้านบน" />
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (
-        <Table>
+        <ResponsiveList
+          table={<Table>
           <TableHeader>
             <TableRow>
               <TableHead>เลขที่บิล</TableHead>
@@ -132,8 +139,35 @@ export function BillHistory({ branchId }: { branchId: string }) {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+          </Table>}
+          cards={listQuery.data.map((bill) => (
+            <ListCard
+              key={bill.id}
+              title={bill.billNumber}
+              lines={[
+                formatDateTime(bill.createdAt),
+                `${bill.lines.length} รายการ · ${formatSatang(bill.totalSatang)}`,
+              ]}
+              badge={
+                <span className={bill.status === "PAID" ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon" : "inline-flex rounded-DEFAULT bg-rose-tint px-2 py-0.5 text-xs font-medium text-rose"}>
+                  {BILL_STATUS_LABEL[bill.status]}
+                </span>
+              }
+              actions={
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => setViewingBill(bill)}>ดูใบเสร็จ</Button>
+                  {bill.status === "PAID" && (
+                    <Button variant="ghost" size="sm" className="text-rose hover:bg-rose-tint" onClick={() => setPinDialogBillId(bill.id)}>
+                      ยกเลิกบิล
+                    </Button>
+                  )}
+                </>
+              }
+            />
+          ))}
+        />
       )}
+      </div>
 
       <ManagerPinDialog
         open={pinDialogBillId !== null}
@@ -190,6 +224,6 @@ export function BillHistory({ branchId }: { branchId: string }) {
       <Sheet open={viewingBill !== null} onClose={() => setViewingBill(null)} title={viewingBill?.billNumber ?? ""}>
         {viewingBill && <Receipt bill={viewingBill} onClose={() => setViewingBill(null)} />}
       </Sheet>
-    </div>
+    </details>
   );
 }

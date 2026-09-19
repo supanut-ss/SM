@@ -29,7 +29,9 @@ export function MobileAgenda({
   onOpenDetail: (item: AppointmentItem) => void;
 }) {
   const [selectedRowId, setSelectedRowId] = useState(rows[0]?.id ?? null);
-  const activeRowId = rows.some((r) => r.id === selectedRowId) ? selectedRowId : (rows[0]?.id ?? null);
+  const activeRowId = rows.some((r) => r.id === selectedRowId)
+    ? selectedRowId
+    : (rows[0]?.id ?? null);
 
   const itemsByRow = useMemo(() => {
     const map = new Map<string, AppointmentItem[]>();
@@ -72,14 +74,15 @@ export function MobileAgenda({
               key={row.id}
               type="button"
               onClick={() => setSelectedRowId(row.id)}
+              aria-pressed={active}
               className={cn(
-                "flex shrink-0 flex-col items-center gap-0.5 rounded-DEFAULT px-3.5 py-2 text-xs",
+                "flex min-h-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-DEFAULT px-3.5 py-2 text-xs",
                 active ? "bg-celadon-solid text-white" : "bg-surface-sunk text-ink",
               )}
             >
               <span className="font-medium">{row.label}</span>
               <span className={cn("text-[10.5px]", active ? "text-white/85" : "text-ink-faint")}>
-                {working ? "กำลังบริการ" : row.sublabel ?? "ว่าง"}
+                {working ? "กำลังบริการ" : (row.sublabel ?? "ว่าง")}
               </span>
             </button>
           );
@@ -113,7 +116,9 @@ export function MobileAgenda({
       {/* timeline แนวตั้งของแถวที่เลือก */}
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {activeItems.length === 0 && (
-          <p className="text-pretty pt-6 text-center text-sm text-ink-muted">ยังไม่มีนัดของ{rows.find((r) => r.id === activeRowId)?.label ?? "คนนี้"}วันนี้</p>
+          <p className="text-pretty rounded-DEFAULT bg-surface-sunk px-4 py-6 text-center text-sm leading-6 text-ink-muted">
+            ยังไม่มีนัดของ{rows.find((r) => r.id === activeRowId)?.label ?? "คนนี้"}วันนี้
+          </p>
         )}
         <div className="flex flex-col gap-3">
           {activeItems.map((item) => {
@@ -124,7 +129,7 @@ export function MobileAgenda({
                 type="button"
                 onClick={() => onOpenDetail(item)}
                 className={cn(
-                  "relative rounded-DEFAULT p-3 text-left text-sm",
+                  "relative min-h-11 rounded-DEFAULT p-3 text-left text-sm",
                   style.block,
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-celadon focus-visible:outline-offset-2",
                 )}
@@ -139,9 +144,13 @@ export function MobileAgenda({
                 <div className="font-data tabular-nums text-xs opacity-80">
                   {formatTime(item.startAt)}–{formatTime(item.endAt)}
                 </div>
-                <div className="mt-0.5 font-medium">{item.appointment.member?.name ?? "ลูกค้า Walk-in"}</div>
+                <div className="mt-0.5 font-medium">
+                  {item.appointment.member?.name ?? "ลูกค้า Walk-in"}
+                </div>
                 <div className="text-xs opacity-80">{item.serviceVariant.service.name}</div>
-                <div className="mt-1 text-[11px] opacity-70">{APPOINTMENT_STATUS_LABEL[item.status]}</div>
+                <div className="mt-1 text-[11px] opacity-70">
+                  {APPOINTMENT_STATUS_LABEL[item.status]}
+                </div>
               </button>
             );
           })}

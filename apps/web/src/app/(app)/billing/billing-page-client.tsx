@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABEL, type PaymentMethod } from "@lotus-desk/contracts";
-import { Button, Input, Label, Select, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
+import { Button, EmptyState, ErrorState, Input, Label, Select, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import {
   ApiError,
   appointmentItemApi,
@@ -304,12 +304,16 @@ export function BillingPageClient() {
         )}
 
         {itemsQuery.isError && (
-          <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
-            {itemsQuery.error instanceof ApiError ? itemsQuery.error.message : "โหลดรายการไม่สำเร็จ กรุณาลองใหม่"}
-            <Button variant="secondary" size="sm" className="ml-3" onClick={() => void itemsQuery.refetch()}>
-              ลองใหม่
-            </Button>
-          </div>
+          <ErrorState
+            compact
+            title="โหลดรายการพร้อมออกบิลไม่สำเร็จ"
+            description={itemsQuery.error instanceof ApiError ? itemsQuery.error.message : "ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง"}
+            action={
+              <Button variant="secondary" size="sm" onClick={() => void itemsQuery.refetch()}>
+                ลองใหม่
+              </Button>
+            }
+          />
         )}
 
         {itemsQuery.isSuccess && readyItems.length === 0 && (
@@ -411,8 +415,12 @@ export function BillingPageClient() {
 
   function renderProductForm(): ReactNode {
     return (
-      <div className="rounded-DEFAULT border border-dashed border-line-strong p-3">
-        <h3 className="text-balance mb-2 text-sm font-semibold text-ink">เพิ่มรายการสินค้า (ไม่ผูกคลัง)</h3>
+      <details className="group rounded-DEFAULT border border-dashed border-line-strong bg-surface p-3">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon">
+          <span>เพิ่มรายการสินค้า</span>
+          <span aria-hidden="true" className="text-lg font-normal text-ink-muted transition-transform group-open:rotate-45 motion-reduce:transition-none">+</span>
+        </summary>
+        <p className="mb-3 text-xs text-ink-muted">สำหรับสินค้าที่ไม่ผูกกับคลัง</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Input
             aria-label="ชื่อสินค้า"
@@ -455,17 +463,18 @@ export function BillingPageClient() {
         <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={addProductLine}>
           + เพิ่มรายการสินค้า
         </Button>
-      </div>
+      </details>
     );
   }
 
-  function renderMemberPicker(): ReactNode {
+  function renderMemberPicker(idPrefix: string): ReactNode {
+    const memberFilterId = `${idPrefix}-member-filter`;
     return (
       <div>
-        <Label htmlFor="member-filter">สมาชิก (ไม่บังคับ ยกเว้นมีรายการตัดคอร์ส)</Label>
+        <Label htmlFor={memberFilterId}>สมาชิก (ไม่บังคับ ยกเว้นมีรายการตัดคอร์ส)</Label>
         <div className="mt-1.5 grid gap-2">
           <Input
-            id="member-filter"
+            id={memberFilterId}
             placeholder="ค้นหาชื่อ/เบอร์/รหัสสมาชิก..."
             value={memberFilter}
             onChange={(event) => setMemberFilter(event.target.value)}
@@ -483,15 +492,21 @@ export function BillingPageClient() {
     );
   }
 
-  function renderPromotionDetails(): ReactNode {
+  function renderPromotionDetails(idPrefix: string): ReactNode {
+    const couponCodeId = `${idPrefix}-coupon-code`;
+    const memberTierId = `${idPrefix}-member-tier`;
+    const memberBirthMonthId = `${idPrefix}-member-birth-month`;
+    const firstTimeId = `${idPrefix}-first-time`;
     return (
-      <details className="rounded-DEFAULT border border-dashed border-line-strong p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-ink">ตัวเลือกโปรโมชั่น/สมาชิก</summary>
+      <details className="rounded-DEFAULT border border-dashed border-line-strong bg-surface p-3">
+        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon">
+          ตัวเลือกโปรโมชั่น/สมาชิก
+        </summary>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div>
-            <Label htmlFor="coupon-code">รหัสคูปอง</Label>
+            <Label htmlFor={couponCodeId}>รหัสคูปอง</Label>
             <Input
-              id="coupon-code"
+              id={couponCodeId}
               value={couponCode}
               onChange={(event) => {
                 setCouponCode(event.target.value);
@@ -500,9 +515,9 @@ export function BillingPageClient() {
             />
           </div>
           <div>
-            <Label htmlFor="member-tier">ระดับสมาชิก (tier)</Label>
+            <Label htmlFor={memberTierId}>ระดับสมาชิก (tier)</Label>
             <Input
-              id="member-tier"
+              id={memberTierId}
               value={memberTier}
               onChange={(event) => {
                 setMemberTier(event.target.value);
@@ -511,9 +526,9 @@ export function BillingPageClient() {
             />
           </div>
           <div>
-            <Label htmlFor="member-birth-month">เดือนเกิด (1-12)</Label>
+            <Label htmlFor={memberBirthMonthId}>เดือนเกิด (1-12)</Label>
             <Input
-              id="member-birth-month"
+              id={memberBirthMonthId}
               type="number"
               min={1}
               max={12}
@@ -526,7 +541,7 @@ export function BillingPageClient() {
           </div>
           <div className="flex items-end gap-2">
             <input
-              id="first-time"
+              id={firstTimeId}
               type="checkbox"
               checked={isFirstTimeCustomer}
               onChange={(event) => {
@@ -535,7 +550,7 @@ export function BillingPageClient() {
               }}
               className="h-4 w-4"
             />
-            <Label htmlFor="first-time">ลูกค้าใหม่ครั้งแรก</Label>
+            <Label htmlFor={firstTimeId}>ลูกค้าใหม่ครั้งแรก</Label>
           </div>
         </div>
       </details>
@@ -565,6 +580,7 @@ export function BillingPageClient() {
   }
 
   function renderCalculateButton(): ReactNode {
+    if (preview) return null;
     return (
       <Button
         type="button"
@@ -577,7 +593,7 @@ export function BillingPageClient() {
     );
   }
 
-  function renderPaymentSection(): ReactNode {
+  function renderPaymentSection(idPrefix: string): ReactNode {
     if (!preview) return null;
     return (
       <div className="grid gap-2">
@@ -596,11 +612,11 @@ export function BillingPageClient() {
         {payments.map((p) => (
           <div key={p.key} className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2">
             <div>
-              <Label htmlFor={`pay-method-${p.key}`} className="text-[10px]">
+              <Label htmlFor={`${idPrefix}-pay-method-${p.key}`} className="text-xs">
                 ช่องทาง
               </Label>
               <Select
-                id={`pay-method-${p.key}`}
+                id={`${idPrefix}-pay-method-${p.key}`}
                 value={p.method}
                 onChange={(event) => updatePaymentRow(p.key, { method: event.target.value as PaymentMethod })}
               >
@@ -612,11 +628,11 @@ export function BillingPageClient() {
               </Select>
             </div>
             <div>
-              <Label htmlFor={`pay-amount-${p.key}`} className="text-[10px]">
+              <Label htmlFor={`${idPrefix}-pay-amount-${p.key}`} className="text-xs">
                 จำนวนเงิน (บาท)
               </Label>
               <Input
-                id={`pay-amount-${p.key}`}
+                id={`${idPrefix}-pay-amount-${p.key}`}
                 type="number"
                 min={0}
                 step={0.01}
@@ -627,11 +643,11 @@ export function BillingPageClient() {
             <div>
               {p.method === "CASH" ? (
                 <>
-                  <Label htmlFor={`pay-tendered-${p.key}`} className="text-[10px]">
+                  <Label htmlFor={`${idPrefix}-pay-tendered-${p.key}`} className="text-xs">
                     รับเงินมา (บาท)
                   </Label>
                   <Input
-                    id={`pay-tendered-${p.key}`}
+                    id={`${idPrefix}-pay-tendered-${p.key}`}
                     type="number"
                     min={0}
                     step={0.01}
@@ -682,6 +698,7 @@ export function BillingPageClient() {
   }
 
   function renderCheckoutButton(): ReactNode {
+    if (!preview) return null;
     return (
       <Button type="button" disabled={!canCheckout || checkoutMutation.isPending} onClick={() => checkoutMutation.mutate()}>
         {checkoutMutation.isPending ? "กำลังออกบิล..." : "ออกบิล"}
@@ -700,29 +717,37 @@ export function BillingPageClient() {
   }
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="mb-6">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div data-testid="billing-page-header" className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
         <h1 className="text-balance font-display text-2xl font-semibold text-ink">บิล/แคชเชียร์</h1>
         <p className="text-pretty mt-1 text-sm text-ink-muted">ออกบิลรวมใบงานที่จบแล้วของวันนี้ + สินค้า ที่สาขา {branch.branchName}</p>
+        </div>
+        <div data-testid="billing-cart-summary" className="rounded-full border border-line bg-surface px-3 py-1.5 text-sm text-ink-muted">
+          <span className="font-data tabular-nums text-ink">{cartJobs.length + productLines.length}</span> รายการในบิล
+        </div>
       </div>
 
       <CashierShiftPanel branchId={branch.branchId} />
 
       {/* จอกว้าง (>= md): สองคอลัมน์เดิมเป๊ะ ไม่เปลี่ยนแปลง */}
-      <div className="hidden gap-6 md:grid lg:grid-cols-2">
-        <section aria-label="ใบงานที่พร้อมออกบิล">
-          <h2 className="text-balance mb-3 font-display text-lg font-semibold text-ink">พร้อมออกบิลวันนี้</h2>
+      <div className="hidden gap-6 md:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <section aria-label="ใบงานที่พร้อมออกบิล" className="min-w-0 rounded-lg border border-line bg-surface p-4 lg:p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-balance font-display text-lg font-semibold text-ink">พร้อมออกบิลวันนี้</h2>
+            <span className="font-data text-sm tabular-nums text-ink-muted">{readyItems.length} งาน</span>
+          </div>
           {renderJobList()}
         </section>
 
-        <section aria-label="ตะกร้าบิล" className="grid gap-5">
-          {renderMemberPicker()}
+        <section aria-label="ตะกร้าบิล" className="grid min-w-0 gap-5 rounded-lg border border-line bg-surface p-4 lg:p-5">
+          {renderMemberPicker("desktop")}
           {renderCartList()}
           {renderProductForm()}
-          {renderPromotionDetails()}
+          {renderPromotionDetails("desktop")}
           {renderTotals()}
           {renderCalculateButton()}
-          {renderPaymentSection()}
+          {renderPaymentSection("desktop")}
           {renderCheckoutMessages()}
           {renderCheckoutButton()}
         </section>
@@ -754,11 +779,11 @@ export function BillingPageClient() {
 
         {mobileStep === 2 && (
           <div className="grid gap-5">
-            {renderMemberPicker()}
-            {renderPromotionDetails()}
+            {renderMemberPicker("mobile")}
+            {renderPromotionDetails("mobile")}
             {renderTotals()}
             {renderCalculateButton()}
-            {renderPaymentSection()}
+            {renderPaymentSection("mobile")}
           </div>
         )}
 
@@ -805,7 +830,7 @@ export function BillingPageClient() {
         </div>
       )}
 
-      <div className="mt-10 border-t border-line pt-6">
+      <div className="mt-8">
         <BillHistory branchId={branch.branchId} />
       </div>
     </div>

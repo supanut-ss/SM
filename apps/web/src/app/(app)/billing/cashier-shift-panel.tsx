@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Input, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@lotus-desk/ui";
+import { Button, ErrorState, Input, Label, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
 import { ApiError, cashierShiftApi, type CashierShift } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 import { ManagerPinDialog } from "./manager-pin-dialog";
@@ -109,6 +109,26 @@ export function CashierShiftPanel({ branchId }: { branchId: string }) {
         </div>
       </div>
 
+      {currentQuery.isError && (
+        <ErrorState
+          compact
+          className="mt-3"
+          title="โหลดสถานะรอบกะไม่สำเร็จ"
+          description={currentQuery.error instanceof ApiError ? currentQuery.error.message : "ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง"}
+          action={<Button variant="secondary" size="sm" onClick={() => void currentQuery.refetch()}>ลองใหม่</Button>}
+        />
+      )}
+
+      {openMutation.isError && (
+        <ErrorState
+          compact
+          className="mt-3"
+          title="เปิดรอบกะไม่สำเร็จ"
+          description={openMutation.error instanceof ApiError ? openMutation.error.message : "กรุณาลองใหม่"}
+          action={<Button variant="secondary" size="sm" onClick={() => openMutation.reset()}>รับทราบ</Button>}
+        />
+      )}
+
       {current && closing && (
         <div className="mt-3 grid gap-2 border-t border-line pt-3 sm:grid-cols-[1fr_1fr_auto]">
           <div>
@@ -163,8 +183,22 @@ export function CashierShiftPanel({ branchId }: { branchId: string }) {
         </div>
       )}
 
+      {listQuery.isError && (
+        <ErrorState
+          compact
+          className="mt-4"
+          title="โหลดประวัติรอบกะไม่สำเร็จ"
+          action={<Button variant="secondary" size="sm" onClick={() => void listQuery.refetch()}>ลองใหม่</Button>}
+        />
+      )}
+
       {listQuery.isSuccess && listQuery.data.length > 0 && (
-        <div className="mt-4 border-t border-line pt-3">
+        <details className="group mt-4 border-t border-line pt-3">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon">
+            <span>ประวัติรอบกะ ({listQuery.data.length})</span>
+            <span aria-hidden="true" className="text-lg transition-transform group-open:rotate-45 motion-reduce:transition-none">+</span>
+          </summary>
+          <div className="overflow-x-auto pt-2">
           <Table>
             <TableHeader>
               <TableRow>
@@ -212,7 +246,8 @@ export function CashierShiftPanel({ branchId }: { branchId: string }) {
               ))}
             </TableBody>
           </Table>
-        </div>
+          </div>
+        </details>
       )}
 
       <ManagerPinDialog
