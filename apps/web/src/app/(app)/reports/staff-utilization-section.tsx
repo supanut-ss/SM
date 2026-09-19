@@ -2,7 +2,7 @@
 
 import type { UseQueryResult } from "@tanstack/react-query";
 import { STAFF_LEVEL_LABEL, type StaffLevel } from "@lotus-desk/contracts";
-import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import { ApiError, type StaffUtilizationReport } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 
@@ -82,10 +82,11 @@ export function StaffUtilizationSection({
       )}
 
       {query.isSuccess && rows.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-6 text-center">
-          <p className="text-sm text-ink-muted">ไม่มีข้อมูลในช่วงที่เลือก</p>
-          <p className="mt-1 text-xs text-ink-faint">ลองขยายช่วงวันที่ หรือเลือก &quot;พนักงานทั้งหมด&quot;</p>
-        </div>
+        <EmptyState
+          className="p-6"
+          title="ไม่มีข้อมูลในช่วงที่เลือก"
+          description={'ลองขยายช่วงวันที่ หรือเลือก "พนักงานทั้งหมด"'}
+        />
       )}
 
       {query.isSuccess && rows.length > 0 && (

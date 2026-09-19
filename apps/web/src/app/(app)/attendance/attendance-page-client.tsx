@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_LEVEL_LABEL } from "@lotus-desk/contracts";
-import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import {
   ApiError,
@@ -228,10 +229,14 @@ export function AttendancePageClient() {
       )}
 
       {!isLoading && !isError && isSuccess && rows.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-sm text-ink-muted">ยังไม่มีพนักงานในสาขานี้</p>
-          <p className="mt-1 text-xs text-ink-faint">ไปที่หน้า &quot;พนักงาน&quot; เพื่อเพิ่มพนักงานก่อน</p>
-        </div>
+        <EmptyState
+          title="ยังไม่มีพนักงานในสาขานี้"
+          action={
+            <Link href="/staff">
+              <Button variant="secondary">ไปที่หน้าพนักงาน</Button>
+            </Link>
+          }
+        />
       )}
 
       {!isLoading && !isError && isSuccess && rows.length > 0 && (

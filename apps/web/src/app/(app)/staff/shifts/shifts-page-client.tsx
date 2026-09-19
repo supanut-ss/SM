@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LEAVE_TYPE_LABEL } from "@lotus-desk/contracts";
-import { Button, Sheet, cn, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Sheet, cn, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import {
   ApiError,
   shiftTemplateApi,
@@ -215,9 +216,15 @@ export function ShiftsPageClient() {
       )}
 
       {staffQuery.isSuccess && staffQuery.data.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-sm text-ink-muted">ยังไม่มีพนักงานในสาขานี้ — เพิ่มพนักงานก่อนจัดตารางกะ</p>
-        </div>
+        <EmptyState
+          title="ยังไม่มีพนักงานในสาขานี้"
+          description="เพิ่มพนักงานก่อนจัดตารางกะ"
+          action={
+            <Link href="/staff">
+              <Button variant="secondary">ไปที่หน้าพนักงาน</Button>
+            </Link>
+          }
+        />
       )}
 
       {staffQuery.isSuccess && staffQuery.data.length > 0 && (

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PACKAGE_TYPE_LABEL, type CreatePackageInput, type UpdatePackageInput } from "@lotus-desk/contracts";
-import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import { ApiError, packageApi, serviceApi, type Package } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
@@ -209,20 +209,22 @@ export function PackagePageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-sm text-ink-muted">
-            {debouncedQuery
+        <EmptyState
+          title={
+            debouncedQuery
               ? `ไม่พบคอร์ส/แพ็กเกจที่ตรงกับ "${debouncedQuery}"`
               : activeFilter === "false"
                 ? "ยังไม่มีคอร์ส/แพ็กเกจที่ปิดขาย"
-                : "ยังไม่มีคอร์ส/แพ็กเกจในสาขานี้"}
-          </p>
-          {canManage && !debouncedQuery && activeFilter !== "false" && (
-            <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-              + เพิ่มคอร์ส/แพ็กเกจแรก
-            </Button>
-          )}
-        </div>
+                : "ยังไม่มีคอร์ส/แพ็กเกจในสาขานี้"
+          }
+          action={
+            canManage &&
+            !debouncedQuery &&
+            activeFilter !== "false" && (
+              <Button onClick={() => setCreateOpen(true)}>+ เพิ่มคอร์ส/แพ็กเกจแรก</Button>
+            )
+          }
+        />
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (

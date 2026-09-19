@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateRoomInput, UpdateRoomInput } from "@lotus-desk/contracts";
-import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import { ApiError, roomApi, roomTypeApi, type Room } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
@@ -200,20 +200,20 @@ export function RoomPageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-sm text-ink-muted">
-            {debouncedQuery
+        <EmptyState
+          title={
+            debouncedQuery
               ? `ไม่พบห้องที่ตรงกับ "${debouncedQuery}"`
               : activeFilter === "false"
                 ? "ยังไม่มีห้องที่ปิดใช้งาน"
-                : "ยังไม่มีห้องในสาขานี้"}
-          </p>
-          {canManage && !debouncedQuery && activeFilter !== "false" && (
-            <Button className="mt-4" onClick={() => setSheetTarget("create")}>
-              + เพิ่มห้องแรก
-            </Button>
-          )}
-        </div>
+                : "ยังไม่มีห้องในสาขานี้"
+          }
+          action={
+            canManage &&
+            !debouncedQuery &&
+            activeFilter !== "false" && <Button onClick={() => setSheetTarget("create")}>+ เพิ่มห้องแรก</Button>
+          }
+        />
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (

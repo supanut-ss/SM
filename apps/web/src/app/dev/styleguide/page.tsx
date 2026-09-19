@@ -7,6 +7,7 @@ import {
   APPOINTMENT_STATUSES,
   Skeleton,
   SkeletonGroup,
+  EmptyState,
   Table,
   TableHeader,
   TableBody,
@@ -171,6 +172,14 @@ export default function StyleGuidePage() {
               ))}
             </SkeletonGroup>
           </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-lg font-semibold text-ink">ว่างเปล่า (Empty state)</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <EmptyState title="ยังไม่มีสมาชิกในสาขานี้" action={<Button>+ เพิ่มสมาชิกแรก</Button>} />
+          <EmptyState title="ไม่มีข้อมูลในช่วงที่เลือก" description="ลองขยายช่วงวันที่ให้กว้างขึ้น" />
         </div>
       </section>
 

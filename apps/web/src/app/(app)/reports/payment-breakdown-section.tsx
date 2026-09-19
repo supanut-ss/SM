@@ -3,7 +3,7 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@lotus-desk/contracts";
-import { Button, Skeleton } from "@lotus-desk/ui";
+import { Button, Skeleton, EmptyState } from "@lotus-desk/ui";
 import { ApiError, type DailySummaryReport } from "../../../lib/api-client";
 
 // สีต่อช่องทางชำระ — ใช้ token ธรรมดา (ไม่ใช่ -solid) เพราะ -solid มีแค่ celadon/rose และตั้งใจไว้เฉพาะ
@@ -67,10 +67,11 @@ export function PaymentBreakdownSection({
       )}
 
       {query.isSuccess && !hasData && (
-        <div className="flex h-64 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line-strong p-6 text-center">
-          <p className="text-sm text-ink-muted">ไม่มีข้อมูลในช่วงที่เลือก</p>
-          <p className="text-xs text-ink-faint">ลองขยายช่วงวันที่ให้กว้างขึ้น</p>
-        </div>
+        <EmptyState
+          className="flex h-64 flex-col items-center justify-center p-6"
+          title="ไม่มีข้อมูลในช่วงที่เลือก"
+          description="ลองขยายช่วงวันที่ให้กว้างขึ้น"
+        />
       )}
 
       {query.isSuccess && hasData && (

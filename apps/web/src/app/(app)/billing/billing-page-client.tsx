@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABEL, type PaymentMethod } from "@lotus-desk/contracts";
-import { Button, Input, Label, Select, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Input, Label, Select, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import {
   ApiError,
   appointmentItemApi,
@@ -313,11 +313,10 @@ export function BillingPageClient() {
         )}
 
         {itemsQuery.isSuccess && readyItems.length === 0 && (
-          <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-            <p className="text-sm text-ink-muted">
-              ยังไม่มีใบงานที่จบแล้วรอออกบิล — ไปที่กระดานคิวแล้วเปลี่ยนสถานะนัดเป็น &quot;จบงาน&quot; ก่อน
-            </p>
-          </div>
+          <EmptyState
+            title="ยังไม่มีใบงานที่จบแล้วรอออกบิล"
+            description={'ไปที่กระดานคิวแล้วเปลี่ยนสถานะนัดเป็น "จบงาน" ก่อน'}
+          />
         )}
 
         {itemsQuery.isSuccess && readyItems.length > 0 && (

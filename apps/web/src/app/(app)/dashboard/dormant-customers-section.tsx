@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import { ApiError, reportsApi } from "../../../lib/api-client";
 
 function formatDateThai(iso: string): string {
@@ -43,9 +43,7 @@ export function DormantCustomersSection({ branchId }: { branchId: string }) {
       )}
 
       {query.isSuccess && query.data.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-6 text-center">
-          <p className="text-sm text-ink-muted">ไม่มีสมาชิกที่หายไปเกิน 60 วัน — เยี่ยมมาก</p>
-        </div>
+        <EmptyState className="p-6" title="ไม่มีสมาชิกที่หายไปเกิน 60 วัน — เยี่ยมมาก" />
       )}
 
       {query.isSuccess && query.data.length > 0 && (

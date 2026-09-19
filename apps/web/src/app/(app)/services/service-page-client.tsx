@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_SKILL_LABEL, type CreateServiceInput, type UpdateServiceInput } from "@lotus-desk/contracts";
-import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import {
   ApiError,
@@ -247,20 +247,20 @@ export function ServicePageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-sm text-ink-muted">
-            {debouncedQuery
+        <EmptyState
+          title={
+            debouncedQuery
               ? `ไม่พบบริการที่ตรงกับ "${debouncedQuery}"`
               : activeFilter === "false"
                 ? "ยังไม่มีบริการที่ปิดขาย"
-                : "ยังไม่มีบริการในสาขานี้"}
-          </p>
-          {canManage && !debouncedQuery && activeFilter !== "false" && (
-            <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-              + เพิ่มบริการแรก
-            </Button>
-          )}
-        </div>
+                : "ยังไม่มีบริการในสาขานี้"
+          }
+          action={
+            canManage &&
+            !debouncedQuery &&
+            activeFilter !== "false" && <Button onClick={() => setCreateOpen(true)}>+ เพิ่มบริการแรก</Button>
+          }
+        />
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (

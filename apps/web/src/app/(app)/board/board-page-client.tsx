@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Select, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import Link from "next/link";
+import { Button, EmptyState, Select, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import {
   ApiError,
   appointmentItemApi,
@@ -262,11 +263,22 @@ export function BoardPageClient() {
       )}
 
       {!isLoading && !isError && rows.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-sm text-ink-muted">
-            {viewMode === "staff" ? "ยังไม่มีพนักงานในสาขานี้" : "ยังไม่มีห้องในสาขานี้"}
-          </p>
-        </div>
+        <EmptyState
+          title={viewMode === "staff" ? "ยังไม่มีพนักงานในสาขานี้" : "ยังไม่มีห้องในสาขานี้"}
+          action={
+            <Link href={viewMode === "staff" ? "/staff" : "/rooms"}>
+              <Button variant="secondary">{viewMode === "staff" ? "ไปที่หน้าพนักงาน" : "ไปที่หน้าห้อง"}</Button>
+            </Link>
+          }
+        />
+      )}
+
+      {!isLoading && !isError && rows.length > 0 && itemsQuery.isSuccess && itemsQuery.data.length === 0 && (
+        <EmptyState
+          className="mb-3"
+          title="ยังไม่มีนัดวันนี้"
+          description={canManage ? "กดปุ่ม + จองด่วน ด้านบนเพื่อรับลูกค้า Walk-in" : undefined}
+        />
       )}
 
       {!isLoading && !isError && rows.length > 0 && (

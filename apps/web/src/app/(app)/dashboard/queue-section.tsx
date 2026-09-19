@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import { ApiError, appointmentItemApi, staffQueueApi } from "../../../lib/api-client";
 import { startOfToday, toDateKey } from "../board/date-format";
 
@@ -77,11 +77,17 @@ export function QueueSection({ branchId }: { branchId: string }) {
       )}
 
       {!isLoading && !isError && sortedQueue.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-6 text-center">
-          <p className="text-sm text-ink-muted">
-            ยังไม่มีใครเข้าคิววันนี้ — ไปที่กระดานคิวเต็มเพื่อจัดคิวพนักงาน
-          </p>
-        </div>
+        <EmptyState
+          className="p-6"
+          title="ยังไม่มีใครเข้าคิววันนี้"
+          action={
+            <Link href="/board">
+              <Button variant="secondary" size="sm">
+                ไปที่กระดานคิวเต็ม
+              </Button>
+            </Link>
+          }
+        />
       )}
 
       {!isLoading && !isError && sortedQueue.length > 0 && (

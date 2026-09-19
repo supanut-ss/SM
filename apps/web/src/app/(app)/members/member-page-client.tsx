@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateMemberInput, UpdateMemberInput } from "@lotus-desk/contracts";
-import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import { ApiError, memberApi, type Member } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
@@ -217,20 +217,22 @@ export function MemberPageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-          <p className="text-sm text-ink-muted">
-            {debouncedQuery
+        <EmptyState
+          title={
+            debouncedQuery
               ? `ไม่พบสมาชิกที่ตรงกับ "${debouncedQuery}"`
               : activeFilter === "false"
                 ? "ยังไม่มีสมาชิกที่ปิดใช้งาน"
-                : "ยังไม่มีสมาชิกในสาขานี้"}
-          </p>
-          {canManage && !debouncedQuery && activeFilter !== "false" && (
-            <Button className="mt-4" onClick={() => setSheetTarget("create")}>
-              + เพิ่มสมาชิกแรก
-            </Button>
-          )}
-        </div>
+                : "ยังไม่มีสมาชิกในสาขานี้"
+          }
+          action={
+            canManage &&
+            !debouncedQuery &&
+            activeFilter !== "false" && (
+              <Button onClick={() => setSheetTarget("create")}>+ เพิ่มสมาชิกแรก</Button>
+            )
+          }
+        />
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (

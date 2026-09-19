@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import { ApiError, reportsApi } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 
@@ -65,11 +65,7 @@ export function KpiSection({ branchId }: { branchId: string }) {
       )}
 
       {todayQuery.isSuccess && !hasActivity && (
-        <div className="rounded-lg border border-dashed border-line-strong p-6 text-center">
-          <p className="text-sm text-ink-muted">
-            ยังไม่มีความเคลื่อนไหวในวันนี้ — ยอดจะขึ้นอัตโนมัติเมื่อมีบิลแรกของวันนี้
-          </p>
-        </div>
+        <EmptyState className="p-6" title="ยังไม่มีความเคลื่อนไหวในวันนี้" description="ยอดจะขึ้นอัตโนมัติเมื่อมีบิลแรกของวันนี้" />
       )}
 
       {todayQuery.isSuccess && data && hasActivity && (

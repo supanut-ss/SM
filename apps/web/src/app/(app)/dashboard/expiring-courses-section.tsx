@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import { ApiError, reportsApi, type ExpiringCoursePackage } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 
@@ -57,9 +57,7 @@ export function ExpiringCoursesSection({ branchId }: { branchId: string }) {
       )}
 
       {query.isSuccess && query.data.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-6 text-center">
-          <p className="text-sm text-ink-muted">ไม่มีคอร์สที่ใกล้หมดอายุใน 30 วันนี้</p>
-        </div>
+        <EmptyState className="p-6" title="ไม่มีคอร์สที่ใกล้หมดอายุใน 30 วันนี้" />
       )}
 
       {query.isSuccess && query.data.length > 0 && (

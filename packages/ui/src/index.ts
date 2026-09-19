@@ -4,6 +4,7 @@ export { Button, type ButtonProps } from "./components/button";
 export { Fab, type FabProps } from "./components/fab";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
+export { EmptyState, type EmptyStateProps } from "./components/empty-state";
 export { Select } from "./components/select";
 export { Sheet, type SheetProps } from "./components/sheet";
 export { Skeleton, SkeletonGroup, type SkeletonGroupProps } from "./components/skeleton";

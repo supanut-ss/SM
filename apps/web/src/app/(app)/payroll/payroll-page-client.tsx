@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_LEVEL_LABEL } from "@lotus-desk/contracts";
-import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
+import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup, EmptyState } from "@lotus-desk/ui";
 import {
   ApiError,
   payrollApi,
@@ -364,17 +364,14 @@ export function PayrollPageClient() {
         )}
 
         {listQuery.isSuccess && closedPeriods.length === 0 && current === null && (
-          <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-            <p className="text-sm text-ink-muted">
-              ยังไม่มีงวดจ่ายเลย{canManage ? " — กด \"เปิดงวดใหม่\" เพื่อเริ่ม" : ""}
-            </p>
-          </div>
+          <EmptyState
+            title="ยังไม่มีงวดจ่ายเลย"
+            description={canManage ? 'กด "เปิดงวดใหม่" ด้านบนเพื่อเริ่ม' : undefined}
+          />
         )}
 
         {listQuery.isSuccess && closedPeriods.length === 0 && current !== null && (
-          <div className="rounded-lg border border-dashed border-line-strong p-8 text-center">
-            <p className="text-sm text-ink-muted">ยังไม่มีงวดที่ปิดแล้ว — ปิดงวดปัจจุบันเพื่อดูสรุปที่นี่</p>
-          </div>
+          <EmptyState title="ยังไม่มีงวดที่ปิดแล้ว" description="ปิดงวดปัจจุบันเพื่อดูสรุปที่นี่" />
         )}
 
         {listQuery.isSuccess && closedPeriods.length > 0 && (
