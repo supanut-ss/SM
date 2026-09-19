@@ -11,7 +11,7 @@ import {
   CONSENT_TYPES,
   type ConsentType,
 } from "@lotus-desk/contracts";
-import { Button, Input, Label, Select } from "@lotus-desk/ui";
+import { Button, Input, Label, Select, Skeleton } from "@lotus-desk/ui";
 import { ApiError, memberConsentApi, type MemberConsent } from "../../../lib/api-client";
 
 interface RecordFormValues {
@@ -76,7 +76,9 @@ export function MemberConsentSection({ branchId, memberId }: { branchId: string;
   return (
     <div className="grid gap-3 border-t border-line pt-4">
       <span className="text-sm font-medium text-ink">ความยินยอม (PDPA)</span>
-      {consentsQuery.isLoading && <p className="text-xs text-ink-muted">กำลังโหลด...</p>}
+      {consentsQuery.isLoading && (
+        <Skeleton className="h-4 w-24" role="status" aria-label="กำลังโหลด" />
+      )}
 
       {CONSENT_TYPES.map((type) => {
         const current = latestByType.get(type);

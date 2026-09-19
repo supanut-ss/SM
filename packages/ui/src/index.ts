@@ -6,6 +6,7 @@ export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Select } from "./components/select";
 export { Sheet, type SheetProps } from "./components/sheet";
+export { Skeleton, SkeletonGroup, type SkeletonGroupProps } from "./components/skeleton";
 export { Textarea } from "./components/textarea";
 export {
   StatusBadge,

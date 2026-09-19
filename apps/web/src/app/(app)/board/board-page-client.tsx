@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Select } from "@lotus-desk/ui";
+import { Button, Select, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import {
   ApiError,
   appointmentItemApi,
@@ -236,11 +236,11 @@ export function BoardPageClient() {
       )}
 
       {isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดกระดานคิว">
+        <SkeletonGroup label="กำลังโหลดกระดานคิว">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-14 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-14" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {isError && (

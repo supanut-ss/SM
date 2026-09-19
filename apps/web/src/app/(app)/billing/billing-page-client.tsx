@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABEL, type PaymentMethod } from "@lotus-desk/contracts";
-import { Button, Input, Label, Select } from "@lotus-desk/ui";
+import { Button, Input, Label, Select, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import {
   ApiError,
   appointmentItemApi,
@@ -296,11 +296,11 @@ export function BillingPageClient() {
     return (
       <>
         {itemsQuery.isLoading && (
-          <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายการ">
+          <SkeletonGroup label="กำลังโหลดรายการ">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-14 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+              <Skeleton key={i} className="h-14" />
             ))}
-          </div>
+          </SkeletonGroup>
         )}
 
         {itemsQuery.isError && (

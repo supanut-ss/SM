@@ -2,7 +2,7 @@
 
 import type { UseQueryResult } from "@tanstack/react-query";
 import { STAFF_LEVEL_LABEL, type StaffLevel } from "@lotus-desk/contracts";
-import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import { ApiError, type StaffUtilizationReport } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 
@@ -65,11 +65,11 @@ export function StaffUtilizationSection({
       <h2 className="mb-3 font-display text-lg font-semibold text-ink">ชั่วโมงทำงานและค่ามือต่อพนักงาน</h2>
 
       {query.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดตารางพนักงาน">
+        <SkeletonGroup label="กำลังโหลดตารางพนักงาน">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-10" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {query.isError && (

@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Button } from "@lotus-desk/ui";
+import { Button, Skeleton } from "@lotus-desk/ui";
 import { ApiError, type DailySummaryReport } from "../../../lib/api-client";
 import { formatDateShortThai } from "./date-utils";
 
@@ -45,7 +45,7 @@ export function RevenueChartSection({
       <h2 className="mb-3 font-display text-lg font-semibold text-ink">รายได้รับรู้ vs เงินเข้าจริง</h2>
 
       {query.isLoading && (
-        <div className="h-64 animate-pulse rounded-DEFAULT bg-surface-sunk" aria-busy="true" aria-label="กำลังโหลดกราฟรายได้" />
+        <Skeleton className="h-64" role="status" aria-busy="true" aria-label="กำลังโหลดกราฟรายได้" />
       )}
 
       {query.isError && (

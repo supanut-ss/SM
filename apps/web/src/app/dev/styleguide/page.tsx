@@ -5,6 +5,8 @@ import {
   Select,
   StatusBadge,
   APPOINTMENT_STATUSES,
+  Skeleton,
+  SkeletonGroup,
   Table,
   TableHeader,
   TableBody,
@@ -140,6 +142,36 @@ export default function StyleGuidePage() {
             ))}
           </TableBody>
         </Table>
+      </section>
+
+      <section>
+        <h2 className="mb-4 text-lg font-semibold text-ink">กำลังโหลด (Skeleton)</h2>
+        <div className="space-y-6 rounded-lg border border-line bg-surface p-6">
+          <div>
+            <p className="mb-2 text-xs font-medium text-ink-muted">รายการ (row/line)</p>
+            <SkeletonGroup label="ตัวอย่าง: กำลังโหลดรายการ">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-10" />
+              ))}
+            </SkeletonGroup>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-ink-muted">การ์ด (card)</p>
+            <SkeletonGroup label="ตัวอย่าง: กำลังโหลดการ์ด">
+              {[0, 1].map((i) => (
+                <Skeleton key={i} className="h-14" />
+              ))}
+            </SkeletonGroup>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-ink-muted">KPI (grid tile)</p>
+            <SkeletonGroup label="ตัวอย่าง: กำลังโหลด KPI" className="grid grid-cols-3 gap-3 space-y-0">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-16" />
+              ))}
+            </SkeletonGroup>
+          </div>
+        </div>
       </section>
 
       <section>

@@ -5,20 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateMemberInput, UpdateMemberInput } from "@lotus-desk/contracts";
-import {
-  Button,
-  Fab,
-  ListCard,
-  ResponsiveList,
-  Select,
-  Sheet,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@lotus-desk/ui";
+import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import { ApiError, memberApi, type Member } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
@@ -206,11 +193,11 @@ export function MemberPageClient() {
       </div>
 
       {listQuery.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายชื่อสมาชิก">
+        <SkeletonGroup label="กำลังโหลดรายชื่อสมาชิก">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-10" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {listQuery.isError && (

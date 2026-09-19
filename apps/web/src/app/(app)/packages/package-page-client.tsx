@@ -3,20 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PACKAGE_TYPE_LABEL, type CreatePackageInput, type UpdatePackageInput } from "@lotus-desk/contracts";
-import {
-  Button,
-  Fab,
-  ListCard,
-  ResponsiveList,
-  Select,
-  Sheet,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@lotus-desk/ui";
+import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import { ApiError, packageApi, serviceApi, type Package } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
@@ -203,11 +190,11 @@ export function PackagePageClient() {
       </div>
 
       {listQuery.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายชื่อคอร์ส/แพ็กเกจ">
+        <SkeletonGroup label="กำลังโหลดรายชื่อคอร์ส/แพ็กเกจ">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-10" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {listQuery.isError && (

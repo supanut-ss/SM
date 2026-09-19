@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LEAVE_TYPE_LABEL } from "@lotus-desk/contracts";
-import { Button, Sheet, cn } from "@lotus-desk/ui";
+import { Button, Sheet, cn, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import {
   ApiError,
   shiftTemplateApi,
@@ -207,11 +207,11 @@ export function ShiftsPageClient() {
       )}
 
       {staffQuery.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดตารางกะ">
+        <SkeletonGroup label="กำลังโหลดตารางกะ">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-16" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {staffQuery.isSuccess && staffQuery.data.length === 0 && (

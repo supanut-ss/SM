@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BILL_STATUS_LABEL } from "@lotus-desk/contracts";
 import type { UpdateMemberInput } from "@lotus-desk/contracts";
-import { Button, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import { Button, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import { ApiError, billApi, memberApi } from "../../../../lib/api-client";
 import { formatSatang } from "../../../../lib/format-money";
 import { useCurrentBranch } from "../../current-branch-context";
@@ -85,11 +85,11 @@ export function MemberDetailPageClient({ memberId }: { memberId: string }) {
       </Link>
 
       {memberQuery.isLoading && (
-        <div className="space-y-3" aria-busy="true" aria-label="กำลังโหลดข้อมูลสมาชิก">
-          <div className="h-8 w-64 animate-pulse rounded-DEFAULT bg-surface-sunk" />
-          <div className="h-5 w-40 animate-pulse rounded-DEFAULT bg-surface-sunk" />
-          <div className="h-24 animate-pulse rounded-DEFAULT bg-surface-sunk" />
-        </div>
+        <SkeletonGroup label="กำลังโหลดข้อมูลสมาชิก" className="space-y-3">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-24" />
+        </SkeletonGroup>
       )}
 
       {memberQuery.isError && memberQuery.error instanceof ApiError && memberQuery.error.status === 404 && (
@@ -146,11 +146,11 @@ export function MemberDetailPageClient({ memberId }: { memberId: string }) {
             <h2 className="font-display text-lg font-semibold text-ink">ประวัติการซื้อ</h2>
 
             {billsQuery.isLoading && (
-              <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดประวัติการซื้อ">
+              <SkeletonGroup label="กำลังโหลดประวัติการซื้อ">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+                  <Skeleton key={i} className="h-10" />
                 ))}
-              </div>
+              </SkeletonGroup>
             )}
 
             {billsQuery.isError && (

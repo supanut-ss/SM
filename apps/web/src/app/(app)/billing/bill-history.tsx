@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BILL_STATUS_LABEL } from "@lotus-desk/contracts";
-import { Button, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, Label } from "@lotus-desk/ui";
+import { Button, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, Label, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import { ApiError, billApi, type Bill } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 import { ManagerPinDialog } from "./manager-pin-dialog";
@@ -60,11 +60,11 @@ export function BillHistory({ branchId }: { branchId: string }) {
       <h2 className="mb-3 font-display text-lg font-semibold text-ink">ประวัติบิล</h2>
 
       {listQuery.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดประวัติบิล">
+        <SkeletonGroup label="กำลังโหลดประวัติบิล">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-10" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {listQuery.isError && (

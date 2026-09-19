@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@lotus-desk/ui";
+import { Button, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import { ApiError, reportsApi } from "../../../lib/api-client";
 
 function formatDateThai(iso: string): string {
@@ -26,11 +26,11 @@ export function DormantCustomersSection({ branchId }: { branchId: string }) {
       <h2 className="mb-3 font-display text-lg font-semibold text-ink">ลูกค้าที่หายไปเกิน 60 วัน</h2>
 
       {query.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดลูกค้าที่หายไป">
+        <SkeletonGroup label="กำลังโหลดลูกค้าที่หายไป">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-14 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-14" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {query.isError && (

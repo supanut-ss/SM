@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_LEVEL_LABEL } from "@lotus-desk/contracts";
-import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import {
   ApiError,
@@ -211,11 +211,11 @@ export function AttendancePageClient() {
       </div>
 
       {isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายการลงเวลา">
+        <SkeletonGroup label="กำลังโหลดรายการลงเวลา">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-10" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {!isLoading && isError && (

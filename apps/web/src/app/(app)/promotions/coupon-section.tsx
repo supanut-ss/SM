@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Input, Label } from "@lotus-desk/ui";
+import { Button, Input, Label, Skeleton } from "@lotus-desk/ui";
 import { ApiError, couponApi } from "../../../lib/api-client";
 
 /** คูปองของโปรโมชั่น (T5.4) — โปรฯ ที่มีคูปองผูกอย่างน้อย 1 ใบ จะกลายเป็น "ต้องกรอกรหัสคูปอง" ในหน้าคำนวณ */
@@ -89,7 +89,9 @@ export function CouponSection({ branchId, promotionId }: { branchId: string; pro
         </div>
       )}
 
-      {couponsQuery.isLoading && <p className="text-xs text-ink-muted">กำลังโหลด...</p>}
+      {couponsQuery.isLoading && (
+        <Skeleton className="h-4 w-24" role="status" aria-label="กำลังโหลด" />
+      )}
       {couponsQuery.isSuccess && couponsQuery.data.length === 0 && (
         <p className="text-xs text-ink-muted">ยังไม่มีคูปองผูกกับโปรฯ นี้ (ใช้ได้อัตโนมัติถ้าเข้าเงื่อนไข)</p>
       )}

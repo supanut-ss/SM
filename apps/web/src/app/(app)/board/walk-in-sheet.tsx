@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Button, Sheet } from "@lotus-desk/ui";
+import { Button, Sheet, Skeleton } from "@lotus-desk/ui";
 import { ApiError, appointmentItemApi, serviceApi, type AppointmentItem } from "../../../lib/api-client";
 
 function formatTime(iso: string): string {
@@ -79,7 +79,9 @@ export function WalkInSheet({
               {error}
             </p>
           )}
-          {servicesQuery.isLoading && <p className="text-sm text-ink-muted">กำลังโหลด...</p>}
+          {servicesQuery.isLoading && (
+            <Skeleton className="h-9 w-full" role="status" aria-label="กำลังโหลด" />
+          )}
           {servicesQuery.isSuccess && servicesQuery.data.length === 0 && (
             <p className="text-sm text-ink-muted">ยังไม่มีบริการที่เปิดขายในสาขานี้</p>
           )}

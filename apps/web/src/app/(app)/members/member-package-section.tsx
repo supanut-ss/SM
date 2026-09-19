@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MEMBER_PACKAGE_LEDGER_KIND_LABEL, PACKAGE_TYPE_LABEL } from "@lotus-desk/contracts";
-import { Button, Input, Label, Select } from "@lotus-desk/ui";
+import { Button, Input, Label, Select, Skeleton } from "@lotus-desk/ui";
 import {
   ApiError,
   memberApi,
@@ -144,7 +144,9 @@ export function MemberPackageSection({ branchId, memberId }: { branchId: string;
           <Label htmlFor="mp-purchase-select" className="text-xs font-normal">
             เลือกคอร์ส/แพ็กเกจ
           </Label>
-          {catalogQuery.isLoading && <p className="text-xs text-ink-muted">กำลังโหลด...</p>}
+          {catalogQuery.isLoading && (
+            <Skeleton className="h-9 w-full" role="status" aria-label="กำลังโหลด" />
+          )}
           {catalogQuery.isSuccess && activePackages.length === 0 && (
             <p className="text-xs text-brass">สาขานี้ยังไม่มีคอร์ส/แพ็กเกจที่เปิดขายเลย</p>
           )}
@@ -179,7 +181,9 @@ export function MemberPackageSection({ branchId, memberId }: { branchId: string;
         </div>
       )}
 
-      {memberPackagesQuery.isLoading && <p className="text-xs text-ink-muted">กำลังโหลด...</p>}
+      {memberPackagesQuery.isLoading && (
+        <Skeleton className="h-4 w-24" role="status" aria-label="กำลังโหลด" />
+      )}
       {memberPackagesQuery.isSuccess && memberPackagesQuery.data.length === 0 && (
         <p className="text-xs text-ink-muted">สมาชิกคนนี้ยังไม่มีคอร์ส/แพ็กเกจเลย</p>
       )}

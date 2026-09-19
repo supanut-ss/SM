@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_LEVEL_LABEL } from "@lotus-desk/contracts";
-import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import { Button, ListCard, ResponsiveList, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import {
   ApiError,
   payrollApi,
@@ -153,11 +153,11 @@ function ClosedPeriodRow({
       {expanded && (
         <div className="mt-4 border-t border-line pt-3">
           {summaryQuery.isLoading && (
-            <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดสรุป">
+            <SkeletonGroup label="กำลังโหลดสรุป">
               {[0, 1].map((i) => (
-                <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+                <Skeleton key={i} className="h-10" />
               ))}
-            </div>
+            </SkeletonGroup>
           )}
           {summaryQuery.isError && (
             <div className="rounded-DEFAULT bg-rose-tint px-4 py-3 text-sm text-rose">
@@ -273,7 +273,7 @@ export function PayrollPageClient() {
       {/* การ์ดงวดปัจจุบัน */}
       <div className="mb-6 rounded-DEFAULT border border-line-strong bg-surface p-4">
         {currentQuery.isLoading && (
-          <div className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" aria-busy="true" aria-label="กำลังโหลด" />
+          <Skeleton className="h-10" role="status" aria-busy="true" aria-label="กำลังโหลด" />
         )}
 
         {currentQuery.isError && (
@@ -347,11 +347,11 @@ export function PayrollPageClient() {
         <h2 className="mb-3 font-display text-lg font-semibold text-ink">ประวัติงวดจ่าย</h2>
 
         {listQuery.isLoading && (
-          <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดประวัติงวดจ่าย">
+          <SkeletonGroup label="กำลังโหลดประวัติงวดจ่าย">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-16 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+              <Skeleton key={i} className="h-16" />
             ))}
-          </div>
+          </SkeletonGroup>
         )}
 
         {listQuery.isError && (

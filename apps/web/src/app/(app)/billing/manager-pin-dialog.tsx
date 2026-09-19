@@ -2,7 +2,7 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Input, Label, Select, Sheet } from "@lotus-desk/ui";
+import { Button, Input, Label, Select, Sheet, Skeleton } from "@lotus-desk/ui";
 import { ApiError, authApi, userApi } from "../../../lib/api-client";
 
 // ผู้อนุมัติต้องเป็น owner/manager เท่านั้น — ตรงกับ APPROVER_ROLE_KEYS ฝั่ง AuthService.verifyManagerPin
@@ -75,7 +75,9 @@ export function ManagerPinDialog({
       <form onSubmit={handleSubmit} className="grid gap-5" noValidate>
         <div className="grid gap-1.5">
           <Label htmlFor={approverFieldId}>ผู้จัดการที่จะอนุมัติ</Label>
-          {usersQuery.isLoading && <p className="text-sm text-ink-muted">กำลังโหลด...</p>}
+          {usersQuery.isLoading && (
+            <Skeleton className="h-9 w-full" role="status" aria-label="กำลังโหลด" />
+          )}
           {usersQuery.isSuccess && approvers.length === 0 && (
             <p className="text-xs text-brass">สาขานี้ยังไม่มีผู้จัดการหรือเจ้าของร้านที่ใช้งานอยู่</p>
           )}

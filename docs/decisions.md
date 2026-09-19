@@ -2035,3 +2035,23 @@ wizard 3 ขั้นแทนหลายคอลัมน์พร้อม�
 
 ผลกระทบ: ยังไม่มีผลต่อผู้ใช้จริงจนกว่าจะมีคนหยิบ Task ใน T10.x ไปทำ — เมื่อ T10.1 เริ่มทำจริงให้ยุบเนื้อหา
 `docs/DESIGN-MOBILE.md` เข้า `docs/DESIGN.md` §9 ตามที่ระบุไว้ในสเปกแล้วลบไฟล์แยกทิ้ง
+
+## ADR-052: เพิ่ม Skeleton component กลาง — ยืนยันว่า skeleton pulse เป็นรายการ animation ที่อนุญาต (รายการที่ 5)
+วันที่: 2026-09-19
+Task ที่เกี่ยวข้อง: T11.1 (จากการตรวจสอบ UI ทั้งระบบผ่าน `/frontend-design` พบว่าไม่มี `Skeleton` component
+เลยทั้ง repo ทั้งที่ทุกหน้าใช้ `animate-pulse` แบบ ad-hoc ซ้ำกัน ~25 จุดอยู่แล้ว)
+
+บริบท: `docs/DESIGN.md` หัวข้อ motion ระบุการใช้ animation ที่อนุญาตไว้ 4 กรณี (drag, Sheet slide-in, Toast,
+appointment-in-service pulse) แต่ในโค้ดจริงมี `animate-pulse rounded-DEFAULT bg-surface-sunk` เป็น loading
+placeholder อยู่แล้วใน ~20+ จุดทั่วระบบก่อนหน้า ADR นี้ (ไม่ใช่พฤติกรรมใหม่ที่ T11.1 เพิ่ม) — เอกสารไม่ทันข้อ
+เท็จจริงของโค้ด
+
+ตัดสินใจ: สร้าง `Skeleton`/`SkeletonGroup` ใน `packages/ui/src/components/skeleton.tsx` (ใช้ token
+`--surface-sunk` เดิม ไม่เพิ่มสีใหม่ ไม่เขียน reduced-motion handling เอง เพราะ
+`packages/ui/src/tailwind-theme.css` จัดการ `prefers-reduced-motion` แบบ global ให้ `animate-pulse`
+ทุกจุดอยู่แล้ว) แทนที่จุด ad-hoc ทั้งหมดด้วย component นี้ และถือว่า **skeleton loading pulse เป็นรายการที่ 5
+ที่อนุญาตให้ animate ใน DESIGN.md** (ของเดิมที่ implicit อยู่แล้วในโค้ด ทำให้ explicit ในเอกสาร ไม่ใช่การ
+เพิ่มพฤติกรรม motion ใหม่)
+
+ผลกระทบ: ทุกหน้าที่มี `isLoading` ต้องเรียก `Skeleton`/`SkeletonGroup` แทนการเขียน div ตรงๆ ต่อจากนี้ —
+`docs/DESIGN.md` §motion ควรอัปเดตให้ตรงกับ ADR นี้ในรอบถัดไปที่แก้เอกสารนั้น

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@lotus-desk/ui";
+import { Button, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import { ApiError, reportsApi, type ExpiringCoursePackage } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 
@@ -40,11 +40,11 @@ export function ExpiringCoursesSection({ branchId }: { branchId: string }) {
       <h2 className="mb-3 font-display text-lg font-semibold text-ink">คอร์สใกล้หมดอายุ</h2>
 
       {query.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดคอร์สใกล้หมดอายุ">
+        <SkeletonGroup label="กำลังโหลดคอร์สใกล้หมดอายุ">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-14 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-14" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {query.isError && (

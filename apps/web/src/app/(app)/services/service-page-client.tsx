@@ -3,20 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STAFF_SKILL_LABEL, type CreateServiceInput, type UpdateServiceInput } from "@lotus-desk/contracts";
-import {
-  Button,
-  Fab,
-  ListCard,
-  ResponsiveList,
-  Select,
-  Sheet,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@lotus-desk/ui";
+import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import {
   ApiError,
@@ -241,11 +228,11 @@ export function ServicePageClient() {
       </div>
 
       {listQuery.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายชื่อบริการ">
+        <SkeletonGroup label="กำลังโหลดรายชื่อบริการ">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-10" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {listQuery.isError && (

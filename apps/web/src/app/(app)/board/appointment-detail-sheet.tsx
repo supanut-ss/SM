@@ -10,7 +10,7 @@ import {
   PAYMENT_METHOD_LABEL,
 } from "@lotus-desk/contracts";
 import type { AppointmentStatus, PaymentMethod } from "@lotus-desk/contracts";
-import { Button, Select, Sheet } from "@lotus-desk/ui";
+import { Button, Select, Sheet, Skeleton } from "@lotus-desk/ui";
 import { memberPackageApi, type AppointmentItem } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 import { useCurrentBranch } from "../current-branch-context";
@@ -187,7 +187,7 @@ export function AppointmentDetailSheet({
                   {paymentMethod === "PACKAGE" && (
                     <div className="grid gap-1">
                       {memberPackagesQuery.isLoading && (
-                        <p className="text-xs text-ink-muted">กำลังโหลดคอร์สของสมาชิก...</p>
+                        <Skeleton className="h-8 w-full" role="status" aria-label="กำลังโหลดคอร์สของสมาชิก" />
                       )}
                       {memberPackagesQuery.isError && (
                         <p className="text-xs text-rose">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@lotus-desk/ui";
+import { Button, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import { ApiError, reportsApi } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 
@@ -45,11 +45,14 @@ export function KpiSection({ branchId }: { branchId: string }) {
       </div>
 
       {todayQuery.isLoading && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-busy="true" aria-label="กำลังโหลด KPI วันนี้">
+        <SkeletonGroup
+          label="กำลังโหลด KPI วันนี้"
+          className="grid grid-cols-2 gap-3 space-y-0 sm:grid-cols-3"
+        >
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-16" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {todayQuery.isError && (

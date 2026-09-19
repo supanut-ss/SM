@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Input } from "@lotus-desk/ui";
+import { Button, Input, Skeleton } from "@lotus-desk/ui";
 import { ApiError, memberApi, type Member } from "../../../lib/api-client";
 
 /**
@@ -87,7 +87,9 @@ export function MemberMergeSection({
             placeholder="ค้นหาชื่อหรือเบอร์โทรของสมาชิกหลัก..."
             aria-label="ค้นหาสมาชิกหลักที่จะรวมเข้า"
           />
-          {searchQuery.isLoading && <p className="text-xs text-ink-muted">กำลังค้นหา...</p>}
+          {searchQuery.isLoading && (
+            <Skeleton className="h-4 w-24" role="status" aria-label="กำลังค้นหา" />
+          )}
           {debouncedQuery && searchQuery.isSuccess && candidates.length === 0 && (
             <p className="text-xs text-ink-muted">ไม่พบสมาชิกที่ตรงกับ &ldquo;{debouncedQuery}&rdquo;</p>
           )}

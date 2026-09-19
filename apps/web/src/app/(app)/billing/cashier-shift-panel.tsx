@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Input, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lotus-desk/ui";
+import { Button, Input, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@lotus-desk/ui";
 import { ApiError, cashierShiftApi, type CashierShift } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 import { ManagerPinDialog } from "./manager-pin-dialog";
@@ -85,7 +85,9 @@ export function CashierShiftPanel({ branchId }: { branchId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-ink">รอบกะแคชเชียร์</h2>
-          {currentQuery.isLoading && <p className="text-xs text-ink-muted">กำลังโหลด...</p>}
+          {currentQuery.isLoading && (
+            <Skeleton className="h-4 w-32" role="status" aria-label="กำลังโหลด" />
+          )}
           {currentQuery.isSuccess && current === null && (
             <p className="text-xs text-ink-muted">ยังไม่มีรอบกะเปิดอยู่</p>
           )}

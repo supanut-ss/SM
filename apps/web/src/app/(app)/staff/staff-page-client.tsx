@@ -10,20 +10,7 @@ import {
   type StaffSkill,
   type UpdateStaffInput,
 } from "@lotus-desk/contracts";
-import {
-  Button,
-  Fab,
-  ListCard,
-  ResponsiveList,
-  Select,
-  Sheet,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@lotus-desk/ui";
+import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import { ApiError, staffApi, type StaffProfile } from "../../../lib/api-client";
 import { useCurrentBranch } from "../current-branch-context";
@@ -210,11 +197,11 @@ export function StaffPageClient() {
       </div>
 
       {listQuery.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายชื่อพนักงาน">
+        <SkeletonGroup label="กำลังโหลดรายชื่อพนักงาน">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-10" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {listQuery.isError && (

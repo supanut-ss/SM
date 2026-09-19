@@ -3,7 +3,7 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@lotus-desk/contracts";
-import { Button } from "@lotus-desk/ui";
+import { Button, Skeleton } from "@lotus-desk/ui";
 import { ApiError, type DailySummaryReport } from "../../../lib/api-client";
 
 // สีต่อช่องทางชำระ — ใช้ token ธรรมดา (ไม่ใช่ -solid) เพราะ -solid มีแค่ celadon/rose และตั้งใจไว้เฉพาะ
@@ -54,7 +54,7 @@ export function PaymentBreakdownSection({
       <h2 className="mb-3 font-display text-lg font-semibold text-ink">สัดส่วนช่องทางชำระ</h2>
 
       {query.isLoading && (
-        <div className="h-64 animate-pulse rounded-DEFAULT bg-surface-sunk" aria-busy="true" aria-label="กำลังโหลดสัดส่วนช่องทางชำระ" />
+        <Skeleton className="h-64" role="status" aria-busy="true" aria-label="กำลังโหลดสัดส่วนช่องทางชำระ" />
       )}
 
       {query.isError && (

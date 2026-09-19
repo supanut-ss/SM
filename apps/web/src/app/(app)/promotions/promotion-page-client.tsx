@@ -4,20 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PROMOTION_TYPE_LABEL, type CreatePromotionInput, type UpdatePromotionInput } from "@lotus-desk/contracts";
-import {
-  Button,
-  Fab,
-  ListCard,
-  ResponsiveList,
-  Select,
-  Sheet,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@lotus-desk/ui";
+import { Button, Fab, ListCard, ResponsiveList, Select, Sheet, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import type { ReactNode } from "react";
 import { ApiError, promotionApi, serviceApi, type Promotion } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
@@ -208,11 +195,11 @@ export function PromotionPageClient() {
       </div>
 
       {listQuery.isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดรายการโปรโมชั่น">
+        <SkeletonGroup label="กำลังโหลดรายการโปรโมชั่น">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-10" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {listQuery.isError && (

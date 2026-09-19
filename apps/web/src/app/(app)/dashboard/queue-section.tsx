@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@lotus-desk/ui";
+import { Button, Skeleton, SkeletonGroup } from "@lotus-desk/ui";
 import { ApiError, appointmentItemApi, staffQueueApi } from "../../../lib/api-client";
 import { startOfToday, toDateKey } from "../board/date-format";
 
@@ -52,11 +52,11 @@ export function QueueSection({ branchId }: { branchId: string }) {
       </div>
 
       {isLoading && (
-        <div className="space-y-2" aria-busy="true" aria-label="กำลังโหลดกระดานคิวย่อ">
+        <SkeletonGroup label="กำลังโหลดกระดานคิวย่อ">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 animate-pulse rounded-DEFAULT bg-surface-sunk" />
+            <Skeleton key={i} className="h-10" />
           ))}
-        </div>
+        </SkeletonGroup>
       )}
 
       {isError && (
