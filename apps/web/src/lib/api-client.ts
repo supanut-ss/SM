@@ -11,8 +11,10 @@ import type {
   ConsentType,
   ConsentStatus,
   LeaveType,
+  CreateUserInput,
   LoginInput,
   ResetUserPasswordInput,
+  UpdateUserInput,
   MeResponse,
   MergeMemberInput,
   StaffLevel,
@@ -125,10 +127,26 @@ export interface BranchUser {
   email: string;
   roleKey: string;
   roleName: string;
+  isActive: boolean;
 }
 
 export const userApi = {
-  list: (branchId: string) => apiFetch<BranchUser[]>(`/branches/${branchId}/users`),
+  // isActive: "all" = เห็น user ที่ปิดใช้งานด้วย (หน้าจัดการผู้ใช้ต้องเห็นเพื่อเปิดกลับได้ — ดู ADR-060)
+  // ไม่ส่ง = ค่าเริ่มต้นเดิม (active เท่านั้น) สำหรับที่อื่นที่ยังเรียก endpoint นี้อยู่ (T5.6)
+  list: (branchId: string, params?: { isActive?: "all" }) =>
+    apiFetch<BranchUser[]>(
+      `/branches/${branchId}/users${params?.isActive ? `?isActive=${params.isActive}` : ""}`,
+    ),
+  create: (branchId: string, input: CreateUserInput) =>
+    apiFetch<BranchUser>(`/branches/${branchId}/users`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, userId: string, input: UpdateUserInput) =>
+    apiFetch<BranchUser>(`/branches/${branchId}/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   resetPassword: (branchId: string, userId: string, input: ResetUserPasswordInput) =>
     apiFetch<{ id: string; email: string; name: string }>(
       `/branches/${branchId}/users/${userId}/password`,

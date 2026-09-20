@@ -1,18 +1,26 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   NotFoundException,
   Param,
   Patch,
+  Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import * as argon2 from "argon2";
+import { Prisma } from "@lotus-desk/db";
 import {
+  createUserSchema,
   resetUserPasswordSchema,
   updateBranchSchema,
+  updateUserSchema,
+  type CreateUserInput,
   type ResetUserPasswordInput,
   type UpdateBranchInput,
+  type UpdateUserInput,
 } from "@lotus-desk/contracts";
 import { AuditEntity } from "../../audit/audit-entity.decorator";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
@@ -63,9 +71,14 @@ export class BranchController {
    */
   @Get(":branchId/users")
   @RequirePermission("view", "staff")
-  async listUsers(@CurrentBranch() branch: BranchContext) {
+  async listUsers(
+    @CurrentBranch() branch: BranchContext,
+    // ค่าเริ่มต้น = active เท่านั้น (พฤติกรรมเดิมของ endpoint นี้ตอนใช้เลือก "ผู้จัดการที่จะอนุมัติ" — ห้าม
+    // เปลี่ยน) ส่ง ?isActive=all เพื่อเห็น user ที่ปิดใช้งานด้วย (หน้าจัดการผู้ใช้ต้องเห็นเพื่อเปิดกลับได้)
+    @Query("isActive") isActiveParam?: string,
+  ) {
     const userBranches = await this.prisma.forBranch(branch.branchId).userBranch.findMany({
-      where: { user: { isActive: true } },
+      where: isActiveParam === "all" ? {} : { user: { isActive: true } },
       include: { user: true, role: true },
       orderBy: { user: { name: "asc" } },
     });
@@ -75,7 +88,117 @@ export class BranchController {
       email: ub.user.email,
       roleKey: ub.role.key,
       roleName: ub.role.name,
+      isActive: ub.user.isActive,
     }));
+  }
+
+  /**
+   * สร้าง user ใหม่ + ผูกกับสาขานี้ทันที (T-ADR-060) — เกทด้วย settings:manage เหมือน endpoint อื่นในกลุ่ม
+   * จัดการผู้ใช้ (ดู docs/decisions.md ADR-060) roleKey ต้องเป็น 1 ใน 4 role คงที่ที่ seed ไว้แล้วเท่านั้น
+   * (ไม่มี CRUD role ในระบบนี้ — ดู ROLE_DEFINITIONS)
+   */
+  @Post(":branchId/users")
+  @RequirePermission("manage", "settings")
+  @AuditEntity("User")
+  async createUser(
+    @CurrentBranch() branch: BranchContext,
+    @Body(new ZodValidationPipe(createUserSchema)) body: CreateUserInput,
+  ) {
+    const role = await this.prisma.client.role.findUnique({ where: { key: body.roleKey } });
+    if (!role) {
+      throw new NotFoundException("ไม่พบบทบาทนี้ในระบบ");
+    }
+
+    const passwordHash = await argon2.hash(body.password);
+    try {
+      const user = await this.prisma.client.user.create({
+        data: {
+          email: body.email,
+          name: body.name,
+          passwordHash,
+          isActive: true,
+          branches: { create: { branchId: branch.branchId, roleId: role.id } },
+        },
+      });
+      return { id: user.id, email: user.email, name: user.name, roleKey: role.key, roleName: role.name };
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        throw new ConflictException("อีเมลนี้มีผู้ใช้อยู่แล้วในระบบ");
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * แก้ชื่อ/อีเมล/บทบาท/เปิด-ปิดใช้งาน user คนนี้ (T-ADR-060) — "ลบ" user คือส่ง isActive: false มา
+   * (soft delete ตาม pattern เดิมของ staff/room/service ทั้งระบบ กันประวัติ/บิล/ใบงานเก่าที่อ้างอิง user
+   * คนนี้อยู่พังไปด้วย) ไม่มีฟิลด์รหัสผ่านที่นี่ — แก้รหัสผ่านแยกไปที่ PATCH .../password (ADR-059)
+   */
+  @Patch(":branchId/users/:userId")
+  @RequirePermission("manage", "settings")
+  @AuditEntity("User")
+  async updateUser(
+    @CurrentBranch() branch: BranchContext,
+    @Param("userId") userId: string,
+    @Body(new ZodValidationPipe(updateUserSchema)) body: UpdateUserInput,
+  ) {
+    const userBranch = await this.prisma.client.userBranch.findUnique({
+      where: { userId_branchId: { userId, branchId: branch.branchId } },
+    });
+    if (!userBranch) {
+      throw new NotFoundException("ไม่พบผู้ใช้นี้ในสาขานี้");
+    }
+
+    let roleId: string | undefined;
+    if (body.roleKey) {
+      const role = await this.prisma.client.role.findUnique({ where: { key: body.roleKey } });
+      if (!role) {
+        throw new NotFoundException("ไม่พบบทบาทนี้ในระบบ");
+      }
+      roleId = role.id;
+    }
+
+    try {
+      const user = await this.prisma.client.$transaction(async (tx) => {
+        const updated = await tx.user.update({
+          where: { id: userId },
+          data: {
+            ...(body.name !== undefined && { name: body.name }),
+            ...(body.email !== undefined && { email: body.email }),
+            ...(body.isActive !== undefined && { isActive: body.isActive }),
+          },
+        });
+        if (roleId) {
+          await tx.userBranch.update({
+            where: { userId_branchId: { userId, branchId: branch.branchId } },
+            data: { roleId },
+          });
+        }
+        return updated;
+      });
+      // ปิดใช้งาน user คนนี้แล้ว = เพิกถอน session เดิมทั้งหมดด้วย เหตุผลเดียวกับ ADR-059 (บัญชีที่ถูกปิด
+      // ไม่ควรใช้ token เก่าที่ยังไม่หมดอายุเข้าระบบต่อได้)
+      if (body.isActive === false) {
+        await this.authService.logoutAll(userId);
+      }
+      const finalUserBranch = await this.prisma.client.userBranch.findUnique({
+        where: { userId_branchId: { userId, branchId: branch.branchId } },
+        include: { role: true },
+      });
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        isActive: user.isActive,
+        roleKey: finalUserBranch?.role.key,
+        roleName: finalUserBranch?.role.name,
+      };
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        throw new ConflictException("อีเมลนี้มีผู้ใช้อยู่แล้วในระบบ");
+      }
+      throw err;
+    }
   }
 
   @Patch(":branchId")

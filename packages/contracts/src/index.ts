@@ -20,3 +20,4 @@ export * from "./bill.js";
 export * from "./attendance.js";
 export * from "./payroll.js";
 export * from "./reports.js";
+export * from "./users.js";

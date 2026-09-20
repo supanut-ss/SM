@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ROLE_DEFINITIONS } from "@lotus-desk/contracts";
 import {
   Button,
   EmptyState,
   ErrorState,
+  Select,
   Sheet,
   Skeleton,
   SkeletonGroup,
@@ -21,21 +23,32 @@ import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
 
 /**
- * ตั้งรหัสผ่านใหม่ให้ user คนอื่นโดยตรง (T-ADR-059) — เห็นเฉพาะ owner (settings:manage) เพราะยังไม่มีระบบ
- * ส่งอีเมล reset ในโปรเจกต์นี้ ใช้แก้ปัญหา user ลืมรหัสผ่านแล้วเข้าระบบไม่ได้เอง (ดู docs/decisions.md
- * ADR-059) — รีเซ็ตแล้ว session เดิมของ user คนนั้นถูกเพิกถอนทั้งหมด (backend ทำให้อัตโนมัติ)
+ * เพิ่ม/แก้ไข/ปิดใช้งาน/ตั้งรหัสผ่านใหม่ให้ user (T-ADR-059, T-ADR-060) — เห็นเฉพาะ owner (settings:manage)
+ * "ลบ" ในหน้านี้คือปิดใช้งาน (isActive: false) ไม่ใช่ลบแถวจริง ตรงกับ pattern เดิมของ
+ * staff/room/service ทั้งระบบ (กันประวัติ/บิล/ใบงานเก่าที่อ้างอิง user คนนี้พังไปด้วย)
  */
 export function UserPageClient() {
   const branch = useCurrentBranch();
   const queryClient = useQueryClient();
   const canManage = hasPermission(branch?.permissions ?? [], "manage", "settings");
 
+  const [sheetTarget, setSheetTarget] = useState<"create" | BranchUser | null>(null);
   const [resetTarget, setResetTarget] = useState<BranchUser | null>(null);
+  const [confirmingDeactivateId, setConfirmingDeactivateId] = useState<string | null>(null);
 
   const listQuery = useQuery({
     queryKey: ["branch-users", branch?.branchId],
-    queryFn: () => userApi.list(branch!.branchId),
+    queryFn: () => userApi.list(branch!.branchId, { isActive: "all" }),
     enabled: !!branch?.branchId && canManage,
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ userId, isActive }: { userId: string; isActive: boolean }) =>
+      userApi.update(branch!.branchId, userId, { isActive }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["branch-users", branch?.branchId] });
+      setConfirmingDeactivateId(null);
+    },
   });
 
   if (!canManage) {
@@ -43,20 +56,70 @@ export function UserPageClient() {
       <div className="p-4 sm:p-6 lg:p-8">
         <EmptyState
           title="ไม่มีสิทธิ์เข้าถึงหน้านี้"
-          description="รีเซ็ตรหัสผ่านผู้ใช้ทำได้เฉพาะเจ้าของร้าน — ถ้าจำเป็นต้องใช้งาน ให้ติดต่อเจ้าของร้าน"
+          description="จัดการผู้ใช้ทำได้เฉพาะเจ้าของร้าน — ถ้าจำเป็นต้องใช้งาน ให้ติดต่อเจ้าของร้าน"
         />
       </div>
     );
   }
 
+  function renderActions(u: BranchUser): ReactNode {
+    return (
+      <>
+        <Button variant="ghost" size="sm" onClick={() => setSheetTarget(u)}>
+          แก้ไข
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setResetTarget(u)}>
+          ตั้งรหัสผ่านใหม่
+        </Button>
+        {confirmingDeactivateId === u.id ? (
+          <>
+            <span className="self-center text-xs text-ink-muted">ยืนยัน?</span>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={toggleActiveMutation.isPending}
+              onClick={() => toggleActiveMutation.mutate({ userId: u.id, isActive: false })}
+            >
+              ปิดใช้งาน
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmingDeactivateId(null)}>
+              ไม่ใช่
+            </Button>
+          </>
+        ) : u.isActive ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-rose hover:bg-rose-tint"
+            onClick={() => setConfirmingDeactivateId(u.id)}
+          >
+            ปิดใช้งาน
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={toggleActiveMutation.isPending}
+            onClick={() => toggleActiveMutation.mutate({ userId: u.id, isActive: true })}
+          >
+            เปิดใช้งานอีกครั้ง
+          </Button>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6 max-w-2xl">
-        <h1 className="text-balance font-display text-2xl font-semibold text-ink">รีเซ็ตรหัสผ่านผู้ใช้</h1>
-        <p className="text-pretty mt-2 text-sm leading-6 text-ink-muted">
-          ตั้งรหัสผ่านใหม่ให้ผู้ใช้ที่เข้าระบบไม่ได้ — ไม่ต้องรู้รหัสผ่านเดิม เมื่อรีเซ็ตแล้วผู้ใช้คนนั้นจะถูก
-          ออกจากระบบทุกอุปกรณ์ทันที
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
+          <h1 className="text-balance font-display text-2xl font-semibold text-ink">จัดการผู้ใช้</h1>
+          <p className="text-pretty mt-2 text-sm leading-6 text-ink-muted">
+            เพิ่ม/แก้ไข/ปิดใช้งานบัญชีผู้ใช้ และตั้งรหัสผ่านใหม่ให้ผู้ใช้ที่เข้าระบบไม่ได้ — ปิดใช้งานหรือ
+            ตั้งรหัสผ่านใหม่แล้ว ผู้ใช้คนนั้นจะถูกออกจากระบบทุกอุปกรณ์ทันที
+          </p>
+        </div>
+        <Button onClick={() => setSheetTarget("create")}>+ เพิ่มผู้ใช้</Button>
       </div>
 
       {listQuery.isLoading && (
@@ -76,7 +139,7 @@ export function UserPageClient() {
       )}
 
       {listQuery.isSuccess && listQuery.data.length === 0 && (
-        <EmptyState title="ยังไม่มีผู้ใช้ในสาขานี้" description="เพิ่มพนักงานก่อนถึงจะมีบัญชีผู้ใช้ให้จัดการ" />
+        <EmptyState title="ยังไม่มีผู้ใช้ในสาขานี้" description="กด + เพิ่มผู้ใช้ เพื่อสร้างบัญชีแรก" />
       )}
 
       {listQuery.isSuccess && listQuery.data.length > 0 && (
@@ -86,6 +149,7 @@ export function UserPageClient() {
               <TableHead>ชื่อ</TableHead>
               <TableHead>อีเมล</TableHead>
               <TableHead>บทบาท</TableHead>
+              <TableHead>สถานะ</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -95,16 +159,32 @@ export function UserPageClient() {
                 <TableCell>{u.name}</TableCell>
                 <TableCell className="text-ink-muted">{u.email}</TableCell>
                 <TableCell>{u.roleName}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="secondary" size="sm" onClick={() => setResetTarget(u)}>
-                    ตั้งรหัสผ่านใหม่
-                  </Button>
+                <TableCell>
+                  <span
+                    className={
+                      u.isActive
+                        ? "inline-flex rounded-DEFAULT bg-celadon-tint px-2 py-0.5 text-xs font-medium text-celadon"
+                        : "inline-flex rounded-DEFAULT bg-surface-sunk px-2 py-0.5 text-xs font-medium text-ink-faint"
+                    }
+                  >
+                    {u.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}
+                  </span>
+                </TableCell>
+                <TableCell className="flex flex-wrap justify-end gap-1 text-right">
+                  {renderActions(u)}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}
+
+      <UserFormSheet
+        target={sheetTarget}
+        branchId={branch?.branchId ?? ""}
+        onClose={() => setSheetTarget(null)}
+        onSaved={() => void queryClient.invalidateQueries({ queryKey: ["branch-users", branch?.branchId] })}
+      />
 
       <ResetPasswordSheet
         target={resetTarget}
@@ -113,6 +193,148 @@ export function UserPageClient() {
         onReset={() => void queryClient.invalidateQueries({ queryKey: ["branch-users", branch?.branchId] })}
       />
     </div>
+  );
+}
+
+function UserFormSheet({
+  target,
+  branchId,
+  onClose,
+  onSaved,
+}: {
+  target: "create" | BranchUser | null;
+  branchId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const editingRecord = target && target !== "create" ? target : null;
+  const isCreate = target === "create";
+
+  const [email, setEmail] = useState(editingRecord?.email ?? "");
+  const [name, setName] = useState(editingRecord?.name ?? "");
+  const [password, setPassword] = useState("");
+  const [roleKey, setRoleKey] = useState(editingRecord?.roleKey ?? ROLE_DEFINITIONS[0].key);
+  const [error, setError] = useState<string | null>(null);
+
+  // sync ค่าเริ่มต้นเมื่อเปลี่ยน target (เปิดชีทแก้ไขคนละคน) — เขียนตรงนี้แทน useEffect เพราะ Sheet
+  // unmount/remount ทุกครั้งที่ target เปลี่ยนอยู่แล้วจาก key ด้านล่าง ไม่ต้องกังวลเรื่อง stale state
+  const resetKey = editingRecord?.id ?? (isCreate ? "create" : "closed");
+
+  const createMutation = useMutation({
+    mutationFn: () => userApi.create(branchId, { email, name, password, roleKey }),
+    onSuccess: () => {
+      setError(null);
+      onSaved();
+      handleClose();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "เพิ่มผู้ใช้ไม่สำเร็จ กรุณาลองใหม่"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      userApi.update(branchId, editingRecord!.id, { email, name, roleKey }),
+    onSuccess: () => {
+      setError(null);
+      onSaved();
+      handleClose();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "แก้ไขผู้ใช้ไม่สำเร็จ กรุณาลองใหม่"),
+  });
+
+  function handleClose() {
+    setEmail("");
+    setName("");
+    setPassword("");
+    setRoleKey(ROLE_DEFINITIONS[0].key);
+    setError(null);
+    onClose();
+  }
+
+  const canSubmit = isCreate
+    ? !!email && !!name && password.length >= 8 && !!roleKey
+    : !!email && !!name && !!roleKey;
+
+  return (
+    <Sheet
+      key={resetKey}
+      open={!!target}
+      onClose={handleClose}
+      title={isCreate ? "เพิ่มผู้ใช้ใหม่" : `แก้ไขผู้ใช้ — ${editingRecord?.name}`}
+    >
+      {target && (
+        <div className="grid gap-4">
+          {error && (
+            <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+              {error}
+            </p>
+          )}
+          <div className="grid gap-1.5">
+            <label htmlFor="user-name" className="text-xs font-medium text-ink-muted">
+              ชื่อ
+            </label>
+            <input
+              id="user-name"
+              defaultValue={editingRecord?.name ?? ""}
+              onChange={(e) => setName(e.target.value)}
+              className="h-11 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <label htmlFor="user-email" className="text-xs font-medium text-ink-muted">
+              อีเมล
+            </label>
+            <input
+              id="user-email"
+              type="email"
+              defaultValue={editingRecord?.email ?? ""}
+              onChange={(e) => setEmail(e.target.value)}
+              className="h-11 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
+            />
+          </div>
+          {isCreate && (
+            <div className="grid gap-1.5">
+              <label htmlFor="user-password" className="text-xs font-medium text-ink-muted">
+                รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัวอักษร)
+              </label>
+              <input
+                id="user-password"
+                type="password"
+                autoComplete="new-password"
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-11 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
+              />
+            </div>
+          )}
+          <div className="grid gap-1.5">
+            <label htmlFor="user-role" className="text-xs font-medium text-ink-muted">
+              บทบาท
+            </label>
+            <Select
+              id="user-role"
+              defaultValue={editingRecord?.roleKey ?? ROLE_DEFINITIONS[0].key}
+              onChange={(e) => setRoleKey(e.target.value)}
+            >
+              {ROLE_DEFINITIONS.map((r) => (
+                <option key={r.key} value={r.key}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-line pt-4">
+            <Button variant="ghost" onClick={handleClose}>
+              ยกเลิก
+            </Button>
+            <Button
+              disabled={!canSubmit || createMutation.isPending || updateMutation.isPending}
+              onClick={() => (isCreate ? createMutation.mutate() : updateMutation.mutate())}
+            >
+              {isCreate ? "เพิ่มผู้ใช้" : "บันทึก"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </Sheet>
   );
 }
 
