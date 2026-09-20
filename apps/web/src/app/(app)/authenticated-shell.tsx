@@ -185,7 +185,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
                   setAccountMenuOpen(false);
                   setCmdkOpen(true);
                 }}
-                className="hidden items-center gap-2 rounded-DEFAULT border border-line px-2.5 py-1.5 text-xs text-ink-faint transition-colors hover:border-line-strong hover:text-ink-muted sm:flex"
+                className="hidden shrink-0 items-center gap-2 whitespace-nowrap rounded-DEFAULT border border-line px-2.5 py-1.5 text-xs text-ink-faint transition-colors hover:border-line-strong hover:text-ink-muted md:flex"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-3.5 w-3.5 shrink-0">
                   <circle cx="11" cy="11" r="7" />
