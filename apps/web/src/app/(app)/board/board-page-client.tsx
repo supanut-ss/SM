@@ -15,6 +15,7 @@ import {
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
 import { addDays, bangkokInstant, startOfToday, toDateKey } from "./date-format";
+import { AdvanceBookingSheet } from "./advance-booking-sheet";
 import { AppointmentDetailSheet } from "./appointment-detail-sheet";
 import { LaneBoard, type BoardRow } from "./lane-board";
 import { MobileAgenda } from "./mobile-agenda";
@@ -41,6 +42,7 @@ export function BoardPageClient() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
+  const [advanceOpen, setAdvanceOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -249,6 +251,15 @@ export function BoardPageClient() {
           {canManage && (
             <Button className="w-full sm:w-auto" onClick={() => setWalkInOpen(true)}>
               + จองด่วน
+            </Button>
+          )}
+          {canManage && (
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={() => setAdvanceOpen(true)}
+            >
+              + จองล่วงหน้า
             </Button>
           )}
           <nav data-testid="board-date-navigation" aria-label="เลือกวันที่" className="flex flex-wrap items-center gap-2">
@@ -478,6 +489,13 @@ export function BoardPageClient() {
           void queryClient.invalidateQueries({ queryKey: itemsKey });
           void queryClient.invalidateQueries({ queryKey: queueKey });
         }}
+      />
+
+      <AdvanceBookingSheet
+        open={advanceOpen}
+        onClose={() => setAdvanceOpen(false)}
+        branchId={branch.branchId}
+        onBooked={() => void queryClient.invalidateQueries({ queryKey: itemsKey })}
       />
     </div>
   );

@@ -24,6 +24,7 @@ import type {
   UpdateMemberInput,
   AppointmentStatus,
   AssignType,
+  CreateAdvanceAppointmentInput,
   CreateWalkInAppointmentInput,
   JoinStaffQueueInput,
   RescheduleAppointmentItemInput,
@@ -659,6 +660,11 @@ export const appointmentItemApi = {
     apiFetch<AppointmentItem[]>(`/branches/${branchId}/appointment-items?date=${date}`),
   createWalkIn: (branchId: string, input: CreateWalkInAppointmentInput) =>
     apiFetch<AppointmentItem>(`/branches/${branchId}/appointment-items/walk-in`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  createAdvance: (branchId: string, input: CreateAdvanceAppointmentInput) =>
+    apiFetch<AppointmentItem>(`/branches/${branchId}/appointment-items/advance`, {
       method: "POST",
       body: JSON.stringify(input),
     }),

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADVANCE_BOOKING_MAX_DAYS,
   APPOINTMENT_STATUSES,
   ASSIGN_TYPES,
   canTransitionAppointmentStatus,
+  createAdvanceAppointmentSchema,
   createWalkInAppointmentSchema,
   joinStaffQueueSchema,
   nextAppointmentStatuses,
@@ -200,6 +202,52 @@ describe("createWalkInAppointmentSchema", () => {
 
   it("ปฏิเสธเมื่อไม่ส่ง serviceVariantId มา", () => {
     const result = createWalkInAppointmentSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("createAdvanceAppointmentSchema", () => {
+  function isoInDays(days: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString();
+  }
+
+  it("ยอมรับเวลานัดที่อยู่ในอนาคตและไม่เกิน 7 วัน", () => {
+    const result = createAdvanceAppointmentSchema.safeParse({
+      serviceVariantId: "variant_1",
+      staffId: "staff_1",
+      roomId: "room_1",
+      startAt: isoInDays(2),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("ปฏิเสธเวลาที่เป็นอดีต", () => {
+    const result = createAdvanceAppointmentSchema.safeParse({
+      serviceVariantId: "variant_1",
+      staffId: "staff_1",
+      roomId: "room_1",
+      startAt: isoInDays(-1),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it(`ปฏิเสธเวลาที่เกิน ${ADVANCE_BOOKING_MAX_DAYS} วันข้างหน้า`, () => {
+    const result = createAdvanceAppointmentSchema.safeParse({
+      serviceVariantId: "variant_1",
+      staffId: "staff_1",
+      roomId: "room_1",
+      startAt: isoInDays(ADVANCE_BOOKING_MAX_DAYS + 1),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("ปฏิเสธเมื่อไม่ส่ง staffId/roomId มา", () => {
+    const result = createAdvanceAppointmentSchema.safeParse({
+      serviceVariantId: "variant_1",
+      startAt: isoInDays(2),
+    });
     expect(result.success).toBe(false);
   });
 });

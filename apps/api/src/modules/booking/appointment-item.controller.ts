@@ -15,9 +15,11 @@ import {
   APPOINTMENT_STATUS_LABEL,
   STAFF_SKILL_LABEL,
   canTransitionAppointmentStatus,
+  createAdvanceAppointmentSchema,
   createWalkInAppointmentSchema,
   rescheduleAppointmentItemSchema,
   updateAppointmentItemStatusSchema,
+  type CreateAdvanceAppointmentInput,
   type CreateWalkInAppointmentInput,
   type RescheduleAppointmentItemInput,
   type UpdateAppointmentItemStatusInput,
@@ -177,6 +179,83 @@ export class AppointmentItemController {
     } catch (err) {
       if (isExclusionViolation(err)) {
         throw new ConflictException("ช่องที่เลือกเพิ่งถูกจองไปแล้วพอดี กรุณาลองจองด่วนใหม่อีกครั้ง");
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * จองล่วงหน้า (T4.7) — ต่างจาก walk-in ตรงที่ผู้ใช้เลือกพนักงาน/ห้อง/เวลาเองทั้งหมด (assignType =
+   * CUSTOMER_REQUEST เสมอ ตามความหมายจริงของ "ลูกค้าขอเวลา/คน" ดู docs/DOMAIN.md ข้อ 2) ไม่ผ่าน
+   * findAvailableSlots เหมือน walk-in เพราะนั่นออกแบบมาสำหรับ "ตอนนี้" (ต้องรู้กะ/ลาวันนี้) ส่วนวันอนาคต
+   * ยังไม่มี query กะ/ลาแบบเดียวกัน — ตรวจแค่ทักษะ+ประเภทห้องตรง + DB exclusion constraint กันชนเวลา
+   * (มาตรฐานเดียวกับ reschedule ด้านบน) สถานะเริ่มต้นเป็น BOOKED (ยังไม่ถึงวันนัดจริง ต่างจาก walk-in ที่
+   * เช็คอินทันทีเพราะลูกค้ายืนอยู่หน้าร้านแล้ว)
+   */
+  @Post("advance")
+  @RequirePermission("manage", "booking")
+  @AuditEntity("AppointmentItem")
+  async createAdvance(
+    @CurrentBranch() branch: BranchContext,
+    @Body(new ZodValidationPipe(createAdvanceAppointmentSchema)) body: CreateAdvanceAppointmentInput,
+  ) {
+    const variant = await this.prisma.client.serviceVariant.findUnique({
+      where: { id: body.serviceVariantId },
+      include: { service: true },
+    });
+    if (!variant || variant.service.branchId !== branch.branchId) {
+      throw new NotFoundException("ไม่พบบริการนี้ในสาขานี้");
+    }
+
+    const staff = await this.prisma.client.staffProfile.findUnique({ where: { id: body.staffId } });
+    if (!staff || staff.branchId !== branch.branchId || !staff.isActive) {
+      throw new NotFoundException("ไม่พบพนักงานนี้ในสาขานี้");
+    }
+    if (!staff.skills.includes(variant.requiredSkill)) {
+      throw new UnprocessableEntityException(
+        `พนักงานคนนี้ไม่มีทักษะ "${STAFF_SKILL_LABEL[variant.requiredSkill]}" ที่บริการนี้ต้องใช้`,
+      );
+    }
+
+    const room = await this.prisma.client.room.findUnique({ where: { id: body.roomId } });
+    if (!room || room.branchId !== branch.branchId || !room.isActive) {
+      throw new NotFoundException("ไม่พบห้องนี้ในสาขานี้");
+    }
+    if (room.roomTypeId !== variant.requiredRoomTypeId) {
+      throw new UnprocessableEntityException("ห้องนี้ไม่ตรงกับประเภทห้องที่บริการนี้ต้องใช้");
+    }
+
+    const endAt = new Date(body.startAt.getTime() + variant.durationMin * 60_000);
+
+    try {
+      return await this.prisma.client.$transaction(async (tx) => {
+        const appointment = await tx.appointment.create({
+          data: { branchId: branch.branchId, memberId: body.memberId ?? null },
+        });
+        return tx.appointmentItem.create({
+          data: {
+            branchId: branch.branchId,
+            appointmentId: appointment.id,
+            staffId: body.staffId,
+            roomId: body.roomId,
+            serviceVariantId: variant.id,
+            status: "BOOKED",
+            assignType: "CUSTOMER_REQUEST",
+            startAt: body.startAt,
+            endAt,
+            roomCapacityAtBooking: room.capacity,
+          },
+          include: {
+            staff: true,
+            room: true,
+            serviceVariant: { include: { service: true } },
+            appointment: { include: { member: true } },
+          },
+        });
+      });
+    } catch (err) {
+      if (isExclusionViolation(err)) {
+        throw new ConflictException("ช่วงเวลานี้ชนกับนัดอื่นของพนักงานหรือห้องนี้แล้ว");
       }
       throw err;
     }

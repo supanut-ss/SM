@@ -114,3 +114,26 @@ export const createWalkInAppointmentSchema = z.object({
 });
 
 export type CreateWalkInAppointmentInput = z.infer<typeof createWalkInAppointmentSchema>;
+
+// จองล่วงหน้า (T4.7) — ต่างจาก walk-in ตรงที่ผู้ใช้เลือกพนักงาน/ห้อง/เวลาเอง (assignType = CUSTOMER_REQUEST
+// เสมอ ดู docs/DOMAIN.md ข้อ 2) ไม่ใช้คิวหมุนเลือกให้ รับจองล่วงหน้าได้สูงสุด 7 วัน (docs/DOMAIN.md ข้อ 4)
+export const ADVANCE_BOOKING_MAX_DAYS = 7;
+
+export const createAdvanceAppointmentSchema = z
+  .object({
+    serviceVariantId: z.string().min(1, "กรุณาเลือกบริการ"),
+    staffId: z.string().min(1, "กรุณาเลือกพนักงาน"),
+    roomId: z.string().min(1, "กรุณาเลือกห้อง"),
+    startAt: z.coerce.date(),
+    memberId: z.string().optional(),
+  })
+  .refine((v) => v.startAt.getTime() > Date.now(), {
+    message: "เวลานัดต้องเป็นเวลาในอนาคต",
+    path: ["startAt"],
+  })
+  .refine((v) => v.startAt.getTime() <= Date.now() + ADVANCE_BOOKING_MAX_DAYS * 24 * 60 * 60 * 1000, {
+    message: `จองล่วงหน้าได้ไม่เกิน ${ADVANCE_BOOKING_MAX_DAYS} วัน`,
+    path: ["startAt"],
+  });
+
+export type CreateAdvanceAppointmentInput = z.infer<typeof createAdvanceAppointmentSchema>;
