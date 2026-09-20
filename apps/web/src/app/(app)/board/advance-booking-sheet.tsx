@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ADVANCE_BOOKING_MAX_DAYS } from "@lotus-desk/contracts";
 import { Button, Select, Sheet, Skeleton } from "@lotus-desk/ui";
@@ -43,6 +43,7 @@ export function AdvanceBookingSheet({
   onBooked: () => void;
 }) {
   const [memberQuery, setMemberQuery] = useState("");
+  const [debouncedMemberQuery, setDebouncedMemberQuery] = useState("");
   const [memberId, setMemberId] = useState("");
   const [serviceVariantId, setServiceVariantId] = useState("");
   const [staffId, setStaffId] = useState("");
@@ -73,10 +74,15 @@ export function AdvanceBookingSheet({
     queryFn: () => roomApi.list(branchId, { isActive: "true" }),
     enabled: open,
   });
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedMemberQuery(memberQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [memberQuery]);
+
   const membersQuery = useQuery({
-    queryKey: ["members", branchId, memberQuery],
-    queryFn: () => memberApi.list(branchId, { q: memberQuery, isActive: "true" }),
-    enabled: open && memberQuery.trim().length >= 2,
+    queryKey: ["members", branchId, debouncedMemberQuery],
+    queryFn: () => memberApi.list(branchId, { q: debouncedMemberQuery, isActive: "true" }),
+    enabled: open && debouncedMemberQuery.length >= 2,
   });
 
   const variants = useMemo(
@@ -120,6 +126,7 @@ export function AdvanceBookingSheet({
   });
 
   const [confirmed, setConfirmed] = useState<AppointmentItem | null>(null);
+  const [confirmingClose, setConfirmingClose] = useState(false);
 
   function handleClose(next: AppointmentItem | null = null) {
     if (next) {
@@ -127,7 +134,9 @@ export function AdvanceBookingSheet({
       return;
     }
     setConfirmed(null);
+    setConfirmingClose(false);
     setMemberQuery("");
+    setDebouncedMemberQuery("");
     setMemberId("");
     setServiceVariantId("");
     setStaffId("");
@@ -138,11 +147,40 @@ export function AdvanceBookingSheet({
     onClose();
   }
 
+  // มีข้อมูลที่กรอกไว้แล้วหรือยัง — ปิดชีทตรง ๆ ถ้ายังไม่กรอกอะไรเลย ถามยืนยันก่อนถ้ามีข้อมูลจะหาย (จองสำเร็จ
+  // แล้ว/ยังไม่ได้กรอกอะไรเลย ไม่ต้องถาม เพราะไม่มีอะไรจะเสีย)
+  const hasUnsavedInput =
+    !confirmed && (!!memberQuery.trim() || !!serviceVariantId || !!staffId || !!roomId);
+
+  function requestClose() {
+    if (hasUnsavedInput) {
+      setConfirmingClose(true);
+      return;
+    }
+    handleClose();
+  }
+
   const canSubmit = !!serviceVariantId && !!staffId && !!roomId && !!dateValue && !!timeValue;
 
   return (
-    <Sheet open={open} onClose={() => handleClose()} title="จองคิวล่วงหน้า">
-      {!confirmed && (
+    <Sheet open={open} onClose={requestClose} title="จองคิวล่วงหน้า">
+      {confirmingClose && (
+        <div className="grid gap-4">
+          <p className="text-pretty rounded-DEFAULT border border-line bg-rose-tint px-3 py-2 text-sm text-ink">
+            ข้อมูลที่กรอกไว้จะหายไปทั้งหมดถ้าปิดตอนนี้ — ยืนยันปิดเลยไหม?
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConfirmingClose(false)}>
+              กลับไปกรอกต่อ
+            </Button>
+            <Button variant="secondary" onClick={() => handleClose()}>
+              ยืนยันปิด
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!confirmingClose && !confirmed && (
         <div className="grid gap-4">
           <p className="text-pretty text-sm text-ink-muted">
             เลือกบริการ พนักงาน ห้อง วันและเวลาที่ต้องการเอง — รับจองล่วงหน้าได้ไม่เกิน{" "}
@@ -170,7 +208,7 @@ export function AdvanceBookingSheet({
               className="h-11 w-full rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
             />
             {membersQuery.isLoading && <Skeleton className="h-9 w-full" role="status" aria-label="กำลังค้นหา" />}
-            {membersQuery.isSuccess && memberQuery.trim().length >= 2 && (
+            {membersQuery.isSuccess && debouncedMemberQuery.length >= 2 && (
               <Select
                 aria-label="เลือกสมาชิก"
                 value={memberId}
@@ -292,7 +330,7 @@ export function AdvanceBookingSheet({
           </div>
 
           <div className="flex justify-end gap-2 border-t border-line pt-4">
-            <Button variant="ghost" onClick={() => handleClose()}>
+            <Button variant="ghost" onClick={requestClose}>
               ยกเลิก
             </Button>
             <Button
