@@ -9,6 +9,7 @@ import { ApiError, roomApi, roomTypeApi, type Room } from "../../../lib/api-clie
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
 import { RoomForm, type RoomFormValues } from "./room-form";
+import { RoomTypeManagerSheet } from "./room-type-manager-sheet";
 
 type ActiveFilter = "true" | "false" | "all";
 
@@ -22,6 +23,7 @@ export function RoomPageClient() {
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("true");
   const [sheetTarget, setSheetTarget] = useState<"create" | Room | null>(null);
   const [confirmingDeactivateId, setConfirmingDeactivateId] = useState<string | null>(null);
+  const [roomTypeManagerOpen, setRoomTypeManagerOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchInput.trim()), 300);
@@ -146,9 +148,14 @@ export function RoomPageClient() {
           <p className="text-pretty mt-1 text-sm text-ink-muted">รายชื่อห้อง/เตียงให้บริการของสาขา {branch.branchName}</p>
         </div>
         {canManage && (
-          <Button className="hidden md:inline-flex" onClick={() => setSheetTarget("create")}>
-            + เพิ่มห้อง
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setRoomTypeManagerOpen(true)}>
+              จัดการประเภทห้อง
+            </Button>
+            <Button className="hidden md:inline-flex" onClick={() => setSheetTarget("create")}>
+              + เพิ่มห้อง
+            </Button>
+          </div>
         )}
       </div>
 
@@ -278,6 +285,12 @@ export function RoomPageClient() {
           }}
         />
       </Sheet>
+
+      <RoomTypeManagerSheet
+        open={roomTypeManagerOpen}
+        onClose={() => setRoomTypeManagerOpen(false)}
+        branchId={branch.branchId}
+      />
     </div>
   );
 }

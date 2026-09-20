@@ -6,6 +6,7 @@ import {
   DashboardIcon,
   MemberIcon,
   PackageIcon,
+  RoomIcon,
   ServiceIcon,
   SettingsIcon,
   StaffIcon,
@@ -41,6 +42,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/members", label: "สมาชิก", group: "ข้อมูลร้าน", icon: MemberIcon, require: { action: "view", resource: "member" } },
   { href: "/services", label: "บริการ", group: "ข้อมูลร้าน", icon: ServiceIcon, require: { action: "view", resource: "service" } },
   { href: "/packages", label: "คอร์ส/แพ็กเกจ", group: "ข้อมูลร้าน", icon: PackageIcon, require: { action: "view", resource: "package" } },
+  // เดิมซ่อนไว้ตาม ADR-050 ("Basic Package" 6 เมนูแรก) เปิดกลับตามคำขอผู้ใช้ที่ต้องการหน้าจัดการห้อง/
+  // ประเภทห้อง (ดู docs/decisions.md ADR-062)
+  { href: "/rooms", label: "ห้อง/เตียง", group: "ข้อมูลร้าน", icon: RoomIcon, require: { action: "view", resource: "room" } },
   { href: "/staff", label: "พนักงาน", group: "จัดการร้าน", icon: StaffIcon, require: { action: "view", resource: "staff" } },
   // เห็นเฉพาะ owner เท่านั้น (settings:manage มีแค่ owner ตาม MANAGE_ALL_EXCEPT_SETTINGS ใน
   // packages/contracts/src/permissions.ts) ดู docs/decisions.md ADR-059

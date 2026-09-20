@@ -1,5 +1,6 @@
 import type {
   CreateRoomInput,
+  CreateRoomTypeInput,
   CreateServiceInput,
   CreateServiceVariantInput,
   CreateShiftTemplateInput,
@@ -20,6 +21,7 @@ import type {
   StaffLevel,
   StaffSkill,
   UpdateRoomInput,
+  UpdateRoomTypeInput,
   UpdateServiceInput,
   UpdateServiceVariantInput,
   UpdateShiftTemplateInput,
@@ -222,6 +224,20 @@ export interface RoomListParams {
 
 export const roomTypeApi = {
   list: (branchId: string) => apiFetch<RoomType[]>(`/branches/${branchId}/room-types`),
+  create: (branchId: string, input: CreateRoomTypeInput) =>
+    apiFetch<RoomType>(`/branches/${branchId}/room-types`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, roomTypeId: string, input: UpdateRoomTypeInput) =>
+    apiFetch<RoomType>(`/branches/${branchId}/room-types/${roomTypeId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  remove: (branchId: string, roomTypeId: string) =>
+    apiFetch<{ ok: true }>(`/branches/${branchId}/room-types/${roomTypeId}`, {
+      method: "DELETE",
+    }),
 };
 
 export const roomApi = {

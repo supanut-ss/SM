@@ -10,6 +10,7 @@ export const AUDIT_ENTITY_FETCHERS: Record<string, EntityFetcher> = {
   Branch: (id, prisma) => prisma.client.branch.findUnique({ where: { id } }),
   Staff: (id, prisma) => prisma.client.staffProfile.findUnique({ where: { id } }),
   Room: (id, prisma) => prisma.client.room.findUnique({ where: { id } }),
+  RoomType: (id, prisma) => prisma.client.roomType.findUnique({ where: { id } }),
   Service: (id, prisma) =>
     prisma.client.service.findUnique({ where: { id }, include: { variants: true } }),
   ServiceVariant: (id, prisma) => prisma.client.serviceVariant.findUnique({ where: { id } }),

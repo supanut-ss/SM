@@ -2276,3 +2276,59 @@ delete เพราะ user ผูกกับ audit log/บิลที่ย�
 ตรง ๆ เหมือนสร้าง user ตอน seed) — เหมาะกับร้านขนาดเล็กที่ owner รู้จักพนักงานทุกคนอยู่แล้ว ถ้าร้านโตขึ้นอาจ
 ต้องเพิ่ม email verification ทีหลัง ไม่ใช่ scope ตอนนี้ — ครอบด้วย 8 e2e test ใหม่ (สร้างสำเร็จ, อีเมลซ้ำ 409,
 manager 403, แก้ข้ามสาขา 404, ปิดใช้งานแล้วเพิกถอน session, filter isActive=all) รวม 242/242 test ทั้งระบบผ่าน
+
+---
+
+## ADR-061: รีเซ็ตข้อมูลธุรกิจใน production โดยคง identity และไม่รัน development seed
+วันที่: 2026-09-20
+Task ที่เกี่ยวข้อง: ล้างข้อมูล production ทั้งหมดยกเว้นผู้ใช้ เพื่อเริ่มใช้งานด้วยข้อมูลธุรกิจชุดใหม่
+
+บริบท: production บน Neon มีข้อมูลตัวอย่างที่ต้องล้าง แต่บัญชีผู้ใช้เดิมยังต้องล็อกอินและใช้สิทธิ์ตามสาขาได้
+การเก็บเฉพาะตาราง `users` ไม่เพียงพอ เพราะ RBAC อาศัยสาขา บทบาท สิทธิ์ และตารางเชื่อมร่วมกัน นอกจากนี้
+`packages/db/prisma/seed.ts` เป็น development seed ที่สร้างบัญชีและข้อมูลตัวอย่างด้วยรหัสผ่าน/PIN คงที่
+จึงห้ามรันกับ production
+
+ตัดสินใจ:
+- ล้างข้อมูลทุกตารางใน schema `public` ยกเว้น `_prisma_migrations`, `users`, `branches`, `roles`,
+  `permissions`, `role_permissions` และ `user_branches`; `refresh_tokens` ถูกล้างเพื่อยกเลิก session เดิม
+- ทำเป็น one-off operator maintenance ด้วย owner connection ไม่เพิ่ม reset script ถาวรใน repository และ
+  ไม่รัน `prisma db seed` หลังล้าง
+- ไม่บันทึก connection string หรือ credential production ลง source, เอกสาร หรือ commit
+
+เหตุผล: ตาราง identity ทั้งหกตารางต้องอยู่ครบเพื่อให้ login, branch context และ permission เดิมยังทำงาน
+หลังล้างข้อมูลธุรกิจ ส่วนการล้าง refresh token บังคับให้ทุกบัญชีพิสูจน์ตัวตนใหม่และไม่เหลือ session ที่อาจ
+อ้างสถานะก่อน reset การไม่สร้าง script ถาวรลดโอกาสสั่งล้าง production ซ้ำโดยไม่ตั้งใจ
+
+ผลกระทบ/การตรวจสอบ: ตรวจหลังทำรายการแล้วพบข้อมูลธุรกิจทุกตารางเหลือ 0 แถว ขณะที่ `users` 4 แถว,
+`branches` 1 แถว, `roles` 4 แถว, `permissions` 29 แถว, `role_permissions` 73 แถว และ `user_branches`
+4 แถวยังคงอยู่ ข้อมูลที่ล้างย้อนคืนไม่ได้หากไม่มี backup; credential ฐานข้อมูลที่เคยเปิดเผยต้อง rotate ที่
+Neon และอัปเดต Render แยกจาก commit นี้
+
+---
+
+## ADR-062: เปิด CRUD ประเภทห้อง — พลิกกลับส่วนหนึ่งของ ADR-010, เปิดเมนู "ห้อง/เตียง" กลับตาม ADR-050
+วันที่: 2026-09-20
+Task ที่เกี่ยวข้อง: "เพิ่มหน้าจัดการ ห้อง ประเภทห้อง" (คำสั่งจากผู้ใช้)
+
+บริบท: ADR-010 (T2.2) ตั้งใจไม่ทำหน้าจัดการ RoomType เพราะขอบเขตตอนนั้นเน้นที่ Room และ ADR-050 ซ่อนเมนู
+"ห้อง/เตียง" ออกจากกระดานเมนูซ้ายเพราะร้านเล็กยังไม่ต้องใช้ (แต่ backend ใช้งานได้ปกติถ้าเรียก URL ตรง) ผู้ใช้
+ขอเพิ่มหน้าจัดการทั้งสองอย่างตอนนี้ — RoomType schema ไม่มีฟิลด์ `isActive` เลย (ไม่เคยออกแบบให้ soft delete
+ตั้งแต่ต้น ต่างจาก Room/Service/Staff ที่มี) `Room.roomTypeId` และ `ServiceVariant.requiredRoomTypeId` อ้างอิง
+ตรงแบบ required foreign key ด้วย
+
+ตัดสินใจ:
+- เพิ่ม `POST`/`PATCH`/`DELETE /branches/:branchId/room-types` ใน `RoomTypeController` เกทด้วย
+  `manage`+`room` เดียวกับ `RoomController` (ไม่ใช่ permission แยก เพราะเป็นข้อมูลอ้างอิงของ Room โดยตรง)
+- "ลบ" เป็นการลบจริง (ไม่มี isActive ให้ soft delete) — เช็คก่อนลบว่ามี `Room`/`ServiceVariant` อ้างอิงอยู่ไหม
+  ถ้ามีคืน 409 บอกจำนวนที่ค้างอยู่ชัดเจน ไม่ปล่อยให้ DB โยน foreign key constraint error ดิบ ๆ ออกมา
+- เปิดเมนู "ห้อง/เตียง" กลับเข้า `NAV_ITEMS` (เดิมซ่อนตาม ADR-050) เพิ่มปุ่ม "จัดการประเภทห้อง" ในหน้า
+  `/rooms` เปิด `RoomTypeManagerSheet` (list + เพิ่ม/แก้ไข/ลบแบบ inline ในชีทเดียว ไม่ต้องมีหน้าแยก)
+
+เหตุผล: reuse permission `room:manage` เดิมเพราะ RoomType เป็นข้อมูลอ้างอิงของ Room โดยตรง ไม่ใช่ concept
+แยก ไม่เพิ่ม `isActive` ให้ RoomType เพราะเป็นงาน migration schema ที่ใหญ่เกินขอบเขตคำขอนี้ (ต้องแก้ Room/
+Service dropdown ให้ filter ด้วย) — บล็อกการลบด้วยการนับ reference ตรง ๆ ปลอดภัยพอและเข้าใจง่ายกว่า
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ปฏิเสธการเพิ่ม `isActive` ให้ RoomType ตอนนี้ (ทางเลือกที่ปลอดภัยกว่าในระยะยาว
+ถ้าร้านต้องการ "ปิดใช้งานชั่วคราวแล้วเปิดกลับ" แทนการลบถาวร) — เก็บไว้เป็นตัวเลือกสำหรับ task ในอนาคตถ้า
+ร้านต้องการจริง ตอนนี้พอแค่ป้องกันลบพังด้วยการเช็ค reference ก่อนก็เพียงพอ — ครอบด้วย 7 e2e test ใหม่
+(สร้าง, ชื่อซ้ำ 409, แก้สำเร็จ, ข้ามสาขา 404, ลบติด Room 409, ลบติด ServiceVariant 409, ลบสำเร็จตอนไม่มี reference)
