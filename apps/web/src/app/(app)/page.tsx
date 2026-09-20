@@ -1,6 +1,6 @@
 import { DashboardPageClient } from "./dashboard/dashboard-page-client";
 
-export const metadata = { title: "แดชบอร์ด — Sabaizy" };
+export const metadata = { title: "หน้าหลัก — Sabaizy" };
 
 export default function DashboardPage() {
   return <DashboardPageClient />;

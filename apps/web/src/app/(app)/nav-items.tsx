@@ -4,7 +4,7 @@ import { BillingIcon, BoardIcon, DashboardIcon, MemberIcon, PackageIcon, Service
 
 /** ลำดับ 3 หมวดที่ต้องแสดงบนกระดานเมนูซ้าย (ดู docs/decisions.md ADR-047) — ใช้ลำดับนี้เสมอไม่ว่า
  * NAV_ITEMS จะถูกประกาศเรียงยังไง */
-export const NAV_GROUPS = ["ปฏิบัติการ", "ข้อมูลร้าน", "จัดการร้าน"] as const;
+export const NAV_GROUPS = ["งานประจำวัน", "ข้อมูลร้าน", "จัดการร้าน"] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 
 export interface NavItem {
@@ -26,9 +26,9 @@ export interface NavItem {
 // ค่ามือที่เรตคอมมิชชั่นยังเป็นค่าสมมติ T6.2) — เพิ่มกลับเมื่อร้านต้องการจริง หรือรอหน้าตั้งค่า (T12.7)
 // มาทำเป็นสวิตช์เปิด/ปิดต่อสาขาแทนการแก้โค้ดตรงนี้ทุกครั้ง
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "แดชบอร์ด", group: "ปฏิบัติการ", icon: DashboardIcon },
-  { href: "/board", label: "กระดานคิว", group: "ปฏิบัติการ", icon: BoardIcon, require: { action: "view", resource: "booking" } },
-  { href: "/billing", label: "บิล/แคชเชียร์", group: "ปฏิบัติการ", icon: BillingIcon, require: { action: "view", resource: "billing" } },
+  { href: "/", label: "หน้าหลัก", group: "งานประจำวัน", icon: DashboardIcon },
+  { href: "/board", label: "กระดานคิว", group: "งานประจำวัน", icon: BoardIcon, require: { action: "view", resource: "booking" } },
+  { href: "/billing", label: "บิล/แคชเชียร์", group: "งานประจำวัน", icon: BillingIcon, require: { action: "view", resource: "billing" } },
   { href: "/members", label: "สมาชิก", group: "ข้อมูลร้าน", icon: MemberIcon, require: { action: "view", resource: "member" } },
   { href: "/services", label: "บริการ", group: "ข้อมูลร้าน", icon: ServiceIcon, require: { action: "view", resource: "service" } },
   { href: "/packages", label: "คอร์ส/แพ็กเกจ", group: "ข้อมูลร้าน", icon: PackageIcon, require: { action: "view", resource: "package" } },

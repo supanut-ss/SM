@@ -13,7 +13,7 @@ export default function ForbiddenPage() {
           เพื่อขอเพิ่มสิทธิ์ให้กับบทบาทของคุณ
         </p>
         <Link href="/" className="mt-6 inline-block">
-          <Button variant="secondary">กลับหน้าแดชบอร์ด</Button>
+          <Button variant="secondary">กลับหน้าหลัก</Button>
         </Link>
       </div>
     </main>

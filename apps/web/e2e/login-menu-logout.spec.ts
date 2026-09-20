@@ -15,7 +15,7 @@ test("owner sees the current Basic Package navigation", async ({ page }) => {
 
   const nav = page.getByRole("navigation", { name: "เมนูหลัก" });
   // Basic Package exposes these operational items; settings is not part of this navigation.
-  for (const label of ["แดชบอร์ด", "กระดานคิว", "บิล/แคชเชียร์", "สมาชิก", "บริการ", "คอร์ส/แพ็กเกจ", "พนักงาน"]) {
+  for (const label of ["หน้าหลัก", "กระดานคิว", "บิล/แคชเชียร์", "สมาชิก", "บริการ", "คอร์ส/แพ็กเกจ", "พนักงาน"]) {
     await expect(nav.getByRole("link", { name: label })).toBeVisible();
   }
   await expect(nav.getByRole("link", { name: "ตั้งค่า" })).toHaveCount(0);
@@ -25,7 +25,7 @@ test("staff sees only their permitted Basic Package navigation", async ({ page }
   await login(page, "staff@lotusdesk.local");
 
   const nav = page.getByRole("navigation", { name: "เมนูหลัก" });
-  for (const label of ["แดชบอร์ด", "กระดานคิว", "บริการ"]) {
+  for (const label of ["หน้าหลัก", "กระดานคิว", "บริการ"]) {
     await expect(nav.getByRole("link", { name: label })).toBeVisible();
   }
   await expect(nav.getByRole("link")).toHaveCount(3);

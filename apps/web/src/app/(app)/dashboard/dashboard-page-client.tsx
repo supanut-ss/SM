@@ -28,7 +28,7 @@ export function DashboardPageClient() {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-8 max-w-2xl">
-        <h1 className="text-balance font-display text-2xl font-semibold text-ink">แดชบอร์ด</h1>
+        <h1 className="text-balance font-display text-2xl font-semibold text-ink">หน้าหลัก</h1>
         <p className="text-pretty mt-2 text-sm leading-6 text-ink-muted">
           ภาพรวมวันนี้ของสาขา {branch.branchName}
         </p>
