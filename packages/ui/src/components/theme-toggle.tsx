@@ -47,14 +47,14 @@ export function ThemeToggle() {
   );
 }
 
-/** วาง script นี้ไว้ก่อน hydrate (ใน <head>) กันหน้าจอกระพริบธีมผิดตอนโหลด */
+/** วาง script นี้ไว้ก่อน hydrate (ใน <head>) กันหน้าจอกระพริบธีมผิดตอนโหลด
+ * Default ของระบบคือโหมดสว่างเสมอ — ไม่ยึดตาม prefers-color-scheme ของเครื่อง (ตามคำขอผู้ใช้)
+ * ผู้ใช้ที่เคยกดสลับเป็นมืดเองไว้แล้ว (มีค่าใน localStorage) ยังจำค่าที่เลือกไว้ให้เหมือนเดิม */
 export const THEME_INIT_SCRIPT = `
 (function () {
   try {
     var stored = localStorage.getItem("${STORAGE_KEY}");
-    var theme = stored === "dark" || stored === "light"
-      ? stored
-      : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    var theme = stored === "dark" || stored === "light" ? stored : "light";
     document.documentElement.setAttribute("data-theme", theme);
   } catch (e) {}
 })();
