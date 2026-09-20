@@ -29,7 +29,9 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // ทุก path ยกเว้น: API route, static asset ของ Next, ไฟล์ favicon, และหน้า dev styleguide
-    "/((?!api|_next/static|_next/image|favicon.ico|dev).*)",
+    // ทุก path ยกเว้น: API route, static asset ของ Next, ไฟล์ favicon, หน้า dev styleguide,
+    // และไฟล์ static ใน public/ (เช่น logo.webp — เดิมไม่ได้กัน ทำให้ middleware เด้งไปหน้า login
+    // HTML แทนที่จะคืนไฟล์รูปจริง เพราะ path มีนามสกุลไฟล์แต่ไม่ตรงกับ exclude เดิมสักอัน)
+    "/((?!api|_next/static|_next/image|favicon.ico|dev|.*\\.[a-zA-Z0-9]+$).*)",
   ],
 };

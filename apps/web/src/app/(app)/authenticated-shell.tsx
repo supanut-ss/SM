@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   AppShell,
@@ -223,12 +224,16 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         sidebar={
           <Sidebar>
             <div className={cn("flex items-center gap-2.5 px-1 pb-1", sidebarCollapsed && "justify-center px-0")}>
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-[9px] bg-celadon text-white">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="size-[15px]">
-                  <path d="M12 21c-4-2.2-7-5.6-7-10a7 7 0 0 1 14 0c0 4.4-3 7.8-7 10Z" />
-                  <path d="M12 11v10" />
-                </svg>
-              </span>
+              {/* unoptimized: Next image optimizer (ไม่มี sharp ในโปรเจกต์) แปลง webp ตัวนี้ไม่ได้ —
+                  ไฟล์เล็กอยู่แล้ว ไม่จำเป็นต้อง optimize เพิ่ม */}
+              <Image
+                src="/logo.webp"
+                alt="Sabaizy"
+                width={28}
+                height={28}
+                className="size-7 shrink-0 rounded-[9px]"
+                unoptimized
+              />
               {!sidebarCollapsed && (
                 <span className="font-display text-[15.5px] font-semibold text-ink">Sabaizy</span>
               )}

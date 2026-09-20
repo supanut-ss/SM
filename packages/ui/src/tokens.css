@@ -1,34 +1,36 @@
-/* Design tokens — "Teal & Indigo" (เดิมชื่อ "Celadon & Indigo" ก่อนเปลี่ยนสีหลักตาม ADR-047)
+/* Design tokens — "Gold & Sage" (เดิมชื่อ "Teal & Indigo"/"Celadon & Indigo" ก่อนเปลี่ยนสีหลักตาม
+   ADR-057 ให้เข้ากับโลโก้ Sabaizy — ทอง/บรอนซ์เป็นสีหลัก, เขียวใบไม้เป็นสีรอง)
    ดู docs/DESIGN.md ห้ามสร้างสีใหม่นอกไฟล์นี้ */
 :root {
-  /* พื้นผิว — โทนเย็นอมเขียว ไม่ใช่ครีม */
-  --paper: #f6f8f6;
+  /* พื้นผิว — โทนครีมอุ่นตามพื้นหลังโลโก้ (เดิมโทนเย็นอมเขียว เปลี่ยนตาม ADR-057) */
+  --paper: #f8f5ee;
   --surface: #ffffff;
-  --surface-sunk: #edf1ed;
-  --line: #dee4de;
-  --line-strong: #c3ccc4;
+  --surface-sunk: #f1ece1;
+  --line: #e3dbc9;
+  --line-strong: #cdc0a3;
 
   /* ตัวอักษร */
-  --ink: #16212b;
-  --ink-muted: #58686f;
+  --ink: #2b2318;
+  --ink-muted: #6b5d47;
   /* เข้มกว่าค่าดั้งเดิม (#8B979C) เพื่อให้ผ่าน AA 4.5:1 บนพื้น surface-sunk (ดู ADR-003) */
-  --ink-faint: #626e73;
+  --ink-faint: #756a54;
 
-  /* สีหลัก — ปิโตรเลียมทีล (เดิมเป็นเขียวศิลาดล เปลี่ยนทิศทางตาม ADR-047 คงชื่อตัวแปรเดิมไว้
-     เพื่อไม่ต้องแก้ทุก component ที่ใช้ Tailwind class bg-celadon-*, text-celadon-* ทั่วระบบ) */
-  --celadon: #0e6e74;
-  --celadon-hover: #0a5860;
-  --celadon-tint: #e2f0f0;
+  /* สีหลัก — ทอง/บรอนซ์ตามโลโก้ Sabaizy (เดิมเป็นปิโตรเลียมทีล เปลี่ยนทิศทางตาม ADR-057 คงชื่อตัวแปร
+     เดิมไว้ เพื่อไม่ต้องแก้ทุก component ที่ใช้ Tailwind class bg-celadon-*, text-celadon-* ทั่วระบบ) */
+  --celadon: #8b6227;
+  --celadon-hover: #6e4e1f;
+  --celadon-tint: #f5ecdb;
   /* ค่าคงที่ไม่สลับตามธีม — ใช้เฉพาะพื้นทึบที่วางตัวอักษรขาวทับ (เช่น badge in_service)
      เพราะ --celadon โหมดมืดถูกทำให้สว่างขึ้นสำหรับใช้เป็นตัวอักษร/เส้นขอบ ไม่ใช่พื้นทึบ
      ตัวอักษรขาวทับ --celadon โหมดมืดโดยตรงจะคอนทราสต์ไม่พอ ไม่ผ่าน AA (ดู ADR-003) */
-  --celadon-solid: #0a5860;
+  --celadon-solid: #6e4e1f;
 
   /* สีรอง */
   --indigo: #2c4a7c;
   --indigo-tint: #e4eaf3;
-  --brass: #8b6227;
-  --brass-tint: #f5ecdb;
+  /* เขียวใบไม้ตามโลโก้ — เดิม --brass คือสีทองที่ย้ายไปเป็น --celadon (สีหลัก) แล้วตาม ADR-057 */
+  --brass: #5f7a52;
+  --brass-tint: #e8ede3;
   --rose: #a63d4f;
   --rose-tint: #f6e4e6;
   /* ค่าคงที่ไม่สลับตามธีม เหตุผลเดียวกับ --celadon-solid — ดู ADR-003 */
@@ -36,29 +38,29 @@
 
   --radius: 6px;
   --radius-lg: 10px;
-  --shadow-pop: 0 8px 24px -8px rgba(22, 33, 43, 0.18);
+  --shadow-pop: 0 8px 24px -8px rgba(43, 35, 24, 0.18);
 
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 [data-theme="dark"] {
-  /* กะเย็น ห้องไฟสลัว ต้องมี */
-  --paper: #0f1a1d;
-  --surface: #162326;
-  --surface-sunk: #0b1315;
-  --line: #24363a;
-  --line-strong: #35494d;
-  --ink: #e7efea;
-  --ink-muted: #93a6a4;
+  /* กะเย็น ห้องไฟสลัว ต้องมี — คงโทนทอง/เขียวไว้แต่ปรับให้สว่างพอมองเห็นบนพื้นมืด */
+  --paper: #1c1710;
+  --surface: #262019;
+  --surface-sunk: #140f0a;
+  --line: #3a3122;
+  --line-strong: #4d422e;
+  --ink: #f0e9d8;
+  --ink-muted: #b3a789;
   /* สว่างกว่าค่าดั้งเดิม (#6B7E7D) เพื่อให้ผ่าน AA 4.5:1 บนพื้น surface (ดู ADR-003) */
-  --ink-faint: #798d8c;
-  --celadon: #4fb8be;
-  --celadon-hover: #72cbcf;
-  --celadon-tint: #113436;
+  --ink-faint: #9c9073;
+  --celadon: #d2a65c;
+  --celadon-hover: #e0bc7f;
+  --celadon-tint: #33280f;
   --indigo: #7c9cd4;
   --indigo-tint: #1a2740;
-  --brass: #d2a65c;
-  --brass-tint: #33280f;
+  --brass: #8fae7e;
+  --brass-tint: #23301c;
   --rose: #d0788a;
   --rose-tint: #38181f;
   --shadow-pop: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
