@@ -224,14 +224,14 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         sidebar={
           <Sidebar>
             <div className={cn("flex items-center gap-2.5 px-1 pb-1", sidebarCollapsed && "justify-center px-0")}>
-              {/* unoptimized: Next image optimizer (ไม่มี sharp ในโปรเจกต์) แปลง webp ตัวนี้ไม่ได้ —
-                  ไฟล์เล็กอยู่แล้ว ไม่จำเป็นต้อง optimize เพิ่ม */}
+              {/* unoptimized: Next image optimizer (ไม่มี sharp ในโปรเจกต์) แปลง PNG นี้ไม่ผ่าน —
+                  object-contain เพราะ crop ไม่ใช่สี่เหลี่ยมจัตุรัสเป๊ะ (1177x963) กัน squish */}
               <Image
-                src="/logo.png"
+                src="/logo-icon.png"
                 alt="Sabaizy"
-                width={28}
-                height={28}
-                className="size-7 shrink-0 rounded-[9px]"
+                width={200}
+                height={163}
+                className="size-7 shrink-0 object-contain"
                 unoptimized
               />
               {!sidebarCollapsed && (
