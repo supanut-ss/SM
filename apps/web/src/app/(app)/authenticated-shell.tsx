@@ -198,7 +198,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
               </button>
             </div>
             <div className="hidden items-center gap-3 md:flex">
-              <span className="hidden max-w-40 truncate text-sm text-ink-muted sm:inline">
+              <span className="hidden max-w-28 truncate text-sm text-ink-muted lg:inline">
                 {me.name} ({currentBranch?.roleName ?? "-"})
               </span>
               <ThemeToggle />
