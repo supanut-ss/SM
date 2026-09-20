@@ -464,6 +464,10 @@ export function BoardPageClient() {
         onChangeStatus={(item, status, paymentMethod, memberPackageId) =>
           statusMutation.mutate({ item, status, paymentMethod, memberPackageId })
         }
+        rows={rows}
+        viewMode={viewMode}
+        onReschedule={handleReschedule}
+        isRescheduling={rescheduleMutation.isPending}
       />
 
       <WalkInSheet

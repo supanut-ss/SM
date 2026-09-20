@@ -14,6 +14,8 @@ import { Button, Select, Sheet, Skeleton } from "@lotus-desk/ui";
 import { memberPackageApi, type AppointmentItem } from "../../../lib/api-client";
 import { formatSatang } from "../../../lib/format-money";
 import { useCurrentBranch } from "../current-branch-context";
+import { bangkokInstant, toDateKey } from "./date-format";
+import type { BoardRow } from "./lane-board";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("th-TH", {
@@ -21,6 +23,16 @@ function formatTime(iso: string): string {
     minute: "2-digit",
     timeZone: "Asia/Bangkok",
   });
+}
+
+/** "HH:mm" ตามเวลาไทย ใช้เป็นค่าเริ่มต้นของ <input type="time"> (ต้องเป็นเลขอารบิกล้วน ห้ามมี น./๐-๙) */
+function formatTimeInputValue(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Bangkok",
+  }).format(new Date(iso));
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -46,6 +58,10 @@ export function AppointmentDetailSheet({
   onChangeStatus,
   isPending,
   errorMessage,
+  rows,
+  viewMode,
+  onReschedule,
+  isRescheduling,
 }: {
   item: AppointmentItem | null;
   onClose: () => void;
@@ -60,11 +76,20 @@ export function AppointmentDetailSheet({
   /** ข้อความ error จาก backend (เช่น validateUse() ปฏิเสธตอนเริ่มงานเพราะยอดคอร์สไม่พอ) — แสดงให้เห็นชัด ๆ
    * ไม่ปล่อยให้เงียบ */
   errorMessage?: string | null;
+  /** แถวพนักงาน/ห้องของ viewMode ปัจจุบัน — ใช้เป็นตัวเลือก "ย้ายไป" (เดสก์ท็อปทำผ่านลาก แต่มือถือลากไม่ได้
+   * เลยต้องมีทางเลือกแบบกดแทน ดู docs/decisions.md ADR-058) ไม่ส่งมา = ซ่อนส่วนย้าย/เลื่อนเวลาไปเลย */
+  rows?: BoardRow[];
+  viewMode?: "staff" | "room";
+  onReschedule?: (item: AppointmentItem, changes: { rowId: string; startAt: Date; endAt: Date }) => void;
+  isRescheduling?: boolean;
 }) {
   const branch = useCurrentBranch();
   const [choosingPayment, setChoosingPayment] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [memberPackageId, setMemberPackageId] = useState("");
+  const [moving, setMoving] = useState(false);
+  const [moveRowId, setMoveRowId] = useState("");
+  const [moveTime, setMoveTime] = useState("");
   const nextStatuses = item ? nextAppointmentStatuses(item.status) : [];
   const memberId = item?.appointment.memberId ?? null;
 
@@ -88,6 +113,7 @@ export function AppointmentDetailSheet({
     setChoosingPayment(false);
     setPaymentMethod("CASH");
     setMemberPackageId("");
+    setMoving(false);
     onClose();
   }
 
@@ -98,6 +124,26 @@ export function AppointmentDetailSheet({
       return;
     }
     onChangeStatus(item, status);
+  }
+
+  function openMoving() {
+    if (!item) return;
+    setMoveRowId(viewMode === "room" ? item.roomId : item.staffId);
+    setMoveTime(formatTimeInputValue(item.startAt));
+    setMoving(true);
+  }
+
+  function confirmMoving() {
+    if (!item || !onReschedule || !moveRowId || !moveTime) return;
+    const [hourStr, minuteStr] = moveTime.split(":");
+    const hour = Number(hourStr);
+    const minute = Number(minuteStr);
+    const dateKey = toDateKey(new Date(item.startAt));
+    const durationMs = new Date(item.endAt).getTime() - new Date(item.startAt).getTime();
+    const startAt = bangkokInstant(dateKey, hour, minute);
+    const endAt = new Date(startAt.getTime() + durationMs);
+    onReschedule(item, { rowId: moveRowId, startAt, endAt });
+    setMoving(false);
   }
 
   return (
@@ -255,6 +301,62 @@ export function AppointmentDetailSheet({
                       }}
                     >
                       ยืนยันเริ่มงาน
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {canManage && rows && viewMode && onReschedule && (
+            <div className="grid gap-2 border-t border-line pt-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-ink-muted">ย้าย/เลื่อนเวลา</span>
+                {!moving && (
+                  <Button variant="secondary" size="sm" onClick={openMoving}>
+                    ย้าย/เลื่อนเวลา
+                  </Button>
+                )}
+              </div>
+
+              {moving && (
+                <div className="grid gap-2 rounded-DEFAULT border border-line p-3">
+                  <Select
+                    aria-label={viewMode === "room" ? "ย้ายไปห้อง" : "ย้ายไปพนักงาน"}
+                    value={moveRowId}
+                    onChange={(e) => setMoveRowId(e.target.value)}
+                  >
+                    {rows.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <input
+                    type="time"
+                    aria-label="เวลาเริ่มใหม่"
+                    value={moveTime}
+                    onChange={(e) => setMoveTime(e.target.value)}
+                    className="h-11 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
+                  />
+                  <p className="text-pretty text-xs text-ink-faint">
+                    ระยะเวลาให้บริการเท่าเดิม ({formatTime(item.startAt)}–{formatTime(item.endAt)} ปัจจุบัน)
+                  </p>
+                  {errorMessage && (
+                    <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
+                      {errorMessage}
+                    </p>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setMoving(false)}>
+                      ยกเลิก
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={isRescheduling || !moveRowId || !moveTime}
+                      onClick={confirmMoving}
+                    >
+                      ยืนยันย้าย
                     </Button>
                   </div>
                 </div>
