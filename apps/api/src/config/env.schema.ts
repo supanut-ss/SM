@@ -22,6 +22,10 @@ export const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default("30d"),
   // origin ของ apps/web ที่อนุญาตให้เรียก API ข้าม origin ได้ (คั่นด้วย , ถ้ามีหลายค่า) — ดู ADR-053
   CORS_ORIGIN: z.string().min(1, "CORS_ORIGIN ห้ามว่าง — ดู .env.example"),
+  // domain ของ cookie (เช่น ".drivetodev.online") ให้ apps/web กับ apps/api ที่อยู่คนละ subdomain
+  // ใช้ cookie ร่วมกันได้ — ไม่บังคับ ถ้าไม่ตั้งจะเป็น host-only cookie ปกติ (พอสำหรับ local dev ที่
+  // same-origin ผ่าน rewrite อยู่แล้ว) ดู docs/decisions.md ADR-055
+  COOKIE_DOMAIN: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

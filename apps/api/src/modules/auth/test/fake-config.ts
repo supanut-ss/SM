@@ -13,6 +13,7 @@ const DEV_ENV: Env = {
   JWT_ACCESS_EXPIRES_IN: "15m",
   JWT_REFRESH_EXPIRES_IN: "30d",
   CORS_ORIGIN: "http://localhost:3000",
+  COOKIE_DOMAIN: undefined,
 };
 
 export function createFakeConfig(overrides: Partial<Env> = {}): ConfigService<Env, true> {

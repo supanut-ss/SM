@@ -2109,3 +2109,29 @@ redeploy ไม่ใช้ cache, สลับไปใช้ domain default �
 จากฝั่งเราเลย ต้องตั้งค่า `NEXT_PUBLIC_API_URL=https://sm-api.drivetodev.online` ใน Vercel environment
 variables (Production) แล้ว redeploy — ถ้าในอนาคตย้าย apps/api ไป host อื่นที่ไม่ใช่ Render ปัญหานี้อาจ
 ไม่เกิดอีก ค่อยพิจารณากลับไปใช้ rewrite แบบเดิมได้ ไม่ต้องแก้โค้ดเพิ่ม (แค่เอา `NEXT_PUBLIC_API_URL` ออก)
+
+---
+
+## ADR-055: เพิ่ม `COOKIE_DOMAIN` — cookie ต้องแชร์ข้าม subdomain ได้หลังเลิกพึ่ง rewrite (ADR-054)
+วันที่: 2026-09-20
+Task ที่เกี่ยวข้อง: deploy จริงขึ้น domain `sm.drivetodev.online` (web) / `sm-api.drivetodev.online` (api)
+
+บริบท: หลังแก้ ADR-054 ให้ apps/web เรียก apps/api แบบ cross-origin ตรง (ไม่ผ่าน `/api` rewrite) login
+สำเร็จจริง (ได้ 200 + cookie) แต่กลับเข้าหน้า dashboard ไม่ได้ ถูกเด้งกลับหน้า login เงียบๆ โดยไม่มี error
+เพราะ `res.cookie()` ใน `auth.controller.ts` ไม่เคยระบุ `domain` ไว้เลย ทำให้เป็น host-only cookie ที่ผูก
+กับ `sm-api.drivetodev.online` เท่านั้น — `apps/web/src/middleware.ts` ที่รันบน `sm.drivetodev.online`
+เช็คหา cookie `access_token` แล้วไม่เจอ (เพราะ cookie อยู่คนละ host) จึง redirect กลับ `/login` ทุกครั้ง
+
+ตัดสินใจ: เพิ่ม `COOKIE_DOMAIN` เป็น env var ไม่บังคับใน `env.schema.ts` รวม logic ตั้ง cookie (login,
+pin-login, logout) เป็น `cookieOptions()` เดียวกันใน `auth.controller.ts` — ใส่ `domain` ใน cookie option
+เฉพาะตอนตั้งค่านี้ไว้เท่านั้น (เช่น `.drivetodev.online` ต้องมีจุดนำหน้าเพื่อให้ subdomain ทุกตัวใช้ร่วมกันได้
+ตามสเปก cookie) ไม่ตั้งไว้ = พฤติกรรมเดิม (host-only) สำหรับ local dev ที่ยังพึ่ง same-origin rewrite อยู่
+
+เหตุผล: รวม logic ตั้ง cookie ไว้จุดเดียว (`cookieOptions()`) กันพลาดแบบเดิมที่ `pinLogin` เคยตั้ง cookie
+แยกจาก `setTokenCookies` ทำให้ตอนแก้ `domain` ต้องไล่แก้หลายจุด และกัน `clearTokenCookies` ไม่ match
+option กับตอน set (browser จะไม่ยอมลบ cookie ถ้า domain/path ไม่ตรงกับตอนตั้ง)
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ต้องตั้งค่า `COOKIE_DOMAIN=.drivetodev.online` ใน Render environment
+variables แล้ว restart service ถึงจะมีผล (ไม่ต้อง redeploy ใหม่ทั้งหมดเหมือน `NEXT_PUBLIC_API_URL` เพราะ
+apps/api อ่าน env ตอน runtime ไม่ใช่ build time) — ปฏิเสธการกลับไปใช้ rewrite (ADR-054) เพราะ root cause
+ของ rewrite ยังไม่ทราบชัดและไม่มีทางแก้จากโค้ดเราได้

@@ -70,13 +70,9 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const { accessToken } = await this.authService.pinLogin(body.deviceId, body.userId, body.pin);
-    const isProd = this.config.get("NODE_ENV", { infer: true }) === "production";
     res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: "lax",
+      ...this.cookieOptions(),
       maxAge: PIN_SESSION_MAX_AGE_MS,
-      path: "/",
     });
     return { ok: true };
   }
@@ -139,26 +135,36 @@ export class AuthController {
     return { ipAddress: req.ip, userAgent: req.headers["user-agent"] };
   }
 
-  private setTokenCookies(res: Response, tokens: TokenPair): void {
+  /**
+   * ตัวเลือก cookie ร่วม — ใส่ `domain` เฉพาะตอนตั้ง `COOKIE_DOMAIN` ไว้ (เช่น ".drivetodev.online")
+   * เพื่อให้ apps/web กับ apps/api ที่อยู่คนละ subdomain ใช้ cookie เดียวกันได้ (ดู ADR-055) ไม่ตั้งไว้
+   * = host-only cookie ปกติ (ใช้ตอน local dev ที่ apps/web เรียกผ่าน rewrite แบบ same-origin)
+   */
+  private cookieOptions() {
     const isProd = this.config.get("NODE_ENV", { infer: true }) === "production";
-    res.cookie(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
+    const domain = this.config.get("COOKIE_DOMAIN", { infer: true });
+    return {
       httpOnly: true,
       secure: isProd,
-      sameSite: "lax",
-      maxAge: ACCESS_TOKEN_MAX_AGE_MS,
+      sameSite: "lax" as const,
       path: "/",
+      ...(domain ? { domain } : {}),
+    };
+  }
+
+  private setTokenCookies(res: Response, tokens: TokenPair): void {
+    res.cookie(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
+      ...this.cookieOptions(),
+      maxAge: ACCESS_TOKEN_MAX_AGE_MS,
     });
     res.cookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: "lax",
+      ...this.cookieOptions(),
       maxAge: REFRESH_TOKEN_MAX_AGE_MS,
-      path: "/",
     });
   }
 
   private clearTokenCookies(res: Response): void {
-    res.clearCookie(ACCESS_TOKEN_COOKIE, { path: "/" });
-    res.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/" });
+    res.clearCookie(ACCESS_TOKEN_COOKIE, this.cookieOptions());
+    res.clearCookie(REFRESH_TOKEN_COOKIE, this.cookieOptions());
   }
 }
