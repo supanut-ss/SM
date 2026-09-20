@@ -4,7 +4,13 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      // Turborepo strip env var ที่ไม่ได้ประกาศตรงนี้ออกจาก build process โดยอัตโนมัติ (กัน cache
+      // poisoning) — ถ้าไม่ประกาศ apps/web จะได้ process.env.API_URL/NEXT_PUBLIC_API_URL เป็น undefined
+      // เสมอตอน build บน Vercel แม้ตั้งค่าใน Vercel project settings ถูกต้องแล้วก็ตาม (ดู
+      // docs/decisions.md ADR-054 ที่เจอปัญหานี้จริงตอน deploy — เข้าใจผิดว่าเป็น bug ของ Vercel rewrite
+      // มาก่อน ที่จริงคือค่านี้ไม่เคยถึง build เลย)
+      "env": ["API_URL", "NEXT_PUBLIC_API_URL"]
     },
     "dev": {
       "cache": false,
