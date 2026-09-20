@@ -160,7 +160,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         }
         topbar={
           <Topbar>
-            <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden md:gap-3">
               <span
                 aria-hidden="true"
                 className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-celadon-solid text-white md:hidden"
@@ -185,7 +185,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
                   setAccountMenuOpen(false);
                   setCmdkOpen(true);
                 }}
-                className="hidden shrink-0 items-center gap-2 whitespace-nowrap rounded-DEFAULT border border-line px-2.5 py-1.5 text-xs text-ink-faint transition-colors hover:border-line-strong hover:text-ink-muted md:flex"
+                className="hidden shrink-0 items-center gap-2 whitespace-nowrap rounded-DEFAULT border border-line px-2.5 py-1.5 text-xs text-ink-faint transition-colors hover:border-line-strong hover:text-ink-muted lg:flex"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-3.5 w-3.5 shrink-0">
                   <circle cx="11" cy="11" r="7" />
@@ -198,7 +198,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
               </button>
             </div>
             <div className="hidden items-center gap-3 md:flex">
-              <span className="hidden text-sm text-ink-muted sm:inline">
+              <span className="hidden max-w-40 truncate text-sm text-ink-muted sm:inline">
                 {me.name} ({currentBranch?.roleName ?? "-"})
               </span>
               <ThemeToggle />
