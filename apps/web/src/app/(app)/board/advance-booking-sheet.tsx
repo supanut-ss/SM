@@ -13,7 +13,7 @@ import {
   staffApi,
   type AppointmentItem,
 } from "../../../lib/api-client";
-import { toDateKey } from "./date-format";
+import { bangkokInstant, toDateKey } from "./date-format";
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("th-TH", {
@@ -102,8 +102,7 @@ export function AdvanceBookingSheet({
   const advanceMutation = useMutation({
     mutationFn: () => {
       const [hour, minute] = timeValue.split(":").map(Number);
-      const [y, m, d] = dateValue.split("-").map(Number);
-      const startAt = new Date(Date.UTC(y!, m! - 1, d!, hour! - 7, minute));
+      const startAt = bangkokInstant(dateValue, hour!, minute);
       return appointmentItemApi.createAdvance(branchId, {
         serviceVariantId,
         staffId,

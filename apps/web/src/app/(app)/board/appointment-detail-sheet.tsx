@@ -311,7 +311,7 @@ export function AppointmentDetailSheet({
           {canManage && rows && viewMode && onReschedule && (
             <div className="grid gap-2 border-t border-line pt-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-ink-muted">ย้าย/เลื่อนเวลา</span>
+                <span className="text-xs font-medium text-ink-muted">พนักงาน/ห้อง/เวลา</span>
                 {!moving && (
                   <Button variant="secondary" size="sm" onClick={openMoving}>
                     ย้าย/เลื่อนเวลา
