@@ -180,13 +180,13 @@ export function PromotionPageClient() {
           onChange={(event) => setSearchInput(event.target.value)}
           placeholder="ค้นหาชื่อโปรโมชั่น..."
           aria-label="ค้นหาโปรโมชั่น"
-          className="h-11 w-64 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
+          className="h-11 w-full rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 sm:w-64 lg:h-9 lg:text-sm"
         />
         <Select
           aria-label="กรองตามสถานะ"
           value={activeFilter}
           onChange={(event) => setActiveFilter(event.target.value as ActiveFilter)}
-          className="w-44"
+          className="w-full sm:w-44"
         >
           <option value="true">เปิดใช้งาน</option>
           <option value="false">ปิดใช้งานแล้ว</option>

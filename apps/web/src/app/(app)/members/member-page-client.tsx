@@ -168,13 +168,13 @@ export function MemberPageClient() {
           onChange={(event) => setSearchInput(event.target.value)}
           placeholder="ค้นหาชื่อหรือเบอร์โทร..."
           aria-label="ค้นหาสมาชิก"
-          className="h-11 w-64 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
+          className="h-11 w-full rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 sm:w-64 lg:h-9 lg:text-sm"
         />
         <Select
           aria-label="กรองตามสถานะ"
           value={activeFilter}
           onChange={(event) => setActiveFilter(event.target.value as ActiveFilter)}
-          className="w-44"
+          className="w-full sm:w-44"
         >
           <option value="true">ใช้งานอยู่</option>
           <option value="false">ปิดใช้งานแล้ว</option>
@@ -184,7 +184,7 @@ export function MemberPageClient() {
           aria-label="กรองตามความยินยอมรับข่าวสาร"
           value={marketingFilter}
           onChange={(event) => setMarketingFilter(event.target.value as "" | "true" | "false")}
-          className="w-52"
+          className="w-full sm:w-52"
         >
           <option value="">ทุกสถานะความยินยอม</option>
           <option value="true">ยินยอมรับข่าวสาร</option>
