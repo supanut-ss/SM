@@ -10,7 +10,7 @@ export default function LoginPage() {
         {/* unoptimized: Next image optimizer (ไม่มี sharp ในโปรเจกต์) แปลง webp ตัวนี้ไม่ได้ — ไฟล์เล็ก
             อยู่แล้ว ไม่จำเป็นต้อง optimize เพิ่ม */}
         <Image
-          src="/logo.webp"
+          src="/logo.png"
           alt="Sabaizy"
           width={56}
           height={56}

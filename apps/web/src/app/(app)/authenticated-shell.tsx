@@ -227,7 +227,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
               {/* unoptimized: Next image optimizer (ไม่มี sharp ในโปรเจกต์) แปลง webp ตัวนี้ไม่ได้ —
                   ไฟล์เล็กอยู่แล้ว ไม่จำเป็นต้อง optimize เพิ่ม */}
               <Image
-                src="/logo.webp"
+                src="/logo.png"
                 alt="Sabaizy"
                 width={28}
                 height={28}
