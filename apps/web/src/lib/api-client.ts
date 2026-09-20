@@ -73,10 +73,17 @@ export class ApiError extends Error {
   }
 }
 
+// ปกติเรียกผ่าน /api (same-origin, proxy ด้วย rewrite ใน next.config.ts) แต่ rewrite ไปโดเมน onrender.com
+// ล้มเหลวเป็น DNS_HOSTNAME_RESOLVED_PRIVATE บน Vercel production เสมอ (ไม่ทราบสาเหตุแน่ชัดฝั่ง Vercel
+// แก้ไม่ได้จากโค้ดฝั่งเรา — ดู docs/decisions.md ADR-054) จึงเรียกข้าม origin ตรงแทนเมื่อตั้ง
+// NEXT_PUBLIC_API_URL ไว้ — ปลอดภัยเพราะ cookie เป็น sameSite=lax และ apps/web กับ apps/api เป็น
+// subdomain ใน site เดียวกัน (drivetodev.online) ตามสเปก SameSite ถือเป็น same-site อยู่ดี
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    credentials: "include", // ส่ง/รับ httpOnly cookie เสมอ — same-origin ผ่าน rewrite ใน next.config.ts
+    credentials: "include", // ส่ง/รับ httpOnly cookie เสมอ
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
 

@@ -2078,3 +2078,34 @@ Task ที่เกี่ยวข้อง: deploy จริงครั้ง
 CORS (เบราว์เซอร์จะบล็อก) — ทุก environment (dev/CI/production) ต้องตั้งค่า `CORS_ORIGIN` เพิ่มจากนี้ไป
 มิฉะนั้นแอป boot ไม่ขึ้น (`envSchema` บังคับ, ดู `.env.example`, `.env`, `.github/workflows/ci.yml`)
 ต้องตั้งค่า `CORS_ORIGIN=https://sm.drivetodev.online` ใน Render environment variables ก่อน deploy รอบนี้
+
+---
+
+## ADR-054: เลิกพึ่ง Next.js rewrite ข้าม origin ไป apps/api บน Vercel production — เรียก API ตรงแทน
+วันที่: 2026-09-20
+Task ที่เกี่ยวข้อง: deploy จริงขึ้น domain `sm.drivetodev.online` (web, Vercel) / `sm-api.drivetodev.online` (api, Render)
+
+บริบท: `next.config.ts` เดิมออกแบบให้ browser เรียก `/api/:path*` แบบ same-origin เสมอ แล้วใช้
+`rewrites()` proxy ต่อไปที่ `API_URL` (ตั้งใจเลี่ยงปัญหา CORS/SameSite cookie ตั้งแต่ต้น — ดูคอมเมนต์เดิม
+ในไฟล์) แต่ deploy จริงบน Vercel production พบว่า rewrite ไปโดเมนของ Render (ทั้ง custom domain
+`sm-api.drivetodev.online` และ default `sm-wsr8.onrender.com`) ล้มเหลวด้วย
+`DNS_HOSTNAME_RESOLVED_PRIVATE` เสมอ แม้ตั้งค่า `API_URL` ถูกต้อง, redeploy โดยไม่ใช้ build cache,
+และยืนยันด้วย `nslookup`/`curl` แล้วว่าโดเมนปลายทาง resolve เป็น public IP จริง (ไม่ใช่ private/reserved
+range) — ไม่พบสาเหตุที่แน่ชัดฝั่ง Vercel platform (อาจเป็นพฤติกรรมเฉพาะของ Vercel edge network ตอน
+resolve โดเมนที่อยู่หลัง Cloudflare ของ Render) แก้จากโค้ดฝั่งเราไม่ได้
+
+ตัดสินใจ: เพิ่ม `NEXT_PUBLIC_API_URL` — ถ้าตั้งไว้ `apps/web/src/lib/api-client.ts` จะเรียก API แบบ
+cross-origin ตรงไปที่ค่านี้แทนการพึ่ง `/api` rewrite (ยังคง fallback เป็น `/api` เดิมถ้าไม่ได้ตั้งค่า
+เพื่อไม่กระทบ dev environment ที่ rewrite ยังทำงานปกติ) ฝั่ง `apps/api` เปิด CORS ไว้แล้วจาก ADR-053
+(`CORS_ORIGIN` + `credentials: true`) อยู่แล้วพอดี จึงใช้ค่านั้นได้ทันทีโดยไม่ต้องแก้ backend เพิ่ม
+
+เหตุผล: cookie ของ apps/api เป็น `sameSite: "lax"` (ดู `auth.controller.ts` `setTokenCookies`) และ
+`sm.drivetodev.online`/`sm-api.drivetodev.online` เป็น subdomain ของ site เดียวกัน
+(`drivetodev.online`) ตามสเปก SameSite นับเป็น "same-site" ไม่ใช่ "cross-site" — cookie จึงยังทำงาน
+ปกติแม้เรียกข้าม origin ตรง ไม่จำเป็นต้องพึ่ง same-origin rewrite เพื่อความปลอดภัยของ cookie อีกต่อไป
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ปฏิเสธการพยายามแก้ rewrite ต่อ (ลองแล้วหลายรอบ: แก้ชื่อ env var ที่พิมพ์ผิด,
+redeploy ไม่ใช้ cache, สลับไปใช้ domain default ของ Render) เพราะไม่มีทางวินิจฉัย root cause ที่แท้จริงได้
+จากฝั่งเราเลย ต้องตั้งค่า `NEXT_PUBLIC_API_URL=https://sm-api.drivetodev.online` ใน Vercel environment
+variables (Production) แล้ว redeploy — ถ้าในอนาคตย้าย apps/api ไป host อื่นที่ไม่ใช่ Render ปัญหานี้อาจ
+ไม่เกิดอีก ค่อยพิจารณากลับไปใช้ rewrite แบบเดิมได้ ไม่ต้องแก้โค้ดเพิ่ม (แค่เอา `NEXT_PUBLIC_API_URL` ออก)
