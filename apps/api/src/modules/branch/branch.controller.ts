@@ -1,8 +1,23 @@
-import { Body, Controller, Get, NotFoundException, Patch, UseGuards } from "@nestjs/common";
-import { updateBranchSchema, type UpdateBranchInput } from "@lotus-desk/contracts";
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  UseGuards,
+} from "@nestjs/common";
+import * as argon2 from "argon2";
+import {
+  resetUserPasswordSchema,
+  updateBranchSchema,
+  type ResetUserPasswordInput,
+  type UpdateBranchInput,
+} from "@lotus-desk/contracts";
 import { AuditEntity } from "../../audit/audit-entity.decorator";
 import { ZodValidationPipe } from "../../common/zod-validation.pipe";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AuthService } from "../auth/auth.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentBranch } from "../rbac/current-branch.decorator";
 import { PermissionGuard } from "../rbac/permission.guard";
@@ -17,7 +32,10 @@ import type { BranchContext } from "../rbac/permission.guard";
 @Controller("branches")
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class BranchController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get(":branchId")
   @RequirePermission("view", "branch")
@@ -68,5 +86,39 @@ export class BranchController {
     @Body(new ZodValidationPipe(updateBranchSchema)) body: UpdateBranchInput,
   ) {
     return this.prisma.client.branch.update({ where: { id: branch.branchId }, data: body });
+  }
+
+  /**
+   * เจ้าของร้านตั้งรหัสผ่านใหม่ให้ user คนอื่นโดยตรง (ไม่ต้องรู้รหัสผ่านเดิม) — ยังไม่มีระบบส่งอีเมล reset
+   * ในโปรเจกต์นี้ นี่คือทางแก้ชั่วคราวสำหรับกรณี user ลืมรหัสผ่านแล้วเข้าระบบไม่ได้ (ดู docs/decisions.md
+   * ADR-059) เกทด้วย settings:manage ที่มีแค่ owner เท่านั้น (ดู packages/contracts/src/permissions.ts
+   * MANAGE_ALL_EXCEPT_SETTINGS — manager ไม่มีสิทธิ์นี้โดยตั้งใจ)
+   */
+  @Patch(":branchId/users/:userId/password")
+  @RequirePermission("manage", "settings")
+  @AuditEntity("User")
+  async resetUserPassword(
+    @CurrentBranch() branch: BranchContext,
+    @Param("userId") userId: string,
+    @Body(new ZodValidationPipe(resetUserPasswordSchema)) body: ResetUserPasswordInput,
+  ) {
+    // ต้องเช็คว่า user คนนี้สังกัดสาขานี้จริง ไม่งั้นผู้จัดการสาขา A จะตั้งรหัสผ่านให้ user สาขา B ได้
+    // (PermissionGuard เช็คแค่ว่า "ผู้เรียก" สังกัดสาขานี้ ไม่ได้เช็ค "เป้าหมาย" ให้อัตโนมัติ)
+    const userBranch = await this.prisma.client.userBranch.findUnique({
+      where: { userId_branchId: { userId, branchId: branch.branchId } },
+    });
+    if (!userBranch) {
+      throw new NotFoundException("ไม่พบผู้ใช้นี้ในสาขานี้");
+    }
+
+    const passwordHash = await argon2.hash(body.newPassword);
+    const user = await this.prisma.client.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+    // เพิกถอน session เดิมทั้งหมดของ user คนนี้ — กันกรณีรหัสผ่านเดิมหลุด/ถูกขโมย session ที่ค้างอยู่ต้อง
+    // ไม่ใช้ต่อได้อีกหลังรีเซ็ต (เหตุผลเดียวกับ RefreshTokenReuseException — ดู auth.service.ts)
+    await this.authService.logoutAll(userId);
+    return { id: user.id, email: user.email, name: user.name };
   }
 }

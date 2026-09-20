@@ -12,6 +12,7 @@ import type {
   ConsentStatus,
   LeaveType,
   LoginInput,
+  ResetUserPasswordInput,
   MeResponse,
   MergeMemberInput,
   StaffLevel,
@@ -128,6 +129,11 @@ export interface BranchUser {
 
 export const userApi = {
   list: (branchId: string) => apiFetch<BranchUser[]>(`/branches/${branchId}/users`),
+  resetPassword: (branchId: string, userId: string, input: ResetUserPasswordInput) =>
+    apiFetch<{ id: string; email: string; name: string }>(
+      `/branches/${branchId}/users/${userId}/password`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
 };
 
 /** shape ที่ apps/api ตอบกลับจริง (JSON — Date กลายเป็น string ISO แล้ว) ดู StaffController */

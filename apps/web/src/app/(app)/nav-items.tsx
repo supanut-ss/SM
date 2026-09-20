@@ -1,6 +1,15 @@
 import type { ComponentType, SVGProps } from "react";
 import type { PermissionAction, PermissionResource } from "@lotus-desk/contracts";
-import { BillingIcon, BoardIcon, DashboardIcon, MemberIcon, PackageIcon, ServiceIcon, StaffIcon } from "./nav-icons";
+import {
+  BillingIcon,
+  BoardIcon,
+  DashboardIcon,
+  MemberIcon,
+  PackageIcon,
+  ServiceIcon,
+  SettingsIcon,
+  StaffIcon,
+} from "./nav-icons";
 
 /** ลำดับ 3 หมวดที่ต้องแสดงบนกระดานเมนูซ้าย (ดู docs/decisions.md ADR-047) — ใช้ลำดับนี้เสมอไม่ว่า
  * NAV_ITEMS จะถูกประกาศเรียงยังไง */
@@ -33,4 +42,13 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/services", label: "บริการ", group: "ข้อมูลร้าน", icon: ServiceIcon, require: { action: "view", resource: "service" } },
   { href: "/packages", label: "คอร์ส/แพ็กเกจ", group: "ข้อมูลร้าน", icon: PackageIcon, require: { action: "view", resource: "package" } },
   { href: "/staff", label: "พนักงาน", group: "จัดการร้าน", icon: StaffIcon, require: { action: "view", resource: "staff" } },
+  // เห็นเฉพาะ owner เท่านั้น (settings:manage มีแค่ owner ตาม MANAGE_ALL_EXCEPT_SETTINGS ใน
+  // packages/contracts/src/permissions.ts) ดู docs/decisions.md ADR-059
+  {
+    href: "/users",
+    label: "รีเซ็ตรหัสผ่านผู้ใช้",
+    group: "จัดการร้าน",
+    icon: SettingsIcon,
+    require: { action: "manage", resource: "settings" },
+  },
 ];

@@ -24,3 +24,12 @@ export const verifyManagerPinSchema = z.object({
 });
 
 export type VerifyManagerPinInput = z.infer<typeof verifyManagerPinSchema>;
+
+// เจ้าของร้านตั้งรหัสผ่านใหม่ให้ user คนอื่นโดยตรง (ไม่ผ่าน flow ลืมรหัสผ่าน/อีเมล — ยังไม่มีระบบส่งอีเมล
+// reset ในโปรเจกต์นี้) เกทด้วย settings:manage ที่ owner มีสิทธิ์เดียว (ดู permissions.ts) ดู
+// docs/decisions.md ADR-059
+export const resetUserPasswordSchema = z.object({
+  newPassword: z.string().min(8, "รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร"),
+});
+
+export type ResetUserPasswordInput = z.infer<typeof resetUserPasswordSchema>;
