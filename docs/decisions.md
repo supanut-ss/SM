@@ -2135,3 +2135,29 @@ option กับตอน set (browser จะไม่ยอมลบ cookie ถ
 variables แล้ว restart service ถึงจะมีผล (ไม่ต้อง redeploy ใหม่ทั้งหมดเหมือน `NEXT_PUBLIC_API_URL` เพราะ
 apps/api อ่าน env ตอน runtime ไม่ใช่ build time) — ปฏิเสธการกลับไปใช้ rewrite (ADR-054) เพราะ root cause
 ของ rewrite ยังไม่ทราบชัดและไม่มีทางแก้จากโค้ดเราได้
+
+---
+
+## ADR-056: เจอ root cause จริงของปัญหาใน ADR-054 — turbo.json ไม่ได้ declare env var ที่ build ต้องใช้
+วันที่: 2026-09-20
+Task ที่เกี่ยวข้อง: deploy จริงขึ้น domain `sm.drivetodev.online` / `sm-api.drivetodev.online`
+
+บริบท: ADR-054 สรุปไว้ว่า Next.js rewrite ไป domain ของ Render ล้มเหลวด้วย `DNS_HOSTNAME_RESOLVED_PRIVATE`
+โดยไม่ทราบสาเหตุ แล้วแก้ด้วยการเลี่ยงไปเรียก API ตรงแทน (`NEXT_PUBLIC_API_URL`) — ตอน deploy จริงพบ log
+เตือนจาก Turborepo ที่ไม่เคยสังเกตมาก่อน: `environment variables ... set on your Vercel project, but
+missing from "turbo.json" ... WILL NOT be available` ชี้ว่า Turborepo strip env var ที่ไม่ได้ declare ไว้
+ใน `turbo.json` ออกจาก build process โดยอัตโนมัติ (กัน cache poisoning ข้าม build ที่ input ต่างกัน) —
+`API_URL` ไม่เคยถูกส่งเข้าไปใน build จริงเลยตั้งแต่ต้น (ไม่ว่าจะตั้งถูกแค่ไหนใน Vercel project settings)
+next.config.ts จึง fallback เป็น `localhost:3001` เสมอ = ต้นตอที่แท้จริงของปัญหาใน ADR-054 ทั้งหมด
+
+ตัดสินใจ: เพิ่ม `"env": ["API_URL", "NEXT_PUBLIC_API_URL"]` ใน `build` task ของ `turbo.json`
+
+เหตุผล: การพึ่ง rewrite (ของเดิมก่อน ADR-054) ก็ใช้ได้จริง แค่ต้อง declare env var ให้ turbo เห็นด้วย —
+ไม่ใช่ bug ของ Vercel rewrite/DNS อย่างที่ ADR-054 เข้าใจผิดไว้
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: **ไม่ revert การแก้ของ ADR-054/055** (เรียก API ตรง + `COOKIE_DOMAIN`) แม้
+root cause ที่แท้จริงจะถูกแก้แล้ว เพราะสถาปัตยกรรมเรียกตรงข้าม origin ก็ใช้งานได้ปกติเช่นกัน (ผ่าน CORS +
+cookie domain ที่ตั้งไว้แล้ว) และ rollback กลับไปใช้ rewrite ตอนนี้มีความเสี่ยงเสียเวลาทดสอบซ้ำโดยไม่จำเป็น
+— บทเรียนสำหรับ task ในอนาคตที่เพิ่ม env var ใหม่ให้ apps/web: **ต้อง declare ใน `turbo.json` ด้วยเสมอ**
+ไม่ใช่แค่ตั้งใน Vercel project settings อย่างเดียว มิฉะนั้นจะเงียบและดีบักยากมาก (ไม่มี error ตรงจุด มีแค่
+warning ที่ปนอยู่ใน build log ยาวๆ)
