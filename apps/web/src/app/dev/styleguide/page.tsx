@@ -48,7 +48,7 @@ export default function StyleGuidePage() {
           Style Guide
         </h1>
         <p className="text-pretty mt-1 text-sm text-ink-muted">
-          Design token, component, และ badge สถานะทั้งหมดของ Lotus Desk — ดู docs/DESIGN.md
+          Design token, component, และ badge สถานะทั้งหมดของ Sabaizy — ดู docs/DESIGN.md
         </p>
       </header>
 

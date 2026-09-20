@@ -8,6 +8,11 @@ import { requestIdMiddleware } from "./common/request-id.middleware";
 
 export async function createApp() {
   const app = await NestFactory.create(AppModule);
+  const config = app.get(ConfigService<Env, true>);
+  app.enableCors({
+    origin: config.get("CORS_ORIGIN", { infer: true }).split(","),
+    credentials: true,
+  });
   app.use(cookieParser());
   app.use(requestIdMiddleware);
   return app;

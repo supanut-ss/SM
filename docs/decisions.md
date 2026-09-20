@@ -2055,3 +2055,26 @@ placeholder อยู่แล้วใน ~20+ จุดทั่วระบ�
 
 ผลกระทบ: ทุกหน้าที่มี `isLoading` ต้องเรียก `Skeleton`/`SkeletonGroup` แทนการเขียน div ตรงๆ ต่อจากนี้ —
 `docs/DESIGN.md` §motion ควรอัปเดตให้ตรงกับ ADR นี้ในรอบถัดไปที่แก้เอกสารนั้น
+
+---
+
+## ADR-053: เพิ่ม `CORS_ORIGIN` env var และเปิด CORS ใน apps/api
+วันที่: 2026-09-20
+Task ที่เกี่ยวข้อง: deploy จริงครั้งแรกขึ้น domain `sm.drivetodev.online` (web) / `sm-api.drivetodev.online` (api)
+
+บริบท: หลัง deploy apps/web (Vercel) และ apps/api (Render) ขึ้น custom domain คนละ origin กัน
+ทดสอบ `fetch()` จากเบราว์เซอร์บน `sm.drivetodev.online` ไปยัง `sm-api.drivetodev.online` แล้วเจอ
+"Failed to fetch" — ตรวจโค้ดพบว่า `apps/api/src/main.ts` ไม่เคยเรียก `app.enableCors()` เลยตั้งแต่ต้น
+(ตอน dev ใช้ Next.js rewrite/proxy ผ่าน origin เดียวกันจึงไม่เจอปัญหานี้มาก่อน)
+
+ตัดสินใจ: เพิ่ม `CORS_ORIGIN` เป็น env var บังคับใน `env.schema.ts` (รับ origin คั่นด้วย `,` ถ้ามีหลายค่า)
+แล้วเรียก `app.enableCors({ origin: CORS_ORIGIN.split(","), credentials: true })` ใน `createApp()`
+ก่อน `cookieParser()` — เปิด `credentials: true` เพราะ auth ใช้ cookie (`cookieParser()` มีอยู่แล้ว)
+
+เหตุผล: ผูก origin ที่อนุญาตกับ env var แทนการ hardcode หรือเปิดกว้าง `*` เพื่อไม่ให้ cookie-based auth
+เสี่ยง CSRF จาก origin ที่ไม่รู้จัก และรองรับการมีหลาย environment (local/staging/production) โดยไม่ต้องแก้โค้ด
+
+ผลกระทบ/ทางเลือกที่ไม่เลือก: ปฏิเสธการเปิด `origin: "*"` เพราะใช้คู่กับ `credentials: true` ไม่ได้ตามสเปก
+CORS (เบราว์เซอร์จะบล็อก) — ทุก environment (dev/CI/production) ต้องตั้งค่า `CORS_ORIGIN` เพิ่มจากนี้ไป
+มิฉะนั้นแอป boot ไม่ขึ้น (`envSchema` บังคับ, ดู `.env.example`, `.env`, `.github/workflows/ci.yml`)
+ต้องตั้งค่า `CORS_ORIGIN=https://sm.drivetodev.online` ใน Render environment variables ก่อน deploy รอบนี้

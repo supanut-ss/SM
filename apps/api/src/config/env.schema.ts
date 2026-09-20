@@ -20,6 +20,8 @@ export const envSchema = z.object({
     .min(32, "JWT_REFRESH_SECRET ต้องยาวอย่างน้อย 32 ตัวอักษร — ดู .env.example"),
   JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
   JWT_REFRESH_EXPIRES_IN: z.string().default("30d"),
+  // origin ของ apps/web ที่อนุญาตให้เรียก API ข้าม origin ได้ (คั่นด้วย , ถ้ามีหลายค่า) — ดู ADR-053
+  CORS_ORIGIN: z.string().min(1, "CORS_ORIGIN ห้ามว่าง — ดู .env.example"),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -5,7 +5,7 @@ import { QueryProvider } from "../lib/query-provider";
 import "./globals.css";
 
 export const metadata = {
-  title: "Lotus Desk",
+  title: "Sabaizy",
   description: "ระบบหลังบ้านร้านสปา / นวด / เสริมความงาม",
 };
 

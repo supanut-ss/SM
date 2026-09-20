@@ -230,7 +230,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
                 </svg>
               </span>
               {!sidebarCollapsed && (
-                <span className="font-display text-[15.5px] font-semibold text-ink">Lotus Desk</span>
+                <span className="font-display text-[15.5px] font-semibold text-ink">Sabaizy</span>
               )}
             </div>
 

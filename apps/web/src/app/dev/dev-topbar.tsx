@@ -15,7 +15,7 @@ export function DevTopbar() {
     <Topbar>
       <div className="flex items-center gap-3">
         <span className="font-display text-lg font-semibold text-ink">
-          Lotus Desk
+          Sabaizy
         </span>
         <BranchSwitcher branches={MOCK_BRANCHES} value={branchId} onChange={setBranchId} />
       </div>

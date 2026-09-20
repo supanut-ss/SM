@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@lotus-desk/ui";
 
-export const metadata = { title: "ไม่มีสิทธิ์เข้าถึง — Lotus Desk" };
+export const metadata = { title: "ไม่มีสิทธิ์เข้าถึง — Sabaizy" };
 
 export default function ForbiddenPage() {
   return (

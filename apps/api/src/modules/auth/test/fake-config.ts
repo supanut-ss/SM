@@ -12,6 +12,7 @@ const DEV_ENV: Env = {
   JWT_REFRESH_SECRET: "test-refresh-secret-at-least-32-characters-long",
   JWT_ACCESS_EXPIRES_IN: "15m",
   JWT_REFRESH_EXPIRES_IN: "30d",
+  CORS_ORIGIN: "http://localhost:3000",
 };
 
 export function createFakeConfig(overrides: Partial<Env> = {}): ConfigService<Env, true> {

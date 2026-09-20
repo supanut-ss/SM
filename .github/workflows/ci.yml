@@ -30,6 +30,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://lotus:lotus@localhost:5432/lotus_desk
       REDIS_URL: redis://localhost:6379
+      CORS_ORIGIN: http://localhost:3000
       SMTP_HOST: localhost
       SMTP_PORT: "1025"
       NODE_ENV: test
