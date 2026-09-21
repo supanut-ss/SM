@@ -50,7 +50,7 @@ export const NAV_ITEMS: NavItem[] = [
   // packages/contracts/src/permissions.ts) ดู docs/decisions.md ADR-059
   {
     href: "/users",
-    label: "รีเซ็ตรหัสผ่านผู้ใช้",
+    label: "จัดการผู้ใช้",
     group: "จัดการร้าน",
     icon: SettingsIcon,
     require: { action: "manage", resource: "settings" },

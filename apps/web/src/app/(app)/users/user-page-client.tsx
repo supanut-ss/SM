@@ -231,8 +231,17 @@ function UserFormSheet({
   });
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      userApi.update(branchId, editingRecord!.id, { email, name, roleKey }),
+    // ส่งเฉพาะ field ที่เปลี่ยนจริงเท่านั้น — user เดิมที่ seed ไว้บางคนยังมีชื่อภาษาไทย (เช่น "เจ้าของร้าน")
+    // ถ้าส่ง name เดิมกลับไปทุกครั้งที่แก้ไข (แม้ไม่ได้ตั้งใจแก้ชื่อ) จะโดน regex ภาษาอังกฤษเท่านั้นปฏิเสธ
+    // (400) ทำให้แก้ email/role/สถานะไม่ได้เลยแม้ไม่เกี่ยวกับชื่อ — ต้องแก้ชื่อเป็นภาษาอังกฤษเองก่อนถึงจะแก้
+    // ชื่อได้ แต่ field อื่นแก้ได้อิสระโดยไม่ต้องยุ่งกับชื่อเดิม
+    mutationFn: () => {
+      const input: Record<string, string> = {};
+      if (email !== editingRecord!.email) input.email = email;
+      if (name !== editingRecord!.name) input.name = name;
+      if (roleKey !== editingRecord!.roleKey) input.roleKey = roleKey;
+      return userApi.update(branchId, editingRecord!.id, input);
+    },
     onSuccess: () => {
       setError(null);
       onSaved();
