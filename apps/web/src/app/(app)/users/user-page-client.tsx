@@ -286,8 +286,6 @@ function UserFormSheet({
               defaultValue={editingRecord?.name ?? ""}
               onChange={(e) => setName(e.target.value)}
               placeholder="เช่น John, Somchai"
-              pattern="[A-Za-z][A-Za-z0-9 ._'\-]*"
-              title="ภาษาอังกฤษเท่านั้น ขึ้นต้นด้วยตัวอักษร"
               className="h-11 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
             />
           </div>
