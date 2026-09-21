@@ -310,9 +310,8 @@ model Room {
   @@map("rooms")
 }
 
-/// หมวดบริการ — catalog แยกต่อสาขา เหมือน RoomType (ดู ADR-010/ADR-012) ยังไม่มี CRUD UI ของตัวเอง
-/// ใน T2.3 seed ค่าเริ่มต้นให้พอใช้งาน ฟอร์มสร้าง/แก้ไขบริการเลือกจาก dropdown ที่ดึงจาก
-/// GET /branches/:branchId/service-categories (read-only endpoint)
+/// หมวดบริการ — catalog แยกต่อสาขา เหมือน RoomType (ดู ADR-010/ADR-012/ADR-063)
+/// จัดการชื่อผ่าน CRUD และใช้ sortOrder เพื่อคงลำดับ โดยยังไม่มี UI reorder
 model ServiceCategory {
   id        String   @id @default(cuid())
   branchId  String

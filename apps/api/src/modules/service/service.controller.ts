@@ -32,8 +32,7 @@ const SERVICE_INCLUDE = { category: true, variants: true } as const;
 
 /**
  * บริการ (T2.3) — nested ใต้ /branches/:branchId/services เหมือนแพทเทิร์นของ RoomController (T2.2)
- * หมวดบริการ (ServiceCategory) เป็น catalog แยกต่อสาขา ยังไม่มี CRUD ของตัวเองใน Task นี้ — ดู
- * ServiceCategoryController สำหรับ endpoint อ่านอย่างเดียว
+ * หมวดบริการ (ServiceCategory) เป็น catalog แยกต่อสาขาและจัดการผ่าน ServiceCategoryController (ADR-063)
  *
  * ตัวเลือกเวลา (ServiceVariant) สร้างพร้อมบริการได้ในคำขอเดียว (ต้องมีอย่างน้อย 1 แบบ) และเพิ่ม/แก้
  * ทีหลังผ่าน /variants ต่อท้าย — ราคา/ค่ามือแก้ได้ตรง ๆ (UPDATE ปกติ ไม่ใช่ ledger เพราะยังไม่มีใบงาน

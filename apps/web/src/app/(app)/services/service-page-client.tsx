@@ -17,6 +17,7 @@ import { formatSatang } from "../../../lib/format-money";
 import { useCurrentBranch } from "../current-branch-context";
 import { hasPermission } from "../permissions";
 import { ServiceEditForm } from "./service-edit-form";
+import { ServiceCategoryManagerSheet } from "./service-category-manager-sheet";
 import { ServiceForm } from "./service-form";
 import { ServiceVariantForm } from "./service-variant-form";
 import { apiVariantToFormDefaults, EMPTY_VARIANT_FORM_VALUES } from "./variant-form-schema";
@@ -32,6 +33,7 @@ export function ServicePageClient() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("true");
   const [createOpen, setCreateOpen] = useState(false);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [detailServiceId, setDetailServiceId] = useState<string | null>(null);
   const [editingVariant, setEditingVariant] = useState<"new" | string | null>(null);
   const [confirmingDeactivateId, setConfirmingDeactivateId] = useState<string | null>(null);
@@ -198,9 +200,14 @@ export function ServicePageClient() {
           <p className="text-pretty mt-1 text-sm text-ink-muted">รายชื่อบริการและตัวเลือกเวลาของสาขา {branch.branchName}</p>
         </div>
         {canManage && (
-          <Button className="hidden md:inline-flex" onClick={() => setCreateOpen(true)}>
-            + เพิ่มบริการ
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setCategoryManagerOpen(true)}>
+              จัดการหมวดบริการ
+            </Button>
+            <Button className="hidden md:inline-flex" onClick={() => setCreateOpen(true)}>
+              + เพิ่มบริการ
+            </Button>
+          </div>
         )}
       </div>
 
@@ -309,6 +316,12 @@ export function ServicePageClient() {
           ))}
         />
       )}
+
+      <ServiceCategoryManagerSheet
+        open={categoryManagerOpen}
+        onClose={() => setCategoryManagerOpen(false)}
+        branchId={branch.branchId}
+      />
 
       <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title="เพิ่มบริการใหม่">
         <ServiceForm

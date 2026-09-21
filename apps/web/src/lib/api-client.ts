@@ -1,6 +1,7 @@
 import type {
   CreateRoomInput,
   CreateRoomTypeInput,
+  CreateServiceCategoryInput,
   CreateServiceInput,
   CreateServiceVariantInput,
   CreateShiftTemplateInput,
@@ -22,6 +23,7 @@ import type {
   StaffSkill,
   UpdateRoomInput,
   UpdateRoomTypeInput,
+  UpdateServiceCategoryInput,
   UpdateServiceInput,
   UpdateServiceVariantInput,
   UpdateShiftTemplateInput,
@@ -260,7 +262,7 @@ export const roomApi = {
     }),
 };
 
-/** ดู ServiceCategoryController — หมวดบริการ (catalog แยกต่อสาขา ไม่มี CRUD ของตัวเอง เหมือน RoomType) */
+/** ดู ServiceCategoryController — หมวดบริการแยกต่อสาขา */
 export interface ServiceCategory {
   id: string;
   branchId: string;
@@ -310,6 +312,20 @@ export interface ServiceListParams {
 export const serviceCategoryApi = {
   list: (branchId: string) =>
     apiFetch<ServiceCategory[]>(`/branches/${branchId}/service-categories`),
+  create: (branchId: string, input: CreateServiceCategoryInput) =>
+    apiFetch<ServiceCategory>(`/branches/${branchId}/service-categories`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  update: (branchId: string, serviceCategoryId: string, input: UpdateServiceCategoryInput) =>
+    apiFetch<ServiceCategory>(`/branches/${branchId}/service-categories/${serviceCategoryId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  remove: (branchId: string, serviceCategoryId: string) =>
+    apiFetch<{ ok: true }>(`/branches/${branchId}/service-categories/${serviceCategoryId}`, {
+      method: "DELETE",
+    }),
 };
 
 export const serviceApi = {

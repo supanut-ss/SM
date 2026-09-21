@@ -6,6 +6,16 @@ function emptyToUndefined(value: unknown): unknown {
   return typeof value === "string" && value.trim() === "" ? undefined : value;
 }
 
+export const createServiceCategorySchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกชื่อหมวดบริการ"),
+});
+
+export type CreateServiceCategoryInput = z.infer<typeof createServiceCategorySchema>;
+
+export const updateServiceCategorySchema = createServiceCategorySchema;
+
+export type UpdateServiceCategoryInput = z.infer<typeof updateServiceCategorySchema>;
+
 /** เงินทุกฟิลด์เก็บเป็น integer สตางค์เสมอ (ดู CLAUDE.md ข้อ 2) ห้ามใช้ float */
 function moneySatang(label: string) {
   return z.coerce

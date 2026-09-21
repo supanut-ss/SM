@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  createServiceCategorySchema,
   createServiceSchema,
   createServiceVariantSchema,
   updateServiceSchema,
   updateServiceVariantSchema,
 } from "./service.js";
+
+describe("service category schemas", () => {
+  it("trims a non-empty category name", () => {
+    expect(createServiceCategorySchema.parse({ name: "  นวด  " })).toEqual({ name: "นวด" });
+  });
+
+  it("rejects a blank category name", () => {
+    expect(createServiceCategorySchema.safeParse({ name: "   " }).success).toBe(false);
+  });
+});
 
 const validVariant = {
   durationMin: 60,
