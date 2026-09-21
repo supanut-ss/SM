@@ -32,9 +32,12 @@ describe("canTransitionAppointmentStatus", () => {
     expect(canTransitionAppointmentStatus("CONFIRMED", "NO_SHOW")).toBe(true);
   });
 
-  it("ห้ามยกเลิก/ไม่มา หลังเช็คอินแล้ว", () => {
-    expect(canTransitionAppointmentStatus("CHECKED_IN", "CANCELLED")).toBe(false);
+  it("ยกเลิกได้ถึงขั้นเช็คอินแล้ว (จองด่วนเริ่มที่ CHECKED_IN — ดู ADR-064) แต่ห้าม \"ไม่มา\" เพราะมาจริงแล้ว", () => {
+    expect(canTransitionAppointmentStatus("CHECKED_IN", "CANCELLED")).toBe(true);
     expect(canTransitionAppointmentStatus("CHECKED_IN", "NO_SHOW")).toBe(false);
+  });
+
+  it("ห้ามยกเลิก/ไม่มา หลังเริ่มบริการแล้ว (IN_SERVICE)", () => {
     expect(canTransitionAppointmentStatus("IN_SERVICE", "CANCELLED")).toBe(false);
     expect(canTransitionAppointmentStatus("IN_SERVICE", "NO_SHOW")).toBe(false);
   });

@@ -169,8 +169,23 @@ describe("Appointment item status transitions (real Postgres via Testcontainers)
     expect(res.body.message).toContain("กำลังบริการ");
   });
 
-  it("ยกเลิกนัดหลังเช็คอินแล้วต้องได้ 422 (ยกเลิกได้เฉพาะก่อนเช็คอิน)", async () => {
+  it("ยกเลิกนัดที่เช็คอินแล้ว (แต่ยังไม่เริ่มบริการ) ได้ — จองด่วนเริ่มที่ CHECKED_IN ทันที ต้องแก้ผิดพลาดได้ (ADR-064)", async () => {
     const item = await createItem("CHECKED_IN");
+    const res = await request(app.getHttpServer())
+      .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
+      .set("Cookie", managerCookies)
+      .send({ status: "CANCELLED" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("CANCELLED");
+  });
+
+  it("ยกเลิกนัดที่เริ่มบริการแล้ว (IN_SERVICE) ต้องได้ 422", async () => {
+    const item = await createItem("CHECKED_IN");
+    await request(app.getHttpServer())
+      .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
+      .set("Cookie", managerCookies)
+      .send({ status: "IN_SERVICE", paymentMethod: "CASH" });
+
     const res = await request(app.getHttpServer())
       .patch(`/branches/${branchId}/appointment-items/${item.id}/status`)
       .set("Cookie", managerCookies)

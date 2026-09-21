@@ -26,13 +26,16 @@ export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
 
 // กติกาการข้ามสถานะ (T4.3) — เส้นทางหลัก BOOKED → CONFIRMED → CHECKED_IN → IN_SERVICE → COMPLETED
 // ลัดได้ BOOKED → CHECKED_IN ตรง ๆ (ลูกค้า walk-in ไม่ต้องผ่านขั้นยืนยัน ดู docs/PLAN.md T4.6)
-// ยกเลิก/ไม่มา ทำได้เฉพาะ "ก่อนเช็คอิน" เท่านั้น (BOOKED/CONFIRMED) — เช็คอินแล้วถือว่าลูกค้ามาจริงแล้ว
-// ไม่มีทางย้อนสถานะกลับ (เช่น COMPLETED → IN_SERVICE) และสถานะปลายทาง (COMPLETED/NO_SHOW/CANCELLED)
-// ไปต่อไม่ได้อีกเลย — ดู docs/decisions.md ADR-021
+// ยกเลิก (ไม่ใช่ "ไม่มา") ทำได้ถึงขั้น CHECKED_IN ด้วย — จองด่วน (T4.6) เริ่มที่ CHECKED_IN ทันทีอยู่แล้ว
+// (ลูกค้ายืนอยู่หน้าร้าน) ถ้าพนักงานกดผิดบริการ/ผิดคนตอนนั้น หรือลูกค้าเปลี่ยนใจก่อนเริ่มบริการจริง ต้องมีทาง
+// ยกเลิกได้ — เดิม ADR-021 ปิดไว้ทั้งคู่เพราะคิดแค่เคส BOOKED→CONFIRMED→CHECKED_IN ปกติที่ "เช็คอินแล้วแปลว่า
+// มาจริง" ไม่ได้คำนึงว่า walk-in เริ่มที่ CHECKED_IN เป็นค่าเริ่มต้น ดู docs/decisions.md ADR-064 ที่แก้ไข
+// "ไม่มา" (NO_SHOW) ยังปิดไว้เหมือนเดิม — เช็คอินแล้วแปลว่ามาจริง ไม่มีทาง "ไม่มา" ได้อีก ไม่มีทางย้อนสถานะกลับ
+// (เช่น COMPLETED → IN_SERVICE) และสถานะปลายทาง (COMPLETED/NO_SHOW/CANCELLED) ไปต่อไม่ได้อีกเลย
 const APPOINTMENT_TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
   BOOKED: ["CONFIRMED", "CHECKED_IN", "NO_SHOW", "CANCELLED"],
   CONFIRMED: ["CHECKED_IN", "NO_SHOW", "CANCELLED"],
-  CHECKED_IN: ["IN_SERVICE"],
+  CHECKED_IN: ["IN_SERVICE", "CANCELLED"],
   IN_SERVICE: ["COMPLETED"],
   COMPLETED: [],
   NO_SHOW: [],
