@@ -32,11 +32,13 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="grid gap-4">
       <div className="grid gap-1.5">
-        <Label htmlFor="email">อีเมล</Label>
+        <Label htmlFor="email">อีเมลหรือชื่อผู้ใช้</Label>
+        {/* type="text" ไม่ใช่ "email" — เข้าด้วยชื่อผู้ใช้ก็ได้แล้ว (ดู docs/decisions.md ADR-065) ฟิลด์
+            "email" ในคำขอ API คงชื่อเดิมไว้แม้ค่าจะเป็นชื่อผู้ใช้ก็ได้ (ดูเหตุผลใน packages/contracts/src/auth.ts) */}
         <Input
           id="email"
           name="email"
-          type="email"
+          type="text"
           autoComplete="username"
           required
           value={email}

@@ -122,10 +122,7 @@ export class BranchController {
       });
       return { id: user.id, email: user.email, name: user.name, roleKey: role.key, roleName: role.name };
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        throw new ConflictException("อีเมลนี้มีผู้ใช้อยู่แล้วในระบบ");
-      }
-      throw err;
+      throw this.mapUserUniqueConflict(err);
     }
   }
 
@@ -194,11 +191,24 @@ export class BranchController {
         roleName: finalUserBranch?.role.name,
       };
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        throw new ConflictException("อีเมลนี้มีผู้ใช้อยู่แล้วในระบบ");
-      }
-      throw err;
+      throw this.mapUserUniqueConflict(err);
     }
+  }
+
+  /**
+   * User.email และ User.name เป็น unique field แยกกัน (name ใช้ login แทนอีเมลได้ตาม ADR-065) —
+   * P2002 บอกได้ว่าชนกับ field ไหนผ่าน err.meta.target เอาไปทำข้อความ error ที่บอกสาเหตุจริงแทนเดาสุ่ม
+   */
+  private mapUserUniqueConflict(err: unknown): Error {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const target = err.meta?.target;
+      const fields = Array.isArray(target) ? target : typeof target === "string" ? [target] : [];
+      if (fields.includes("name")) {
+        return new ConflictException("มีผู้ใช้ชื่อนี้อยู่แล้วในระบบ — ชื่อต้องไม่ซ้ำเพราะใช้ login แทนอีเมลได้ด้วย");
+      }
+      return new ConflictException("อีเมลนี้มีผู้ใช้อยู่แล้วในระบบ");
+    }
+    return err as Error;
   }
 
   @Patch(":branchId")

@@ -1,7 +1,10 @@
 import { z } from "zod";
 
+// field ชื่อ "email" คงไว้ตามเดิมแม้จะรับชื่อผู้ใช้ได้ด้วยแล้ว (ดู docs/decisions.md ADR-065) — เปลี่ยนชื่อ
+// field เป็น "identifier" จะกระทบ e2e spec ~30 ไฟล์ที่ยิง POST /auth/login ตรง ๆ โดยไม่จำเป็น เลือกรับทั้ง
+// อีเมลและชื่อผู้ใช้ในช่องเดิมแทน (backend ลองหาด้วย email ก่อน ถ้าไม่เจอค่อยลองด้วย name)
 export const loginSchema = z.object({
-  email: z.string().email("อีเมลไม่ถูกต้อง"),
+  email: z.string().min(1, "กรุณากรอกอีเมลหรือชื่อผู้ใช้"),
   password: z.string().min(8, "รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร"),
 });
 

@@ -81,8 +81,15 @@ export class AuthService {
     private readonly config: ConfigService<Env, true>,
   ) {}
 
-  async validateCredentials(email: string, password: string): Promise<User | null> {
-    const user = await this.prisma.client.user.findUnique({ where: { email } });
+  /**
+   * รับได้ทั้งอีเมลและชื่อผู้ใช้ (User.name) ในพารามิเตอร์เดียวกัน (ดู docs/decisions.md ADR-065) — ลองหา
+   * ด้วยอีเมลก่อนเสมอ (ส่วนใหญ่ยัง login ด้วยอีเมล) เจอแล้วไม่ต้อง query ซ้ำด้วยชื่อ ไม่เจอค่อยลองด้วยชื่อ
+   * ทั้งสอง field unique อยู่แล้วในสคีมา ไม่มีทาง match ผิดคนได้
+   */
+  async validateCredentials(identifier: string, password: string): Promise<User | null> {
+    const user =
+      (await this.prisma.client.user.findUnique({ where: { email: identifier } })) ??
+      (await this.prisma.client.user.findUnique({ where: { name: identifier } }));
     if (!user || !user.isActive || !user.passwordHash) {
       return null;
     }

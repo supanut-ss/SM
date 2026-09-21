@@ -270,13 +270,16 @@ function UserFormSheet({
           )}
           <div className="grid gap-1.5">
             <label htmlFor="user-name" className="text-xs font-medium text-ink-muted">
-              ชื่อ
+              ชื่อ (ภาษาอังกฤษเท่านั้น — ใช้เข้าสู่ระบบแทนอีเมลได้ด้วย)
             </label>
             <input
               id="user-name"
               defaultValue={editingRecord?.name ?? ""}
               onChange={(e) => setName(e.target.value)}
-              className="h-11 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
+              placeholder="เช่น John, Somchai"
+              pattern="[A-Za-z][A-Za-z0-9 ._'\-]*"
+              title="ภาษาอังกฤษเท่านั้น ขึ้นต้นด้วยตัวอักษร"
+              className="h-11 rounded-DEFAULT border border-line-strong bg-surface px-3 text-base text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon focus-visible:ring-offset-1 lg:h-9 lg:text-sm"
             />
           </div>
           <div className="grid gap-1.5">

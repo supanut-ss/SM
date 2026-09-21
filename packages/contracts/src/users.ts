@@ -5,11 +5,20 @@ import { ROLE_DEFINITIONS } from "./permissions.js";
 // กันพิมพ์ผิด/ส่ง key ที่ไม่มีจริงมาได้ตั้งแต่ระดับ validation
 const ROLE_KEYS = ROLE_DEFINITIONS.map((r) => r.key) as [string, ...string[]];
 
+// User.name ตอนนี้ใช้ login แทนอีเมลได้ด้วย (ดู docs/decisions.md ADR-065) และ unique ในสคีมาแล้ว — บังคับ
+// ภาษาอังกฤษล้วนที่นี่ (ไม่ใช่ที่ DB) กันสับสนกับ "ชื่อพนักงาน" (StaffProfile.name) ที่เป็นคนละ entity ยังใช้
+// ภาษาไทยได้ตามปกติ ตัวอักษร/ตัวเลข/เว้นวรรค/จุด/ขีดกลาง/อะพอสทรอฟี เท่านั้น ขึ้นต้นด้วยตัวอักษรเสมอ
+const USER_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9 ._'-]*$/;
+const userNameSchema = z
+  .string()
+  .min(1, "กรุณากรอกชื่อ")
+  .regex(USER_NAME_PATTERN, "ชื่อต้องเป็นภาษาอังกฤษเท่านั้น (A-Z, ตัวเลข, เว้นวรรค) และขึ้นต้นด้วยตัวอักษร");
+
 // สร้าง user ใหม่ให้สังกัดสาขาปัจจุบันทันที (T-ADR-060) — เกทด้วย settings:manage (owner เท่านั้น
 // เหมือน resetUserPasswordSchema) ดู docs/decisions.md ADR-060
 export const createUserSchema = z.object({
   email: z.string().email("อีเมลไม่ถูกต้อง"),
-  name: z.string().min(1, "กรุณากรอกชื่อ"),
+  name: userNameSchema,
   password: z.string().min(8, "รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร"),
   roleKey: z.enum(ROLE_KEYS, { message: "บทบาทไม่ถูกต้อง" }),
 });
@@ -23,7 +32,7 @@ export type CreateUserInput = z.infer<typeof createUserSchema>;
 export const updateUserSchema = z
   .object({
     email: z.string().email("อีเมลไม่ถูกต้อง").optional(),
-    name: z.string().min(1, "กรุณากรอกชื่อ").optional(),
+    name: userNameSchema.optional(),
     roleKey: z.enum(ROLE_KEYS, { message: "บทบาทไม่ถูกต้อง" }).optional(),
     isActive: z.boolean().optional(),
   })

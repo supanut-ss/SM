@@ -112,7 +112,7 @@ describe("User CRUD (real Postgres via Testcontainers)", () => {
     const res = await request(app.getHttpServer())
       .post(`/branches/${branchId}/users`)
       .set("Cookie", managerCookies)
-      .send({ email: "blocked@lotusdesk.local", name: "ถูกบล็อก", password: "Password123!", roleKey: "staff" });
+      .send({ email: "blocked@lotusdesk.local", name: "BlockedUser", password: "Password123!", roleKey: "staff" });
     expect(res.status).toBe(403);
   });
 
@@ -120,7 +120,7 @@ describe("User CRUD (real Postgres via Testcontainers)", () => {
     const res = await request(app.getHttpServer())
       .post(`/branches/${branchId}/users`)
       .set("Cookie", ownerCookies)
-      .send({ email: "badrole@lotusdesk.local", name: "บทบาทผิด", password: "Password123!", roleKey: "ghost" });
+      .send({ email: "badrole@lotusdesk.local", name: "BadRoleUser", password: "Password123!", roleKey: "ghost" });
     expect(res.status).toBe(400); // zod enum ปฏิเสธ roleKey ที่ไม่รู้จักตั้งแต่ validation แล้ว ไม่ถึง backend
   });
 
@@ -132,7 +132,7 @@ describe("User CRUD (real Postgres via Testcontainers)", () => {
       .set("Cookie", ownerCookies)
       .send({
         email: "newstaff-usercrud@lotusdesk.local",
-        name: "พนักงานใหม่",
+        name: "NewStaff",
         password: "Password123!",
         roleKey: "staff",
       });
@@ -153,7 +153,7 @@ describe("User CRUD (real Postgres via Testcontainers)", () => {
       .set("Cookie", ownerCookies)
       .send({
         email: "newstaff-usercrud@lotusdesk.local",
-        name: "ซ้ำ",
+        name: "DuplicateEmailUser",
         password: "Password123!",
         roleKey: "staff",
       });
@@ -164,9 +164,9 @@ describe("User CRUD (real Postgres via Testcontainers)", () => {
     const res = await request(app.getHttpServer())
       .patch(`/branches/${branchId}/users/${createdUserId}`)
       .set("Cookie", ownerCookies)
-      .send({ name: "พนักงานใหม่ (เลื่อนขั้น)", roleKey: "cashier" });
+      .send({ name: "NewStaffPromoted", roleKey: "cashier" });
     expect(res.status).toBe(200);
-    expect(res.body.name).toBe("พนักงานใหม่ (เลื่อนขั้น)");
+    expect(res.body.name).toBe("NewStaffPromoted");
     expect(res.body.roleKey).toBe("cashier");
   });
 
@@ -195,7 +195,7 @@ describe("User CRUD (real Postgres via Testcontainers)", () => {
     const res = await request(app.getHttpServer())
       .patch(`/branches/${otherBranchId}/users/${createdUserId}`)
       .set("Cookie", otherOwnerCookies)
-      .send({ name: "ไม่ควรแก้ได้" });
+      .send({ name: "ShouldNotEdit" });
     expect(res.status).toBe(404);
   });
 
@@ -235,5 +235,51 @@ describe("User CRUD (real Postgres via Testcontainers)", () => {
       .get(`/branches/${branchId}/users?isActive=all`)
       .set("Cookie", ownerCookies);
     expect(allList.body.some((u: { id: string }) => u.id === createdUserId)).toBe(true);
+  });
+
+  // ครอบ ADR-065 — login ด้วยชื่อผู้ใช้แทนอีเมลได้, ชื่อต้องไม่ซ้ำ (unique จริงในสคีมา), ชื่อต้องเป็น
+  // ภาษาอังกฤษเท่านั้นตั้งแต่ระดับ validation
+  it("login ด้วยชื่อผู้ใช้ (ไม่ใช่อีเมล) ได้ด้วย", async () => {
+    const createRes = await request(app.getHttpServer())
+      .post(`/branches/${branchId}/users`)
+      .set("Cookie", ownerCookies)
+      .send({
+        email: "loginbyname@lotusdesk.local",
+        name: "LoginByNameUser",
+        password: "Password123!",
+        roleKey: "staff",
+      });
+    expect(createRes.status).toBe(201);
+
+    const login = await request(app.getHttpServer())
+      .post("/auth/login")
+      .send({ email: "LoginByNameUser", password: "Password123!" });
+    expect(login.status).toBe(200);
+  });
+
+  it("สร้าง user ด้วยชื่อซ้ำ (คนละอีเมล) ต้องได้ 409", async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/branches/${branchId}/users`)
+      .set("Cookie", ownerCookies)
+      .send({
+        email: "different-email@lotusdesk.local",
+        name: "LoginByNameUser",
+        password: "Password123!",
+        roleKey: "staff",
+      });
+    expect(res.status).toBe(409);
+  });
+
+  it("สร้าง user ด้วยชื่อภาษาไทย ต้องได้ 400", async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/branches/${branchId}/users`)
+      .set("Cookie", ownerCookies)
+      .send({
+        email: "thainame@lotusdesk.local",
+        name: "สมชาย",
+        password: "Password123!",
+        roleKey: "staff",
+      });
+    expect(res.status).toBe(400);
   });
 });

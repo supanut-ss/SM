@@ -107,7 +107,9 @@ model User {
   pinFailedAttempts Int       @default(0)
   /// ไม่ null แปลว่าโดนล็อกอยู่ — ปลดล็อกอัตโนมัติเมื่อเวลาปัจจุบันผ่านค่านี้ไปแล้ว
   pinLockedUntil    DateTime? @db.Timestamptz
-  name              String
+  /// unique เพราะใช้ login แทนอีเมลได้ด้วย (ดู docs/decisions.md ADR-065) — ต้องเป็นภาษาอังกฤษล้วน
+  /// (บังคับที่ createUserSchema/updateUserSchema ไม่ใช่ที่ DB) กันชนกับชื่อไทยที่มีอยู่เดิมของ StaffProfile
+  name              String    @unique
   isActive          Boolean   @default(true)
   createdAt         DateTime  @default(now()) @db.Timestamptz
   updatedAt         DateTime  @updatedAt @db.Timestamptz
