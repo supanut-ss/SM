@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const ACCESS_TOKEN_COOKIE = "access_token";
 // /403 ต้องเข้าได้เสมอแม้ไม่มี cookie เลย — เป็นหน้าอธิบายเหตุผล ไม่ใช่หน้าที่ต้อง login ก่อนถึงจะเห็น
-const PUBLIC_PATHS = ["/login", "/403"];
+const PUBLIC_PATHS = ["/login", "/403", "/welcome"];
 
 /**
  * เช็คแค่ "มี cookie access_token ไหม" (เร็ว รันบน edge ได้) เพื่อกันหน้าตาเปล่า ๆ ก่อน redirect
@@ -18,6 +18,10 @@ export function middleware(request: NextRequest) {
   }
 
   const hasSession = request.cookies.has(ACCESS_TOKEN_COOKIE);
+  // หน้าแรกของคนที่ยังไม่ล็อกอิน = หน้าแนะนำฟีเจอร์ (rewrite คง URL เป็น "/") คนที่ล็อกอินแล้วเห็นแดชบอร์ดเหมือนเดิม
+  if (!hasSession && pathname === "/") {
+    return NextResponse.rewrite(new URL("/welcome", request.url));
+  }
   if (!hasSession) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
