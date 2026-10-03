@@ -226,14 +226,14 @@ describe("createAdvanceAppointmentSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("ปฏิเสธเวลาที่เป็นอดีต", () => {
+  it("รับเวลาที่เป็นอดีต (บันทึกย้อนหลัง)", () => {
     const result = createAdvanceAppointmentSchema.safeParse({
       serviceVariantId: "variant_1",
       staffId: "staff_1",
       roomId: "room_1",
       startAt: isoInDays(-1),
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it(`ปฏิเสธเวลาที่เกิน ${ADVANCE_BOOKING_MAX_DAYS} วันข้างหน้า`, () => {

@@ -130,10 +130,7 @@ export const createAdvanceAppointmentSchema = z
     startAt: z.coerce.date(),
     memberId: z.string().optional(),
   })
-  .refine((v) => v.startAt.getTime() > Date.now(), {
-    message: "เวลานัดต้องเป็นเวลาในอนาคต",
-    path: ["startAt"],
-  })
+  // ไม่จำกัดเวลาในอดีต — อนุญาตบันทึกนัดย้อนหลังได้ (ADR-066) จำกัดเฉพาะขอบบนเท่านั้น
   .refine((v) => v.startAt.getTime() <= Date.now() + ADVANCE_BOOKING_MAX_DAYS * 24 * 60 * 60 * 1000, {
     message: `จองล่วงหน้าได้ไม่เกิน ${ADVANCE_BOOKING_MAX_DAYS} วัน`,
     path: ["startAt"],

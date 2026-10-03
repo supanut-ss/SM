@@ -9,7 +9,7 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testconta
  *   pnpm --filter @lotus-desk/api test:e2e
  *
  * ครอบเกณฑ์ผ่านของ T4.7 "จองล่วงหน้า": สร้างนัดได้ด้วยพนักงาน/ห้อง/เวลาที่เลือกเอง (assignType
- * CUSTOMER_REQUEST, สถานะเริ่มต้น BOOKED), ปฏิเสธเวลาที่เกิน 7 วันข้างหน้าหรือเป็นอดีต, ปฏิเสธพนักงานที่ไม่มี
+ * CUSTOMER_REQUEST, สถานะเริ่มต้น BOOKED), ปฏิเสธเวลาที่เกิน 7 วันข้างหน้า (อดีตบันทึกย้อนหลังได้), ปฏิเสธพนักงานที่ไม่มี
  * ทักษะ/ห้องผิดประเภท, ปฏิเสธเวลาที่ชนกับนัดเดิมของพนักงาน/ห้องเดียวกัน (DB exclusion constraint)
  */
 describe("Advance booking (real Postgres via Testcontainers)", () => {
@@ -164,7 +164,7 @@ describe("Advance booking (real Postgres via Testcontainers)", () => {
     expect(res.status).toBe(400);
   });
 
-  it("เวลาเป็นอดีต ต้องได้ 400", async () => {
+  it("เวลาเป็นอดีต บันทึกย้อนหลังได้ (201)", async () => {
     const staff = await createStaff("พนักงานเวลาอดีต");
     const room = await createRoom("ห้องเวลาอดีต");
     const variant = await createServiceVariant(60);
@@ -179,7 +179,7 @@ describe("Advance booking (real Postgres via Testcontainers)", () => {
         startAt: inDays(-1).toISOString(),
       });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
   });
 
   it("พนักงานไม่มีทักษะที่ต้องใช้ ต้องได้ 422", async () => {

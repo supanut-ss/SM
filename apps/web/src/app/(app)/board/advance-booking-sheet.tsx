@@ -25,6 +25,15 @@ function formatDateTime(iso: string): string {
   });
 }
 
+// 400 จาก ZodValidationPipe แนบ issues[] มา — แสดงข้อความจริง (เช่น "เวลานัดต้องเป็นเวลาในอนาคต")
+// แทนคำกว้าง ๆ ว่า "ข้อมูลไม่ถูกต้อง"
+function describeError(err: unknown): string {
+  if (!(err instanceof ApiError)) return "จองล่วงหน้าไม่สำเร็จ กรุณาลองใหม่";
+  const issues = (err.body as { issues?: { message?: unknown }[] } | undefined)?.issues;
+  const first = issues?.find((i) => typeof i.message === "string")?.message;
+  return typeof first === "string" ? first : err.message;
+}
+
 /**
  * จองล่วงหน้า (T4.7) — ต่างจากจองด่วน (WalkInSheet) ตรงที่ผู้ใช้เลือกวัน/เวลา/พนักงาน/ห้องเอง แทนที่ระบบจะ
  * เลือกให้จากคิวหมุน รับจองล่วงหน้าได้สูงสุด ADVANCE_BOOKING_MAX_DAYS วัน (ดู docs/DOMAIN.md ข้อ 4,
@@ -54,7 +63,6 @@ export function AdvanceBookingSheet({
 
   // ใช้ useState(() => ...) แทนเรียกตรง ๆ ตอน render — Date.now()/new Date() impure ต้องกันไม่ให้รันซ้ำ
   // ทุกครั้งที่ re-render (react-hooks/purity) ค่านี้ไม่จำเป็นต้องอัปเดตระหว่างที่ชีทเปิดค้างอยู่อยู่แล้ว
-  const [minDate] = useState(() => toDateKey(new Date()));
   const [maxDate] = useState(() =>
     toDateKey(new Date(Date.now() + ADVANCE_BOOKING_MAX_DAYS * 24 * 60 * 60 * 1000)),
   );
@@ -122,7 +130,7 @@ export function AdvanceBookingSheet({
       onBooked();
       handleClose(item);
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "จองล่วงหน้าไม่สำเร็จ กรุณาลองใหม่"),
+    onError: (err) => setError(describeError(err)),
   });
 
   const [confirmed, setConfirmed] = useState<AppointmentItem | null>(null);
@@ -183,8 +191,8 @@ export function AdvanceBookingSheet({
       {!confirmingClose && !confirmed && (
         <div className="grid gap-4">
           <p className="text-pretty text-sm text-ink-muted">
-            เลือกบริการ พนักงาน ห้อง วันและเวลาที่ต้องการเอง — รับจองล่วงหน้าได้ไม่เกิน{" "}
-            {ADVANCE_BOOKING_MAX_DAYS} วัน
+            เลือกบริการ พนักงาน ห้อง วันและเวลาที่ต้องการเอง — จองล่วงหน้าได้ไม่เกิน{" "}
+            {ADVANCE_BOOKING_MAX_DAYS} วัน และบันทึกย้อนหลังได้
           </p>
           {error && (
             <p role="alert" className="text-pretty rounded-DEFAULT bg-rose-tint px-3 py-2 text-sm text-rose">
@@ -258,7 +266,6 @@ export function AdvanceBookingSheet({
               <input
                 id="advance-date"
                 type="date"
-                min={minDate}
                 max={maxDate}
                 value={dateValue}
                 onChange={(e) => setDateValue(e.target.value)}
