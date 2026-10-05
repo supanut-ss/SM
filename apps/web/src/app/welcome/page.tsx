@@ -70,15 +70,15 @@ export default function WelcomePage() {
               </div>
             </div>
 
-            <ul aria-label="ตัวอย่างหน้าจอ" className="mx-auto flex w-full max-w-md items-start justify-center gap-3">
+            <ul aria-label="ตัวอย่างหน้าจอ" className="mx-auto flex w-full max-w-xl items-start justify-center gap-4">
               {SCREENS.map((screen) => (
                 <li key={screen.src} className={`w-1/3 ${screen.offset}`}>
                   <Image
                     src={screen.src}
                     alt={screen.alt}
                     width={720}
-                    height={1141}
-                    className="h-auto w-full rounded-lg shadow-pop"
+                    height={1192}
+                    className="aspect-[720/1192] h-auto w-full rounded-lg object-cover object-top shadow-pop"
                     priority
                     unoptimized
                   />
