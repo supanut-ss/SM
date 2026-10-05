@@ -107,12 +107,6 @@ export default function WelcomePage() {
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-sm text-ink-muted">
           <span>Sabaizy — สำหรับพนักงานที่มีบัญชีผู้ใช้ ติดต่อเจ้าของร้านหากยังไม่มีบัญชี</span>
-          <Link
-            href="/login"
-            className="rounded-DEFAULT px-2 py-2 font-medium text-celadon hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celadon"
-          >
-            เข้าสู่ระบบ
-          </Link>
         </div>
       </footer>
     </div>
